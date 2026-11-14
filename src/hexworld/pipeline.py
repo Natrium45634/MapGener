@@ -16,12 +16,13 @@ import hashlib
 import json
 import time
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import numpy as np
 
 from .config import Config
 from .geometry import WorldGeometry, resolve_geometry
+from .pipeline_v2 import run_v2
 from .project import Project
 from .rng import Stream
 from .stages import raster as raster_stage
@@ -31,8 +32,13 @@ from .stages.fields import compute_fields, hex_boundary_type
 from .stages.motion import build_motion
 from .stages.plates import SIZE_CLASSES, build_plate_model
 from .stages.reference import build_reference_grid, reference_adjacency
-from .stages.validate import validate_project
+from .stages.validate import validate_geo, validate_project
 from .version import ALGORITHM_VERSION, PRNG_VERSION
+
+
+class GenerationCancelled(Exception):
+    """Raised by a progress callback to abort a run without touching existing data."""
+
 
 STAGES = ("plates", "crust", "motion", "raster", "boundary_edges", "tectonic_fields")
 Progress = Callable[[str, float], None]
@@ -189,12 +195,60 @@ def _reference_stats(ref, count: int):
     return n_sim * cell, frac, cx, cy
 
 
+def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_total) -> Project:
+    """Keep every v1.0 object of ``base`` and (re)run only the v2.0 stages."""
+    old_geo_warnings = set(base.geo.warnings) if base.geo is not None else set()
+    project = replace(
+        base,
+        config=config,
+        geometry=geometry,
+        geo=None,
+        warnings=[w for w in base.warnings if w not in old_geo_warnings],
+        timings={},
+        stats=dict(base.stats, reused_stages=list(STAGES)),
+        cache=dict(base.cache),
+    )
+    if through == "v2":
+        geo, geo_cache, geo_reused = run_v2(
+            config,
+            geometry,
+            keys,
+            base.plate_model,
+            base.crust_model,
+            base.motion,
+            base.layers["plate_id"],
+            base.geo.stage_keys if base.geo is not None else {},
+            base.cache,
+            base.geo,
+            report,
+        )
+        project.geo = geo
+        project.cache.update(geo_cache)
+        project.stats["reused_stages"] = list(STAGES) + geo_reused
+        project.timings.update(geo.timings)
+        report("validate", 0.98)
+        geo.validation = validate_geo(project)
+        project.warnings.extend(geo.warnings)
+    project.timings["total"] = round(time.perf_counter() - t_total, 4)
+    report("done", 1.0)
+    return project
+
+
 def generate(
     config: Config,
     progress: Progress | None = None,
     reuse: Project | None = None,
+    through: str = "v2",
 ) -> Project:
-    """Run the pipeline. ``reuse`` lets unchanged stages be taken from a previous project."""
+    """Run the pipeline. ``reuse`` lets unchanged stages be taken from a previous project.
+
+    ``through="v1"`` stops after the tectonic foundation; the default also runs
+    the v2.0 stages (continental blocks, macro relief, sea level and landmasses).
+    A ``progress`` callback may raise :class:`GenerationCancelled` to abort; the
+    project passed as ``reuse`` is never modified.
+    """
+    if through not in ("v1", "v2"):
+        raise ValueError('through must be "v1" or "v2"')
     report = progress or (lambda stage, fraction: None)
     timings: dict[str, float] = {}
     t_total = time.perf_counter()
@@ -204,6 +258,11 @@ def generate(
     old_keys = reuse.stage_keys if reuse is not None else {}
     old = reuse.cache if reuse is not None else {}
     reused: list[str] = []
+
+    if reuse is not None and all(old_keys.get(k) == v for k, v in keys.items()):
+        # The whole v1.0 part is unchanged (e.g. a loaded v1 project, or only v2 / sea
+        # parameters were edited): its arrays are taken as they are, never recomputed.
+        return _extend_with_v2(config, geometry, keys, reuse, through, report, t_total)
 
     def fresh(stage: str) -> bool:
         if old_keys.get(stage) == keys[stage] and stage in old:
@@ -252,7 +311,7 @@ def generate(
     cont_frac = np.where(np.isnan(cont_frac), site_crust.astype(np.float64), cont_frac)
 
     # -- motion -------------------------------------------------------------
-    report("motion", 0.22)
+    report("motion", 0.17)
     t0 = time.perf_counter()
     if fresh("motion"):
         motion = build_motion(config, plate_model.sites, 1.0 - cont_frac, area)
@@ -262,12 +321,12 @@ def generate(
     timed("motion", t0)
 
     # -- raster: sample the world models on the (padded) hex grid ------------
-    report("raster", 0.28)
+    report("raster", 0.20)
     t0 = time.perf_counter()
     if fresh("raster"):
         px, py = padded.centers()
         plate_pad = plate_model.plate_at(px, py)
-        report("raster", 0.5)
+        report("raster", 0.40)
         plate_pad, orphans = raster_stage.absorb_orphans(plate_pad, padded)
         cont_pad = crust_model.continentality(px, py).astype(np.float32)
         raster = (plate_pad, cont_pad, orphans)
@@ -279,7 +338,7 @@ def generate(
     timed("raster", t0)
 
     # -- boundary edges -----------------------------------------------------
-    report("boundary_edges", 0.68)
+    report("boundary_edges", 0.56)
     t0 = time.perf_counter()
     if fresh("boundary_edges"):
         edges_pad = extract_boundaries(
@@ -291,7 +350,7 @@ def generate(
     timed("boundary_edges", t0)
 
     # -- tectonic fields ----------------------------------------------------
-    report("tectonic_fields", 0.76)
+    report("tectonic_fields", 0.62)
     t0 = time.perf_counter()
     if fresh("tectonic_fields"):
         fields_pad = compute_fields(edges_pad, padded, config.fields)
@@ -301,7 +360,7 @@ def generate(
     timed("tectonic_fields", t0)
 
     # -- crop to the viewport and assemble -----------------------------------
-    report("assemble", 0.93)
+    report("assemble", 0.76)
     t0 = time.perf_counter()
     crop = (slice(pad, pad + layout.height), slice(pad, pad + layout.width))
     plate_id = np.ascontiguousarray(plate_pad[crop]).astype(np.int32)
@@ -397,10 +456,32 @@ def generate(
     )
     timed("assemble", t0)
 
-    report("validate", 0.96)
+    if through == "v2":
+        geo, geo_cache, geo_reused = run_v2(
+            config,
+            geometry,
+            keys,
+            plate_model,
+            crust_model,
+            motion,
+            plate_id,
+            reuse.geo.stage_keys if reuse is not None and reuse.geo is not None else {},
+            old,
+            reuse.geo if reuse is not None else None,
+            report,
+        )
+        project.geo = geo
+        cache.update(geo_cache)
+        reused.extend(geo_reused)
+        timings.update(geo.timings)
+
+    report("validate", 0.98)
     t0 = time.perf_counter()
     project.validation = validate_project(project)
     project.warnings.extend(project.validation["warnings"])
+    if project.geo is not None:
+        project.geo.validation = validate_geo(project)
+        project.warnings.extend(project.geo.warnings)
     if project.stats["plates_visible"] < 2:
         project.warnings.append(
             "Only one plate is visible: there are no boundaries in this window."

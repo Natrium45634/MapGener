@@ -25,22 +25,29 @@ import scipy
 from .config import Config
 from .geometry import resolve_geometry
 from .pipeline import _pad_hexes, _reference_stats, stage_keys, world_id_from_keys
-from .project import LAYER_SPECS, Project
+from .pipeline_v2 import v2_stage_keys
+from .project import GEO_LAYER_SPECS, LAYER_SPECS, GeoData, Project
 from .stages.boundaries import TYPE_NAMES, BoundaryEdges
 from .stages.crust import CRUST_NAMES, build_crust_model
 from .stages.motion import PlateMotion
 from .stages.plates import build_plate_model
 from .stages.reference import build_reference_grid
-from .stages.validate import validate_project
+from .stages.validate import validate_geo, validate_project
 from .version import (
     ALGORITHM_VERSION,
+    CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
     GENERATOR_VERSION,
     PRNG_VERSION,
     SCHEMA_VERSION,
+    SUPPORTED_SCHEMAS,
 )
 
 DATA_FILES = ("config.json", "plates.json", "fields.npz", "boundaries.npz", "boundaries.json")
+#: v1.0 source data that a later stage must never rewrite.
+V1_DATA_FILES = ("plates.json", "fields.npz", "boundaries.npz", "boundaries.json")
+#: v2.0 data lives in its own files.
+V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 
 BOUNDARY_SCHEMA = {
     "col_a/row_a": "int32 - offset coords of the hex on the plate_a side",
@@ -76,29 +83,7 @@ def _write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def save_project(project: Project, path: str | Path, overwrite: bool = True) -> Path:
-    """Save ``project`` into directory ``path``.
-
-    If the directory already holds the very same geology (equal geology hash),
-    the data files are left untouched - re-rendering never rewrites source data.
-    """
-    path = Path(path)
-    manifest_path = path / "manifest.json"
-    geology_hash = project.geology_hash()
-    if manifest_path.exists():
-        try:
-            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            existing = {}
-        if existing.get("geology_hash") == geology_hash and all(
-            (path / name).exists() for name in DATA_FILES
-        ):
-            return path
-        if not overwrite:
-            raise FileExistsError(f"{path} already contains a different project")
-    path.mkdir(parents=True, exist_ok=True)
-
-    _write_json(path / "config.json", project.config.to_dict())
+def _write_v1_data(project: Project, path: Path) -> None:
     _write_json(
         path / "plates.json",
         {
@@ -121,6 +106,103 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             "pairs": project.boundary_summary,
         },
     )
+
+
+def _write_v2_data(project: Project, path: Path) -> None:
+    geo = project.geo
+    np.savez_compressed(
+        path / "continental_fields.npz",
+        **geo.layers,
+        world_elevation_m=geo.world["elevation_m"],
+        world_continentality_km=geo.world["continentality_km"],
+    )
+    _write_json(
+        path / "continents.json",
+        {
+            "world_id": project.world_id,
+            "algorithm_version": CONTINENTS_ALGORITHM_VERSION,
+            "units": {"length": "km", "area": "km2", "elevation": "m"},
+            "sea_level_m": geo.sea_level_m,
+            "summary": geo.summary,
+            "world_grid": geo.world["grid"],
+            "stage_keys": geo.stage_keys,
+            "warnings": geo.warnings,
+            "validation": geo.validation,
+            "timings_s": geo.timings,
+            "blocks": geo.blocks,
+            "landmasses": geo.landmasses,
+        },
+    )
+
+
+def save_project(project: Project, path: str | Path, overwrite: bool = True) -> Path:
+    """Save ``project`` into directory ``path``.
+
+    * v1.0 source data (plates, fields, boundaries) is written only when the
+      directory does not already hold the very same geology - adding v2.0 data
+      or re-rendering never rewrites it.
+    * v2.0 data goes to its own files (``continental_fields.npz``,
+      ``continents.json``).
+    * When a ``hexworld-project-1`` directory is extended, its original
+      ``config.json`` and ``manifest.json`` are kept as ``*.v1.json`` copies.
+    """
+    path = Path(path)
+    manifest_path = path / "manifest.json"
+    geology_hash = project.geology_hash()
+    existing: dict = {}
+    if manifest_path.exists():
+        try:
+            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            existing = {}
+    same_geology = existing.get("geology_hash") == geology_hash and all(
+        (path / name).exists() for name in DATA_FILES
+    )
+    if existing and not same_geology and not overwrite:
+        raise FileExistsError(f"{path} already contains a different project")
+    if same_geology:
+        stored_geo = (existing.get("v2") or {}).get("geo_hash")
+        if project.geo is None or stored_geo == project.geo.geo_hash():
+            if (
+                json.loads((path / "config.json").read_text(encoding="utf-8"))
+                == (project.config.to_dict())
+                or project.geo is None
+            ):
+                return path  # nothing new to store
+        if existing.get("schema_version") == "hexworld-project-1":
+            for name in ("config.json", "manifest.json"):
+                backup = path / name.replace(".json", ".v1.json")
+                if not backup.exists():
+                    backup.write_bytes((path / name).read_bytes())
+    path.mkdir(parents=True, exist_ok=True)
+
+    if not same_geology:
+        _write_v1_data(project, path)
+        for name in V2_DATA_FILES:  # v2 data of another world must not linger
+            (path / name).unlink(missing_ok=True)
+    _write_json(path / "config.json", project.config.to_dict())
+    files = list(DATA_FILES)
+    v2_manifest = None
+    if project.geo is not None:
+        _write_v2_data(project, path)
+        files += list(V2_DATA_FILES)
+        v2_manifest = {
+            "algorithm_version": CONTINENTS_ALGORITHM_VERSION,
+            "files": list(V2_DATA_FILES),
+            "sea_level_m": project.geo.sea_level_m,
+            "geo_hash": project.geo.geo_hash(),
+            "content_hashes": project.geo.content_hashes(),
+            "layers": {
+                name: {
+                    "dtype": str(arr.dtype),
+                    "shape": list(arr.shape),
+                    "unit": GEO_LAYER_SPECS[name][1],
+                    "description": GEO_LAYER_SPECS[name][2],
+                }
+                for name, arr in project.geo.layers.items()
+            },
+            "stage_keys": project.geo.stage_keys,
+        }
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "generator_version": GENERATOR_VERSION,
@@ -132,6 +214,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "coordinates": {
             "world": "planar, km; +x east, +y south; origin arbitrary",
             "hex": "flat-top; storage odd-q offset [row, col]; computation axial/cube",
+            "vertical": "metres; 0 m = model datum; sea level is a scenario parameter",
             "geometry": project.geometry.to_dict(),
         },
         "units": {name: spec[1] for name, spec in LAYER_SPECS.items()},
@@ -155,7 +238,8 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             "platform": platform.platform(),
         },
         "content_hashes": project.content_hashes(),
-        "file_hashes": {name: _file_hash(path / name) for name in DATA_FILES},
+        "v2": v2_manifest,
+        "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
     return path
@@ -165,9 +249,10 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     """Load a project directory, checking control hashes unless ``verify=False``."""
     path = Path(path)
     manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != SCHEMA_VERSION:
+    if manifest.get("schema_version") not in SUPPORTED_SCHEMAS:
         raise ProjectIntegrityError(
-            f"Unsupported schema {manifest.get('schema_version')!r}, expected {SCHEMA_VERSION!r}"
+            f"Unsupported schema {manifest.get('schema_version')!r}; "
+            f"this build opens {SUPPORTED_SCHEMAS}"
         )
     if verify:
         for name, expected in manifest["file_hashes"].items():
@@ -246,4 +331,58 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
             "stored layers are intact, world-space queries are disabled."
         )
     project.validation = validate_project(project)
+
+    v2 = manifest.get("v2")
+    if v2 and all((path / name).exists() for name in V2_DATA_FILES):
+        doc = json.loads((path / "continents.json").read_text(encoding="utf-8"))
+        with np.load(path / "continental_fields.npz") as data:
+            arrays = {name: data[name] for name in data.files}
+        world_elev = arrays.pop("world_elevation_m")
+        world_c = arrays.pop("world_continentality_km")
+        geo = GeoData(
+            layers=arrays,
+            sea_level_m=float(doc["sea_level_m"]),
+            blocks=doc["blocks"],
+            landmasses=doc["landmasses"],
+            summary=doc["summary"],
+            stage_keys=dict(doc["stage_keys"]),
+            world={
+                "grid": doc["world_grid"],
+                "elevation_m": world_elev,
+                "continentality_km": world_c,
+            },
+            warnings=list(doc.get("warnings", [])),
+            timings=dict(doc.get("timings_s", {})),
+        )
+        if verify:
+            actual = geo.content_hashes()
+            for key, expected in v2["content_hashes"].items():
+                if actual.get(key) != expected:
+                    raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+        project.geo = geo
+        geo.validation = validate_geo(project)
+        project.warnings = [w for w in project.warnings]
+        # make the stored v2 arrays reusable: a sea-level change after loading
+        # recomputes only the land mask, never crust or elevation
+        current = v2_stage_keys(config, project.stage_keys, geometry.layout)
+        if doc.get("algorithm_version") == CONTINENTS_ALGORITHM_VERSION and all(
+            current[k] == geo.stage_keys.get(k) for k in ("macro_elevation", "v2_raster")
+        ):
+            block_id = arrays["continental_block_id"]
+            project.cache["macro_elevation"] = {
+                "model": None,
+                "world_elevation_m": world_elev,
+                "world_continentality_km": world_c,
+                "grid": doc["world_grid"],
+                "structure": doc["summary"].get("structure", {}),
+                "structure_warnings": [],
+            }
+            project.cache["v2_raster"] = {
+                "continental_fraction": arrays["continental_fraction"],
+                "continental_margin_km": arrays["continental_margin_km"],
+                "continental_block_id": block_id,
+                "block_sizes": np.bincount(block_id[block_id >= 0]).astype(np.int64),
+                "macro_elevation_m": arrays["macro_elevation_m"],
+                "tectonic_relief_m": arrays["tectonic_relief_m"],
+            }
     return project

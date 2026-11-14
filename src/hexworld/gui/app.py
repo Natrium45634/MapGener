@@ -1,4 +1,8 @@
-"""Minimal PySide6 viewer. The core never imports this module."""
+"""PySide6 viewer: one map, tabs for geographic views. The core never imports this module.
+
+Tabs come from :mod:`hexworld.views`; a new generation stage only registers its
+view there. Switching a tab changes the presentation only.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,7 @@ import traceback
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -24,15 +28,26 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSpinBox,
+    QTabBar,
     QVBoxLayout,
     QWidget,
 )
 
-from .. import render
-from ..config import MODES, PRESETS, PROFILES, Config
+from .. import render, views
+from ..config import (
+    CONTINENT_PROFILES,
+    MODES,
+    PRESETS,
+    PROFILES,
+    SEA_MODES,
+    Config,
+    ContinentParams,
+    SeaParams,
+)
 from ..io import load_project, save_project
-from ..pipeline import generate
+from ..pipeline import GenerationCancelled, generate
 from ..project import Project
 from ..version import GENERATOR_VERSION
 from .map_view import MapView
@@ -45,8 +60,17 @@ STAGE_TITLES = {
     "boundary_edges": "границы",
     "tectonic_fields": "диагностические поля",
     "assemble": "сборка",
+    "world_tectonics": "мировой каркас границ",
+    "continental_blocks": "континентальные блоки",
+    "macro_elevation": "макрорельеф",
+    "v2_raster": "выборка v2 на гексы",
+    "sea_level_landmasses": "уровень моря и суша",
     "validate": "проверка",
     "done": "готово",
+}
+SEA_MODE_TITLES = {
+    "target_land_fraction": "доля суши (target_land_fraction)",
+    "fixed_sea_level_m": "уровень моря (fixed_sea_level_m)",
 }
 
 
@@ -54,14 +78,26 @@ class Worker(QThread):
     progress = Signal(str, float)
     succeeded = Signal(object)
     failed = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, job, parent=None):
         super().__init__(parent)
         self._job = job
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+
+    def _report(self, stage: str, fraction: float):
+        if self._cancel:
+            raise GenerationCancelled()
+        self.progress.emit(stage, fraction)
 
     def run(self):
         try:
-            self.succeeded.emit(self._job(self.progress.emit))
+            self.succeeded.emit(self._job(self._report))
+        except GenerationCancelled:
+            self.cancelled.emit()
         except Exception as exc:  # shown to the user, never swallowed
             self.failed.emit(f"{exc}\n\n{traceback.format_exc()}")
 
@@ -69,20 +105,124 @@ class Worker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"HexWorld {GENERATOR_VERSION} - тектоническая основа")
-        self.resize(1360, 860)
+        self.setWindowTitle(f"HexWorld {GENERATOR_VERSION}")
+        self.resize(1480, 920)
         self.project: Project | None = None
         self._worker: Worker | None = None
+        #: Remembered mode and overlays of every view (display state only).
+        self._view_state = {
+            spec.id: (spec.default_mode(), set(spec.default_overlays()))
+            for spec in views.VIEWS.values()
+        }
+        self._view_ids = list(views.VIEWS)
 
         self.view = MapView()
         self.view.hexHovered.connect(lambda text: self.statusBar().showMessage(text))
-        self.view.plateSelected.connect(self._on_plate_selected)
+        self.view.hexClicked.connect(self._on_hex_clicked)
 
+        # -- tabs + per-view controls above the map ---------------------------
+        self.tabs = QTabBar()
+        self.tabs.setExpanding(False)
+        for i, spec in enumerate(views.VIEWS.values()):
+            self.tabs.addTab(spec.title)
+            if spec.status != "ready":
+                self.tabs.setTabEnabled(i, False)
+                self.tabs.setTabText(i, f"{spec.title} (запланировано)")
+                self.tabs.setTabToolTip(i, "Запланировано: этой стадии генерации ещё нет")
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.mode_box = QComboBox()
+        self.mode_box.currentIndexChanged.connect(self._on_mode_changed)
+        self.overlay_row = QHBoxLayout()
+        self.note = QLabel()
+        self.note.setStyleSheet("font-weight: bold;")
+        self.v2_button = QPushButton("Сгенерировать материки и высоты (v2.0)")
+        self.v2_button.clicked.connect(self.start_generation)
+        self.v2_button.setVisible(False)
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("Режим:"))
+        controls.addWidget(self.mode_box)
+        controls.addLayout(self.overlay_row)
+        controls.addStretch(1)
+        controls.addWidget(self.v2_button)
+        controls.addWidget(self.note)
+        map_column = QVBoxLayout()
+        map_column.addWidget(self.tabs)
+        map_column.addLayout(controls)
+        map_column.addWidget(self.view, 1)
+
+        # -- side panel -------------------------------------------------------
         side = QWidget()
-        side.setFixedWidth(330)
         col = QVBoxLayout(side)
+        col.addWidget(self._build_world_box())
+        col.addWidget(self._build_v2_box())
+        buttons = QHBoxLayout()
+        self.generate_btn = QPushButton("Сгенерировать")
+        self.generate_btn.clicked.connect(self.start_generation)
+        self.cancel_btn = QPushButton("Отмена")
+        self.cancel_btn.clicked.connect(self.cancel_generation)
+        self.cancel_btn.setEnabled(False)
+        self.open_btn = QPushButton("Открыть…")
+        self.open_btn.clicked.connect(self.open_project)
+        self.save_btn = QPushButton("Сохранить…")
+        self.save_btn.clicked.connect(self.save_project)
+        for b in (self.generate_btn, self.cancel_btn):
+            buttons.addWidget(b)
+        col.addLayout(buttons)
+        files = QHBoxLayout()
+        for b in (self.open_btn, self.save_btn):
+            files.addWidget(b)
+        col.addLayout(files)
+        export = QHBoxLayout()
+        self.png_btn = QPushButton("PNG этой вкладки…")
+        self.png_btn.clicked.connect(self.export_png)
+        self.png_all_btn = QPushButton("PNG всех вкладок…")
+        self.png_all_btn.clicked.connect(self.export_all_png)
+        fit = QPushButton("Вся карта")
+        fit.clicked.connect(self.view.fit)
+        for b in (self.png_btn, self.png_all_btn, fit):
+            export.addWidget(b)
+        col.addLayout(export)
 
-        box = QGroupBox("Параметры мира")
+        box = QGroupBox("Легенда вкладки")
+        inner = QVBoxLayout(box)
+        self.legend = QLabel()
+        self.legend.setWordWrap(True)
+        self.legend.setTextFormat(Qt.TextFormat.RichText)
+        inner.addWidget(self.legend)
+        col.addWidget(box)
+
+        box = QGroupBox("Проект / выбранный гекс")
+        inner = QVBoxLayout(box)
+        self.info = QPlainTextEdit()
+        self.info.setReadOnly(True)
+        self.info.setMinimumHeight(200)
+        inner.addWidget(self.info)
+        col.addWidget(box, 1)
+
+        scroll = QScrollArea()
+        scroll.setWidget(side)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedWidth(420)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        central = QWidget()
+        row = QHBoxLayout(central)
+        row.addWidget(scroll)
+        row.addLayout(map_column, 1)
+        self.setCentralWidget(central)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 1000)
+        self.progress.setFixedWidth(260)
+        self.progress.setVisible(False)
+        self.statusBar().addPermanentWidget(self.progress)
+        self.statusBar().showMessage("Готов")
+        self._set_busy(False)
+        self._refresh_view_controls()
+
+    # -- widgets -----------------------------------------------------------
+    def _build_world_box(self) -> QGroupBox:
+        box = QGroupBox("Мир и тектоника (v1.0)")
         form = QFormLayout(box)
         self.seed = QLineEdit("HexWorld1")
         self.seed.setToolTip("Цифры и латинские буквы, регистр значим: Ab12 и ab12 - разные миры")
@@ -93,11 +233,7 @@ class MainWindow(QMainWindow):
         self.preset.currentIndexChanged.connect(self._apply_preset)
         self.width_box = self._spin(2, 8192, 100)
         self.height_box = self._spin(2, 8192, 100)
-        self.hex_km = QDoubleSpinBox()
-        self.hex_km.setRange(0.1, 2000.0)
-        self.hex_km.setDecimals(1)
-        self.hex_km.setValue(40.0)
-        self.hex_km.setSuffix(" км")
+        self.hex_km = self._double(0.1, 2000.0, 40.0, 1, " км")
         self.mode = QComboBox()
         self.mode.addItems(MODES)
         self.auto_plates = QCheckBox("auto")
@@ -111,8 +247,8 @@ class MainWindow(QMainWindow):
         self.profile = QComboBox()
         self.profile.addItems(PROFILES)
         self.profile.setCurrentText("earthlike")
-        self.origin_x = self._km_box()
-        self.origin_y = self._km_box()
+        self.origin_x = self._double(-1e7, 1e7, 0.0, 0, " км", 500.0)
+        self.origin_y = self._double(-1e7, 1e7, 0.0, 0, " км", 500.0)
         self.pin_world = QCheckBox("Тот же мир, другое окно/разрешение")
         self.pin_world.setToolTip(
             "Закрепляет область симуляции и число плит текущего проекта: меняются только "
@@ -125,78 +261,55 @@ class MainWindow(QMainWindow):
         form.addRow("Размер гекса", self.hex_km)
         form.addRow("Режим", self.mode)
         form.addRow("Число плит", plates_row)
-        form.addRow("Профиль", self.profile)
+        form.addRow("Профиль плит", self.profile)
         form.addRow("Начало окна X", self.origin_x)
         form.addRow("Начало окна Y", self.origin_y)
         form.addRow(self.pin_world)
-        col.addWidget(box)
+        return box
 
-        buttons = QHBoxLayout()
-        self.generate_btn = QPushButton("Сгенерировать")
-        self.generate_btn.clicked.connect(self.start_generation)
-        self.open_btn = QPushButton("Открыть…")
-        self.open_btn.clicked.connect(self.open_project)
-        self.save_btn = QPushButton("Сохранить…")
-        self.save_btn.clicked.connect(self.save_project)
-        self.save_btn.setEnabled(False)
-        for b in (self.generate_btn, self.open_btn, self.save_btn):
-            buttons.addWidget(b)
-        col.addLayout(buttons)
-        self.png_btn = QPushButton("Экспорт PNG текущего слоя…")
-        self.png_btn.clicked.connect(self.export_png)
-        self.png_btn.setEnabled(False)
-        col.addWidget(self.png_btn)
-
-        box = QGroupBox("Отображение (не меняет данные)")
+    def _build_v2_box(self) -> QGroupBox:
+        box = QGroupBox("Материки, рельеф и море (v2.0)")
         form = QFormLayout(box)
-        self.layer = QComboBox()
-        for name in render.LAYERS:
-            self.layer.addItem(render.LAYER_TITLES[name], name)
-        self.layer.currentIndexChanged.connect(
-            lambda _i: self.view.set_layer(self.layer.currentData())
+        defaults = ContinentParams()
+        self.continent_profile = QComboBox()
+        self.continent_profile.addItems(CONTINENT_PROFILES)
+        self.auto_major = QCheckBox("auto")
+        self.auto_major.setChecked(True)
+        self.major_count = self._spin(1, 30, 5)
+        self.major_count.setEnabled(False)
+        self.major_count.setToolTip(
+            "Цель для области симуляции, не гарантия; окно может показывать меньше."
         )
-        self.show_boundaries = QCheckBox("Линии границ")
-        self.show_boundaries.setChecked(True)
-        self.show_arrows = QCheckBox("Векторы движения")
-        self.show_arrows.setChecked(True)
-        for cb in (self.show_boundaries, self.show_arrows):
-            cb.toggled.connect(self._update_overlays)
-        fit = QPushButton("Показать всю карту")
-        fit.clicked.connect(self.view.fit)
-        form.addRow("Слой", self.layer)
-        form.addRow(self.show_boundaries)
-        form.addRow(self.show_arrows)
-        form.addRow(fit)
-        legend = QLabel(
-            "<span style='color:#d63031'>■</span> сближение "
-            "<span style='color:#0984e3'>■</span> расхождение "
-            "<span style='color:#00a86b'>■</span> сдвиг "
-            "<span style='color:#969696'>■</span> спокойная"
+        self.auto_major.toggled.connect(lambda on: self.major_count.setEnabled(not on))
+        major_row = QHBoxLayout()
+        major_row.addWidget(self.auto_major)
+        major_row.addWidget(self.major_count)
+        self.size_variety = self._double(0.0, 1.0, defaults.continent_size_variety, 2, "", 0.1)
+        self.coast_irregularity = self._double(0.0, 1.5, defaults.coast_irregularity, 2, "", 0.1)
+        self.relief_strength = self._double(0.0, 3.0, 1.0, 2, "", 0.1)
+        self.sea_mode = QComboBox()
+        for mode in SEA_MODES:
+            self.sea_mode.addItem(SEA_MODE_TITLES[mode], mode)
+        self.land_fraction = self._double(0.01, 0.99, SeaParams().target_land_fraction, 2, "", 0.02)
+        self.sea_level = self._double(-9000.0, 9000.0, 0.0, 0, " м", 25.0)
+        self.sea_mode.currentIndexChanged.connect(self._sync_sea_mode)
+        self.sea_btn = QPushButton("Применить только уровень моря")
+        self.sea_btn.setToolTip(
+            "Пересчитывает сушу, материки и шельф. Плиты, кора и высоты не пересоздаются."
         )
-        form.addRow(legend)
-        col.addWidget(box)
+        self.sea_btn.clicked.connect(self.apply_sea_level)
+        form.addRow("Профиль материков", self.continent_profile)
+        form.addRow("Крупных массивов", major_row)
+        form.addRow("Разброс размеров", self.size_variety)
+        form.addRow("Изрезанность берегов", self.coast_irregularity)
+        form.addRow("Сила макрорельефа", self.relief_strength)
+        form.addRow("Режим моря", self.sea_mode)
+        form.addRow("Доля суши", self.land_fraction)
+        form.addRow("Уровень моря", self.sea_level)
+        form.addRow(self.sea_btn)
+        self._sync_sea_mode()
+        return box
 
-        box = QGroupBox("Проект / выбранная плита")
-        inner = QVBoxLayout(box)
-        self.info = QPlainTextEdit()
-        self.info.setReadOnly(True)
-        inner.addWidget(self.info)
-        col.addWidget(box, 1)
-
-        central = QWidget()
-        row = QHBoxLayout(central)
-        row.addWidget(side)
-        row.addWidget(self.view, 1)
-        self.setCentralWidget(central)
-
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 1000)
-        self.progress.setFixedWidth(260)
-        self.progress.setVisible(False)
-        self.statusBar().addPermanentWidget(self.progress)
-        self.statusBar().showMessage("Готов")
-
-    # -- helpers -----------------------------------------------------------
     @staticmethod
     def _spin(lo, hi, value):
         box = QSpinBox()
@@ -205,13 +318,20 @@ class MainWindow(QMainWindow):
         return box
 
     @staticmethod
-    def _km_box():
+    def _double(lo, hi, value, decimals, suffix="", step=1.0):
         box = QDoubleSpinBox()
-        box.setRange(-1e7, 1e7)
-        box.setDecimals(0)
-        box.setSingleStep(500.0)
-        box.setSuffix(" км")
+        box.setRange(lo, hi)
+        box.setDecimals(decimals)
+        box.setSingleStep(step)
+        box.setValue(value)
+        if suffix:
+            box.setSuffix(suffix)
         return box
+
+    def _sync_sea_mode(self):
+        target = self.sea_mode.currentData() == "target_land_fraction"
+        self.land_fraction.setEnabled(target)
+        self.sea_level.setEnabled(not target)
 
     def _apply_preset(self, _index):
         name = self.preset.currentData()
@@ -223,9 +343,71 @@ class MainWindow(QMainWindow):
         self.hex_km.setValue(data["hex_spacing_km"])
         self.mode.setCurrentText(data["mode"])
 
-    def _update_overlays(self):
-        self.view.set_overlays(self.show_boundaries.isChecked(), self.show_arrows.isChecked())
+    # -- views (tabs) ------------------------------------------------------
+    def current_view(self) -> views.ViewSpec:
+        return views.VIEWS[self._view_ids[self.tabs.currentIndex()]]
 
+    def _on_tab_changed(self, _index):
+        self._refresh_view_controls()
+
+    def _refresh_view_controls(self):
+        """Rebuild mode list, overlay toggles, legend and note for the current tab."""
+        spec = self.current_view()
+        mode, overlays = self._view_state[spec.id]
+        self.mode_box.blockSignals(True)
+        self.mode_box.clear()
+        for option in spec.modes:
+            self.mode_box.addItem(option.title, option.id)
+        index = max(0, self.mode_box.findData(mode))
+        self.mode_box.setCurrentIndex(index)
+        self.mode_box.blockSignals(False)
+        while self.overlay_row.count():
+            item = self.overlay_row.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        for option in spec.overlays:
+            box = QCheckBox(option.title)
+            box.setChecked(option.id in overlays)
+            box.toggled.connect(lambda on, oid=option.id: self._on_overlay_toggled(oid, on))
+            self.overlay_row.addWidget(box)
+        self.note.setText(spec.note)
+        self._apply_view()
+
+    def _on_mode_changed(self, _index):
+        spec = self.current_view()
+        if self.mode_box.currentData() is not None:
+            self._view_state[spec.id] = (self.mode_box.currentData(), self._view_state[spec.id][1])
+            self._apply_view()
+
+    def _on_overlay_toggled(self, overlay_id: str, on: bool):
+        spec = self.current_view()
+        mode, overlays = self._view_state[spec.id]
+        (overlays.add if on else overlays.discard)(overlay_id)
+        self._apply_view()
+
+    def _apply_view(self):
+        spec = self.current_view()
+        mode, overlays = self._view_state[spec.id]
+        self.view.set_view(spec.id, mode, overlays)
+        ok, reason = spec.availability(self.project)
+        needs_v2 = self.project is not None and spec.stage == "v2" and self.project.geo is None
+        self.v2_button.setVisible(needs_v2)
+        if ok and spec.legend is not None:
+            rows = []
+            for item in spec.legend(self.project, mode):
+                if item.color is None:
+                    rows.append(item.label)
+                else:
+                    r, g, b = (int(v) for v in item.color)
+                    rows.append(f"<span style='color:rgb({r},{g},{b})'>■</span> {item.label}")
+            self.legend.setText("<br>".join(rows))
+        else:
+            self.legend.setText(reason if self.project is not None else "Нет проекта")
+        self.png_btn.setEnabled(ok and self._worker_idle())
+
+    # -- config ------------------------------------------------------------
     def build_config(self) -> Config:
         base = self.project.config if self.project is not None else Config()
         config = replace(
@@ -242,6 +424,17 @@ class MainWindow(QMainWindow):
                 count="auto" if self.auto_plates.isChecked() else self.plate_count.value(),
                 profile=self.profile.currentText(),
             ),
+            continents=replace(
+                base.continents,
+                continent_profile=self.continent_profile.currentText(),
+                major_landmass_count=(
+                    "auto" if self.auto_major.isChecked() else self.major_count.value()
+                ),
+                continent_size_variety=self.size_variety.value(),
+                coast_irregularity=self.coast_irregularity.value(),
+            ),
+            relief=replace(base.relief, relief_strength=self.relief_strength.value()),
+            sea=self._sea_params(base.sea),
         )
         if self.pin_world.isChecked() and self.project is not None:
             g = self.project.geometry
@@ -253,11 +446,27 @@ class MainWindow(QMainWindow):
             )
         return config
 
+    def _sea_params(self, base: SeaParams) -> SeaParams:
+        return replace(
+            base,
+            sea_mode=self.sea_mode.currentData(),
+            target_land_fraction=self.land_fraction.value(),
+            fixed_sea_level_m=self.sea_level.value(),
+        )
+
+    # -- background work ---------------------------------------------------
+    def _worker_idle(self) -> bool:
+        return self._worker is None or not self._worker.isRunning()
+
     def _set_busy(self, busy: bool):
-        for w in (self.generate_btn, self.open_btn):
+        for w in (self.generate_btn, self.open_btn, self.v2_button):
             w.setEnabled(not busy)
-        self.save_btn.setEnabled(not busy and self.project is not None)
-        self.png_btn.setEnabled(not busy and self.project is not None)
+        has = self.project is not None
+        self.save_btn.setEnabled(not busy and has)
+        self.png_all_btn.setEnabled(not busy and has)
+        self.png_btn.setEnabled(not busy and has)
+        self.sea_btn.setEnabled(not busy and has and self.project.geo is not None)
+        self.cancel_btn.setEnabled(busy)
         self.progress.setVisible(busy)
 
     def _run(self, job, on_done):
@@ -267,17 +476,30 @@ class MainWindow(QMainWindow):
         worker.progress.connect(self._on_progress)
         worker.succeeded.connect(on_done)
         worker.failed.connect(self._on_failed)
-        worker.finished.connect(lambda: self._set_busy(False))
+        worker.cancelled.connect(self._on_cancelled)
+        worker.finished.connect(self._on_worker_finished)
         self._worker = worker
         worker.start()
+
+    def _on_worker_finished(self):
+        self._set_busy(False)
+        self._apply_view()
 
     def _on_progress(self, stage: str, fraction: float):
         self.progress.setValue(int(1000 * fraction))
         self.statusBar().showMessage(f"Генерация: {STAGE_TITLES.get(stage, stage)}…")
 
     def _on_failed(self, message: str):
-        self.statusBar().showMessage("Ошибка")
+        self.statusBar().showMessage("Ошибка; прежние данные сохранены")
         QMessageBox.critical(self, "HexWorld - ошибка", message)
+
+    def _on_cancelled(self):
+        self.statusBar().showMessage("Генерация отменена; прежние данные не изменены")
+
+    def cancel_generation(self):
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.cancel()
+            self.statusBar().showMessage("Отмена после текущей стадии…")
 
     # -- actions -----------------------------------------------------------
     def start_generation(self):
@@ -288,11 +510,24 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous), self._on_generated
+            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda project: self._show_project(project, "Сгенерировано"),
         )
 
-    def _on_generated(self, project: Project):
-        self._show_project(project, "Сгенерировано")
+    def apply_sea_level(self):
+        """Recompute land / landmasses / shelf only; everything else is reused."""
+        if self.project is None or self.project.geo is None:
+            return
+        try:
+            config = replace(self.project.config, sea=self._sea_params(self.project.config.sea))
+        except ValueError as exc:
+            QMessageBox.warning(self, "Параметры", str(exc))
+            return
+        previous = self.project
+        self._run(
+            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda project: self._show_project(project, "Уровень моря применён"),
+        )
 
     def open_project(self):
         path = QFileDialog.getExistingDirectory(self, "Открыть проект HexWorld")
@@ -321,38 +556,80 @@ class MainWindow(QMainWindow):
     def export_png(self):
         if self.project is None:
             return
-        layer = self.layer.currentData()
-        path, _ = QFileDialog.getSaveFileName(self, "Экспорт PNG", f"{layer}.png", "PNG (*.png)")
+        spec = self.current_view()
+        mode, overlays = self._view_state[spec.id]
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Экспорт PNG", f"view_{spec.id}_{mode}.png", "PNG (*.png)"
+        )
         if path:
-            render.write_png(Path(path), render.render_project(self.project, layer))
+            image = views.render_view_image(self.project, spec.id, mode, overlays)
+            render.write_png(Path(path), image)
             self.statusBar().showMessage(f"Изображение сохранено: {path}")
+
+    def export_all_png(self):
+        if self.project is None:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Папка для PNG всех вкладок")
+        if not folder:
+            return
+        count = 0
+        for spec in views.VIEWS.values():
+            if not spec.availability(self.project)[0]:
+                continue
+            mode, overlays = self._view_state[spec.id]
+            image = views.render_view_image(self.project, spec.id, mode, overlays)
+            render.write_png(Path(folder) / f"view_{spec.id}_{mode}.png", image)
+            count += 1
+        self.statusBar().showMessage(f"Сохранено изображений: {count} → {folder}")
 
     def _show_project(self, project: Project, message: str, sync_form: bool = False):
         self.project = project
         if sync_form:
-            c = project.config
-            self.seed.setText(c.seed)
-            self.preset.setCurrentIndex(0)
-            self.width_box.setValue(c.width)
-            self.height_box.setValue(c.height)
-            self.hex_km.setValue(c.hex_spacing_km)
-            self.mode.setCurrentText(c.mode)
-            self.auto_plates.setChecked(c.plates.count == "auto")
-            if c.plates.count != "auto":
-                self.plate_count.setValue(int(c.plates.count))
-            self.profile.setCurrentText(c.plates.profile)
-            self.origin_x.setValue(c.viewport_origin_km[0])
-            self.origin_y.setValue(c.viewport_origin_km[1])
+            self._sync_form(project.config)
+        if project.geo is not None:
+            self.sea_level.setValue(project.geo.sea_level_m)
         self.view.set_project(project)
-        self._update_overlays()
-        self.info.setPlainText(self._project_text())
+        self._apply_view()
+        self._show_info()
         total = project.timings.get("total")
-        ok = "проверка пройдена" if project.validation.get("ok") else "ПРОВЕРКА НЕ ПРОЙДЕНА"
+        ok = project.validation.get("ok") and (
+            project.geo is None or project.geo.validation.get("ok")
+        )
+        state = "проверка пройдена" if ok else "ПРОВЕРКА НЕ ПРОЙДЕНА"
         timing = f", {total:.1f} с" if total else ""
-        self.statusBar().showMessage(f"{message}: {ok}{timing}")
-        if not project.validation.get("ok"):
-            QMessageBox.warning(self, "Проверка", "\n".join(project.validation["errors"]))
+        extra = "" if project.geo is not None else "; материки и высоты ещё не сгенерированы"
+        self.statusBar().showMessage(f"{message}: {state}{timing}{extra}")
+        if not ok:
+            errors = list(project.validation.get("errors", []))
+            if project.geo is not None:
+                errors += project.geo.validation.get("errors", [])
+            QMessageBox.warning(self, "Проверка", "\n".join(errors))
 
+    def _sync_form(self, c: Config):
+        self.seed.setText(c.seed)
+        self.preset.setCurrentIndex(0)
+        self.width_box.setValue(c.width)
+        self.height_box.setValue(c.height)
+        self.hex_km.setValue(c.hex_spacing_km)
+        self.mode.setCurrentText(c.mode)
+        self.auto_plates.setChecked(c.plates.count == "auto")
+        if c.plates.count != "auto":
+            self.plate_count.setValue(int(c.plates.count))
+        self.profile.setCurrentText(c.plates.profile)
+        self.origin_x.setValue(c.viewport_origin_km[0])
+        self.origin_y.setValue(c.viewport_origin_km[1])
+        self.continent_profile.setCurrentText(c.continents.continent_profile)
+        self.auto_major.setChecked(c.continents.major_landmass_count == "auto")
+        if c.continents.major_landmass_count != "auto":
+            self.major_count.setValue(int(c.continents.major_landmass_count))
+        self.size_variety.setValue(c.continents.continent_size_variety)
+        self.coast_irregularity.setValue(c.continents.coast_irregularity)
+        self.relief_strength.setValue(c.relief.relief_strength)
+        self.sea_mode.setCurrentIndex(self.sea_mode.findData(c.sea.sea_mode))
+        self.land_fraction.setValue(c.sea.target_land_fraction)
+        self.sea_level.setValue(c.sea.fixed_sea_level_m)
+
+    # -- property panel ----------------------------------------------------
     def _project_text(self) -> str:
         p = self.project
         g = p.geometry
@@ -363,55 +640,102 @@ class MainWindow(QMainWindow):
             f"область симуляции: {g.simulation_bounds.width:,.0f} x "
             f"{g.simulation_bounds.height:,.0f} км",
             f"плит: {p.stats.get('plates_in_simulation')} в симуляции, "
-            f"{p.stats.get('plates_visible')} в окне",
-            f"граничных рёбер: {len(p.boundaries)}",
-            f"континентальная кора в окне: "
-            f"{100 * p.stats.get('continental_fraction_visible', 0):.1f} %",
+            f"{p.stats.get('plates_visible')} в окне; граничных рёбер: {len(p.boundaries)}",
         ]
+        if p.geo is None:
+            lines.append("Материки/Высоты ещё не сгенерированы (проект v1.0).")
+        else:
+            s = p.geo.summary
+            w = s["world"]
+            lines += [
+                f"уровень моря: {p.geo.sea_level_m:+.0f} м ({s['sea_mode']})",
+                f"суша: {100 * s['land_fraction_viewport']:.1f} % окна, "
+                f"{100 * w['land_fraction_simulation']:.1f} % области симуляции",
+                f"материков в окне: {len(p.geo.landmasses)} (крупных "
+                f"{s['major_landmasses_in_window']}); крупных в симуляции: "
+                f"{w['major_landmass_count']}",
+                f"континентальных блоков в окне: {len(p.geo.blocks)}; шельф "
+                f"{100 * s['shelf_fraction_viewport']:.1f} % окна",
+                f"высоты: {s['min_elevation_m']:+.0f} … {s['max_elevation_m']:+.0f} м",
+            ]
         if p.stats.get("reused_stages"):
-            lines.append("взято из кэша: " + ", ".join(p.stats["reused_stages"]))
+            lines.append("без пересчёта: " + ", ".join(p.stats["reused_stages"]))
         for w in p.warnings:
             lines.append(f"⚠ {w}")
-        lines.append("")
-        lines.append("Щёлкните по карте, чтобы выбрать плиту.")
+        lines += ["", "Щёлкните по карте, чтобы выбрать гекс."]
         return "\n".join(lines)
 
-    def _on_plate_selected(self, plate_id: int):
-        if self.view.selected_plate == plate_id:
-            self.view.select_plate(None)
+    def _show_info(self):
+        if self.project is None:
+            self.info.setPlainText("")
+            return
+        hexagon = self.view.selected_hex
+        if hexagon is None:
             self.info.setPlainText(self._project_text())
             return
-        self.view.select_plate(plate_id)
-        p = self.project.plate(plate_id)
-        names = ", ".join(self.project.plate(n)["name"] for n in p["neighbors"])
-        centroid = p["centroid_km"] or p["site_km"]
-        vis_cont = p["visible_continental_fraction"]
-        self.info.setPlainText(
-            "\n".join(
-                [
-                    f"Плита {p['id']}: {p['name']}",
-                    f"цвет: {p['color']}   класс: {p['size_class']}"
-                    + ("   (центр вне области симуляции)" if p["halo"] else ""),
-                    f"площадь в области симуляции: {p['area_km2'] / 1e6:,.2f} млн км²",
-                    f"видимая площадь: {p['visible_area_km2'] / 1e6:,.2f} млн км² "
-                    f"({p['visible_hexes']} гексов)",
-                    f"центр: x {centroid[0]:,.0f} км, y {centroid[1]:,.0f} км",
-                    f"кора: континентальная {100 * p['continental_fraction']:.0f} %, "
-                    f"океаническая {100 * p['oceanic_fraction']:.0f} %",
-                    "в окне: континентальная "
-                    + (f"{100 * vis_cont:.0f} %" if vis_cont is not None else "-"),
-                    f"скорость: vx {p['velocity_mm_yr'][0]:+.1f}, vy {p['velocity_mm_yr'][1]:+.1f}"
-                    f" мм/год (|v| {p['speed_mm_yr']:.1f}); +x восток, +y юг",
-                    f"вращение: {p['omega_deg_myr']:+.3f} °/млн лет",
-                    f"соседи: {names or '-'}",
-                    "",
-                    "Повторный щелчок по плите снимает выделение.",
-                ]
-            )
-        )
+        p = self.project
+        info = p.hex_info(*hexagon)
+        plate = p.plate(info["plate_id"])
+        lines = [
+            f"Гекс ({info['col']}, {info['row']}):  x {info['x_km']:,.0f} км, "
+            f"y {info['y_km']:,.0f} км",
+            "",
+            f"plate_id {plate['id']}: {plate['name']} ({plate['size_class']})",
+            f"  скорость vx {plate['velocity_mm_yr'][0]:+.1f}, vy "
+            f"{plate['velocity_mm_yr'][1]:+.1f} мм/год; +x восток, +y юг",
+            f"  площадь {plate['area_km2'] / 1e6:,.2f} млн км², континентальной коры "
+            f"{100 * plate['continental_fraction']:.0f} % (prior)",
+            f"  граница здесь: {info['boundary']}; до границы "
+            f"{info['boundary_distance_km']:,.0f} км",
+            f"  диагностика: uplift {info['uplift']:.2f}, rifting {info['rifting']:.2f}, "
+            f"subduction {info['subduction']:.2f}, volcanism {info['volcanism']:.2f}, "
+            f"seismicity {info['seismicity']:.2f}",
+            f"  кора prior v1.0: {info['crust']}",
+        ]
+        if p.geo is None:
+            lines += ["", "Материки/Высоты ещё не сгенерированы для этого проекта."]
+        else:
+            lines += [
+                "",
+                f"доля континентальной коры: {info['continental_fraction']:.2f}",
+            ]
+            block = info["continental_block_id"]
+            if block >= 0:
+                b = p.geo.blocks[block]
+                lines.append(
+                    f"continental_block_id {block}: {b['name']}, "
+                    f"{b['area_km2'] / 1e6:,.2f} млн км² в окне (над водой "
+                    f"{b['land_area_km2'] / 1e6:,.2f}), плит: {b['plate_count']}"
+                )
+            else:
+                lines.append("continental_block_id −1: океаническая кора")
+            land = info["landmass_id"]
+            if land >= 0:
+                m = p.geo.landmasses[land]
+                tail = ", уходит за край окна" if m["touches_window_edge"] else ""
+                lines.append(
+                    f"landmass_id {land}: {m['name']}, {m['area_km2'] / 1e6:,.2f} млн км² "
+                    f"в окне{tail}"
+                )
+            else:
+                where = "шельф" if info["shelf_mask"] else "под водой"
+                lines.append(f"landmass_id −1: {where}")
+            lines += [
+                f"макровысота: {info['macro_elevation_m']:+,.0f} м (нуль модели)",
+                f"уровень моря: {info['sea_level_m']:+,.0f} м",
+                f"высота над морем: {info['height_above_sea_m']:,.0f} м; "
+                f"глубина: {info['depth_m']:,.0f} м",
+                f"тектонический вклад в высоту: {info['tectonic_relief_m']:+,.0f} м",
+            ]
+        lines += ["", "— проект —", self._project_text()]
+        self.info.setPlainText("\n".join(lines))
+
+    def _on_hex_clicked(self, _col: int, _row: int):
+        self._show_info()
 
     def closeEvent(self, event):
         if self._worker is not None and self._worker.isRunning():
+            self._worker.cancel()
             self._worker.wait()
         super().closeEvent(event)
 

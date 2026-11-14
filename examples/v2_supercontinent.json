@@ -1,0 +1,9 @@
+{
+  "seed": "Pangea7",
+  "width": 500,
+  "height": 300,
+  "hex_spacing_km": 60.0,
+  "mode": "world",
+  "continents": {"continent_profile": "supercontinent", "coast_irregularity": 0.9},
+  "sea": {"sea_mode": "target_land_fraction", "target_land_fraction": 0.3}
+}

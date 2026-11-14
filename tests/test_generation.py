@@ -111,7 +111,8 @@ def test_late_stage_changes_do_not_touch_early_stages(small_config, small_projec
     moved = generate(
         replace(small_config, motion=MotionParams(speed_scale=1.5)), reuse=small_project
     )
-    assert moved.stats["reused_stages"] == ["plates", "crust", "raster"]
+    assert moved.stats["reused_stages"][:3] == ["plates", "crust", "raster"]
+    assert "continental_blocks" not in moved.stats["reused_stages"]
     assert moved.plate_model is small_project.plate_model
     assert np.array_equal(moved.layer("plate_id"), small_project.layer("plate_id"))
     assert np.array_equal(moved.layer("crust_type"), small_project.layer("crust_type"))
@@ -194,6 +195,7 @@ def test_save_load_roundtrip(tmp_path, small_project):
     # motion can be recomputed on a loaded project without regenerating plates
     again = generate(replace(loaded.config, motion=MotionParams(speed_scale=0.5)), reuse=loaded)
     assert again.stats["reused_stages"] == ["plates", "crust"]
+    assert again.geo is not None
     assert np.array_equal(again.layer("plate_id"), loaded.layer("plate_id"))
 
 

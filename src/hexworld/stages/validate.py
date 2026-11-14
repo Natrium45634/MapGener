@@ -117,3 +117,71 @@ def validate_project(project) -> dict:
             )
 
     return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
+
+
+def validate_geo(project) -> dict:
+    """Structural checks of the v2.0 data (continental blocks, relief, sea, land)."""
+    from .sea import label_mask
+
+    geo = project.geo
+    layout = project.layout
+    errors: list[str] = []
+    warnings: list[str] = []
+    checks: dict = {}
+    shape = (layout.height, layout.width)
+    for name, arr in geo.layers.items():
+        if arr.shape != shape:
+            errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")
+        if np.issubdtype(arr.dtype, np.floating) and not np.isfinite(arr).all():
+            errors.append(f"layer {name} contains non-finite values")
+    if errors:
+        return {"ok": False, "errors": errors, "warnings": warnings, "checks": checks}
+
+    elev = geo.layers["macro_elevation_m"]
+    land = geo.layers["land_mask"]
+    land_id = geo.layers["landmass_id"]
+    block_id = geo.layers["continental_block_id"]
+    fraction = geo.layers["continental_fraction"]
+    shelf = geo.layers["shelf_mask"]
+
+    # land is derived from elevation and sea level only
+    if not np.array_equal(land, elev > np.float32(geo.sea_level_m)):
+        errors.append("land_mask is not (macro_elevation_m > sea_level_m)")
+    if not np.array_equal(land_id >= 0, land):
+        errors.append("landmass_id must be >= 0 exactly on land hexes")
+    if fraction.min() < 0.0 or fraction.max() > 1.0:
+        errors.append("continental_fraction is outside [0, 1]")
+    if not np.array_equal(block_id >= 0, fraction >= 0.5):
+        errors.append("continental_block_id must cover exactly continental_fraction >= 0.5")
+    if np.any(shelf & land):
+        errors.append("shelf_mask overlaps land")
+    if np.any(shelf & (fraction < 0.5)):
+        errors.append("shelf_mask lies on oceanic crust")
+
+    # ids are exactly the edge-connected components
+    for name, ids, table in (
+        ("landmass_id", land_id, geo.landmasses),
+        ("continental_block_id", block_id, geo.blocks),
+    ):
+        relabelled, sizes = label_mask(ids >= 0, layout)
+        if not np.array_equal(relabelled, ids):
+            errors.append(f"{name} is not the set of edge-connected components")
+        if len(table) != sizes.size:
+            errors.append(f"{name}: {len(table)} table rows for {sizes.size} components")
+    checks["landmasses"] = len(geo.landmasses)
+    checks["continental_blocks"] = len(geo.blocks)
+
+    # fringe: land that lives in one- or two-hex specks
+    n_land = int(land.sum())
+    if n_land:
+        sizes = np.array([m["hexes"] for m in geo.landmasses])
+        speck = int(sizes[sizes <= 2].sum())
+        checks["speck_land_share"] = round(speck / n_land, 5)
+        checks["speck_landmasses"] = int((sizes <= 2).sum())
+        if speck / n_land > 0.02:
+            warnings.append(
+                f"{100 * speck / n_land:.1f} % of land hexes are 1-2 hex specks (coast fringe)"
+            )
+    checks["land_fraction_viewport"] = round(float(land.mean()), 5)
+    checks["sea_level_m"] = geo.sea_level_m
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}

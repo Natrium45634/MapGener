@@ -8,8 +8,9 @@ import sys
 import time
 from pathlib import Path
 
-from . import render
-from .config import PRESETS, Config, ConfigError
+from . import render, views
+from .api import derive_landmasses, generate_v2
+from .config import CONTINENT_PROFILES, PRESETS, Config, ConfigError
 from .io import ProjectIntegrityError, load_project, save_project
 from .pipeline import generate
 from .version import GENERATOR_VERSION
@@ -79,11 +80,58 @@ def _config_from_args(args) -> Config:
         plates["profile"] = args.profile
     if plates:
         data["plates"] = plates
+    _apply_v2_args(args, data)
     if args.origin is not None:
         data["viewport_origin_km"] = args.origin
     if args.sim_bounds is not None:
         data["simulation_bounds_km"] = args.sim_bounds
     return Config.from_dict(data)
+
+
+def _apply_v2_args(args, data: dict) -> None:
+    """Copy v2.0 command line options into a config dictionary."""
+    cont = dict(data.get("continents", {}))
+    if getattr(args, "continent_profile", None) is not None:
+        cont["continent_profile"] = args.continent_profile
+    if getattr(args, "major_landmasses", None) is not None:
+        value = args.major_landmasses
+        cont["major_landmass_count"] = "auto" if value == "auto" else int(value)
+    if getattr(args, "size_variety", None) is not None:
+        cont["continent_size_variety"] = args.size_variety
+    if getattr(args, "coast_irregularity", None) is not None:
+        cont["coast_irregularity"] = args.coast_irregularity
+    if cont:
+        data["continents"] = cont
+    if getattr(args, "relief_strength", None) is not None:
+        data["relief"] = dict(data.get("relief", {}), relief_strength=args.relief_strength)
+    sea = dict(data.get("sea", {}))
+    if (
+        getattr(args, "land_fraction", None) is not None
+        and getattr(args, "sea_level", None) is not None
+    ):
+        raise ConfigError("--land-fraction and --sea-level are mutually exclusive")
+    if getattr(args, "land_fraction", None) is not None:
+        sea.update(sea_mode="target_land_fraction", target_land_fraction=args.land_fraction)
+    if getattr(args, "sea_level", None) is not None:
+        sea.update(sea_mode="fixed_sea_level_m", fixed_sea_level_m=args.sea_level)
+    if sea:
+        data["sea"] = sea
+
+
+def _add_v2_options(parser) -> None:
+    parser.add_argument("--continent-profile", choices=CONTINENT_PROFILES)
+    parser.add_argument("--major-landmasses", help='"auto" or the wished number of major masses')
+    parser.add_argument("--size-variety", type=float, help="continent_size_variety, 0..1")
+    parser.add_argument("--coast-irregularity", type=float, help="0..1.5")
+    parser.add_argument("--relief-strength", type=float, help="macro-tectonic relief, 0..3")
+    parser.add_argument(
+        "--land-fraction",
+        type=float,
+        help="sea mode target_land_fraction: land share of the simulation area",
+    )
+    parser.add_argument(
+        "--sea-level", type=float, help="sea mode fixed_sea_level_m: level in metres (model datum)"
+    )
 
 
 def _summary(project) -> str:
@@ -105,6 +153,27 @@ def _summary(project) -> str:
         f"geology hash    {project.geology_hash()}",
         f"validation      {'OK' if v.get('ok') else 'FAILED'}",
     ]
+    if project.geo is None:
+        lines.append("v2.0            not generated (continents / heights are absent)")
+    else:
+        geo = project.geo
+        w = geo.summary["world"]
+        lines += [
+            f"sea level       {geo.sea_level_m:+.1f} m ({geo.summary['sea_mode']})",
+            f"land            {100 * geo.summary['land_fraction_viewport']:.1f} % of the window, "
+            f"{100 * w['land_fraction_simulation']:.1f} % of the simulation area",
+            f"landmasses      {len(geo.landmasses)} in the window "
+            f"({geo.summary['major_landmasses_in_window']} major); "
+            f"{w['major_landmass_count']} major in the simulation area",
+            f"crust blocks    {len(geo.blocks)} in the window; shelf "
+            f"{100 * geo.summary['shelf_fraction_viewport']:.1f} % of the window",
+            f"elevation       {geo.summary['min_elevation_m']:+.0f} .. "
+            f"{geo.summary['max_elevation_m']:+.0f} m (macro relief, no detail)",
+            f"v2 hash         {geo.geo_hash()}",
+            f"v2 validation   {'OK' if geo.validation.get('ok') else 'FAILED'}",
+        ]
+        for err in geo.validation.get("errors", []):
+            lines.append(f"  ERROR   {err}")
     for err in v.get("errors", []):
         lines.append(f"  ERROR   {err}")
     for warn in project.warnings:
@@ -122,7 +191,7 @@ def cmd_generate(args) -> int:
             print(f"[{100 * fraction:5.1f}%] {stage}", file=sys.stderr)
 
     t0 = time.perf_counter()
-    project = generate(config, progress=progress)
+    project = generate(config, progress=progress, through="v1" if args.v1_only else "v2")
     elapsed = time.perf_counter() - t0
     print(_summary(project))
     peak = _peak_memory_mb()
@@ -134,7 +203,113 @@ def cmd_generate(args) -> int:
         for layer in args.png or []:
             img = render.render_project(project, layer)
             print(f"image           {render.write_png(Path(out) / f'{layer}.png', img)}")
-    return 0 if project.validation["ok"] else 2
+        if args.png_views:
+            for image in _render_all_views(project, Path(out)):
+                print(f"image           {image}")
+    return 0 if _all_ok(project) else 2
+
+
+def _all_ok(project) -> bool:
+    return bool(
+        project.validation["ok"] and (project.geo is None or project.geo.validation.get("ok"))
+    )
+
+
+def _render_all_views(project, out_dir: Path, px_per_hex: float | None = None) -> list[Path]:
+    """One PNG per view and mode that has data (each tab is exported separately)."""
+    written = []
+    for spec in views.VIEWS.values():
+        if not spec.availability(project)[0]:
+            continue
+        for mode in spec.modes:
+            img = views.render_view_image(project, spec.id, mode.id, px_per_hex=px_per_hex)
+            written.append(render.write_png(out_dir / f"view_{spec.id}_{mode.id}.png", img))
+    return written
+
+
+def _save_target(args) -> Path:
+    return Path(args.out) if args.out else Path(args.project)
+
+
+def cmd_continents(args) -> int:
+    """Add or update the v2.0 data of an existing project."""
+    project = load_project(args.project)
+    data = project.config.to_dict()
+    _apply_v2_args(args, data)
+    t0 = time.perf_counter()
+    result = generate_v2(project, Config.from_dict(data))
+    print(_summary(result))
+    print(f"time            {time.perf_counter() - t0:.2f} s (v1.0 data reused unchanged)")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if _all_ok(result) else 2
+
+
+def cmd_sea(args) -> int:
+    """Change only the sea level of a project that already has v2.0 data."""
+    project = load_project(args.project)
+    if project.geo is None:
+        print(
+            "error: this project has no v2.0 data yet; run `hexworld continents` first",
+            file=sys.stderr,
+        )
+        return 1
+    if (args.level is None) == (args.land_fraction is None):
+        print("error: give exactly one of --level and --land-fraction", file=sys.stderr)
+        return 1
+    result = derive_landmasses(
+        project, sea_level_m=args.level, target_land_fraction=args.land_fraction
+    )
+    print(_summary(result))
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if _all_ok(result) else 2
+
+
+def cmd_views(_args) -> int:
+    for spec in views.VIEWS.values():
+        status = "ready" if spec.status == "ready" else "planned"
+        print(f"{spec.id:<11} {spec.title:<11} {status:<8} stage={spec.stage or '-'}  {spec.note}")
+        for mode in spec.modes:
+            print(f"    mode    {mode.id:<18} {mode.title}")
+        for overlay in spec.overlays:
+            print(
+                f"    overlay {overlay.id:<18} {overlay.title}"
+                f"{'  (default)' if overlay.default else ''}"
+            )
+    return 0
+
+
+def cmd_export(args) -> int:
+    """Numeric tables (CSV) and arrays (.npy) for other tools; PNG is never a data source."""
+    import csv
+
+    import numpy as np
+
+    project = load_project(args.project)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    def table(name, rows):
+        if not rows:
+            return
+        keys = [k for k in rows[0] if not isinstance(rows[0][k], dict)]
+        with (out / name).open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        print(out / name)
+
+    table("plates.csv", project.plates)
+    names = list(project.layers)
+    if project.geo is not None:
+        table("continental_blocks.csv", project.geo.blocks)
+        table("landmasses.csv", project.geo.landmasses)
+        names += list(project.geo.layers)
+        np.save(out / "world_elevation_m.npy", project.geo.world["elevation_m"])
+        print(out / "world_elevation_m.npy")
+    for name in names:
+        np.save(out / f"{name}.npy", project.layer(name))
+        print(out / f"{name}.npy")
+    return 0
 
 
 def cmd_info(args) -> int:
@@ -162,15 +337,35 @@ def cmd_validate(args) -> int:
 
 def cmd_render(args) -> int:
     project = load_project(args.project)
-    layers = render.LAYERS if args.layer == "all" else (args.layer,)
-    for layer in layers:
-        img = render.render_project(project, layer, px_per_hex=args.px_per_hex)
+    if args.view == "all" or args.layer == "all":
+        target = Path(args.out or args.project)
+        for image in _render_all_views(project, target, args.px_per_hex):
+            print(image)
+        return 0
+    if args.view:
+        spec = views.VIEWS[args.view]
+        ok, reason = spec.availability(project)
+        if not ok:
+            print(f"error: {reason}", file=sys.stderr)
+            return 1
+        mode = args.mode or spec.default_mode()
+        overlays = None if args.overlays is None else set(args.overlays)
+        img = views.render_view_image(project, args.view, mode, overlays, args.px_per_hex)
+        default_name = f"view_{args.view}_{mode}.png"
         out = (
             Path(args.out)
-            if args.out and len(layers) == 1
-            else (Path(args.out or args.project) / f"{layer}.png")
+            if args.out and args.out.lower().endswith(".png")
+            else (Path(args.out or args.project) / default_name)
         )
         print(render.write_png(out, img))
+        return 0
+    img = render.render_project(project, args.layer, px_per_hex=args.px_per_hex)
+    out = (
+        Path(args.out)
+        if args.out and args.out.lower().endswith(".png")
+        else (Path(args.out or args.project) / f"{args.layer}.png")
+    )
+    print(render.write_png(out, img))
     return 0
 
 
@@ -235,8 +430,42 @@ def build_parser() -> argparse.ArgumentParser:
         choices=render.LAYERS,
         help="also write PNG images of these layers into the project directory",
     )
+    g.add_argument(
+        "--png-views",
+        action="store_true",
+        help="also write one PNG per view/mode (Plates, Continents, Heights)",
+    )
+    g.add_argument(
+        "--v1-only",
+        action="store_true",
+        help="stop after the v1.0 tectonic stage (no continents / heights)",
+    )
+    _add_v2_options(g)
     g.add_argument("--quiet", "-q", action="store_true")
     g.set_defaults(func=cmd_generate)
+
+    c = sub.add_parser(
+        "continents", help="add or update v2.0 data (continents, heights) of a saved project"
+    )
+    c.add_argument("project")
+    c.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    _add_v2_options(c)
+    c.set_defaults(func=cmd_continents)
+
+    s = sub.add_parser("sea", help="change only the sea level of a saved v2.0 project")
+    s.add_argument("project")
+    s.add_argument("--level", type=float, help="fixed sea level, m")
+    s.add_argument("--land-fraction", type=float, help="target land share of the simulation area")
+    s.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    s.set_defaults(func=cmd_sea)
+
+    w = sub.add_parser("views", help="list the registered map views (tabs), modes and overlays")
+    w.set_defaults(func=cmd_views)
+
+    e = sub.add_parser("export", help="export tables (CSV) and numeric layers (.npy)")
+    e.add_argument("project")
+    e.add_argument("--out", "-o", required=True)
+    e.set_defaults(func=cmd_export)
 
     i = sub.add_parser("info", help="show a saved project")
     i.add_argument("project")
@@ -250,7 +479,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("render", help="render PNG image(s) of a saved project")
     r.add_argument("project")
-    r.add_argument("--layer", default="plates", choices=(*render.LAYERS, "all"))
+    r.add_argument(
+        "--layer",
+        default="plates",
+        choices=(*render.LAYERS, "all"),
+        help="v1.0 layer (kept for compatibility); prefer --view",
+    )
+    r.add_argument(
+        "--view",
+        choices=(*views.VIEWS, "all"),
+        help="map view (tab) to render; 'all' writes every view and mode",
+    )
+    r.add_argument("--mode", help="sub-mode of the view, see `hexworld views`")
+    r.add_argument("--overlays", nargs="*", help="overlay ids, see `hexworld views`")
     r.add_argument("--px-per-hex", type=float, help="display scale only; never changes data")
     r.add_argument("--out", "-o", help="PNG file (single layer) or directory")
     r.set_defaults(func=cmd_render)
@@ -271,7 +512,15 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (ConfigError, ValueError, ProjectIntegrityError, FileNotFoundError) as exc:
+    except (
+        ConfigError,
+        ValueError,
+        KeyError,
+        LookupError,
+        RuntimeError,
+        ProjectIntegrityError,
+        FileNotFoundError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

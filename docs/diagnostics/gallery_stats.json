@@ -1,0 +1,539 @@
+[
+  {
+    "profile": "balanced",
+    "seed": "Ab12",
+    "sea_level_m": 21.3,
+    "land_fraction": 0.29,
+    "major_landmasses": 6,
+    "largest_share_of_land": 0.499,
+    "landmasses_in_window": 14,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "ab12",
+    "sea_level_m": -7.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.575,
+    "landmasses_in_window": 21,
+    "speck_land_share": 0.00035,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Zx9",
+    "sea_level_m": 8.0,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.503,
+    "landmasses_in_window": 17,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Terra7",
+    "sea_level_m": 7.6,
+    "land_fraction": 0.29,
+    "major_landmasses": 8,
+    "largest_share_of_land": 0.348,
+    "landmasses_in_window": 17,
+    "speck_land_share": 0.00034,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Kq3Lm",
+    "sea_level_m": 13.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 7,
+    "largest_share_of_land": 0.247,
+    "landmasses_in_window": 13,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "N0va",
+    "sea_level_m": 16.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 10,
+    "largest_share_of_land": 0.361,
+    "landmasses_in_window": 20,
+    "speck_land_share": 0.00011,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Pangea7",
+    "sea_level_m": 17.6,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.385,
+    "landmasses_in_window": 27,
+    "speck_land_share": 0.00092,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Q",
+    "sea_level_m": 24.4,
+    "land_fraction": 0.29,
+    "major_landmasses": 8,
+    "largest_share_of_land": 0.271,
+    "landmasses_in_window": 11,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "x7Y2z",
+    "sea_level_m": 2.3,
+    "land_fraction": 0.29,
+    "major_landmasses": 8,
+    "largest_share_of_land": 0.374,
+    "landmasses_in_window": 19,
+    "speck_land_share": 0.00034,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "balanced",
+    "seed": "Mundo42",
+    "sea_level_m": 48.4,
+    "land_fraction": 0.29,
+    "major_landmasses": 8,
+    "largest_share_of_land": 0.541,
+    "landmasses_in_window": 15,
+    "speck_land_share": 0.0,
+    "valid": true,
+    "operations": [
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Ab12",
+    "sea_level_m": 11.7,
+    "land_fraction": 0.29,
+    "major_landmasses": 4,
+    "largest_share_of_land": 0.862,
+    "landmasses_in_window": 18,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "ab12",
+    "sea_level_m": 18.4,
+    "land_fraction": 0.29,
+    "major_landmasses": 3,
+    "largest_share_of_land": 0.842,
+    "landmasses_in_window": 30,
+    "speck_land_share": 0.0015,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Zx9",
+    "sea_level_m": 9.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.417,
+    "landmasses_in_window": 20,
+    "speck_land_share": 0.0008,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Terra7",
+    "sea_level_m": 33.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.753,
+    "landmasses_in_window": 19,
+    "speck_land_share": 0.00012,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Kq3Lm",
+    "sea_level_m": 22.9,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.717,
+    "landmasses_in_window": 22,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "N0va",
+    "sea_level_m": 10.9,
+    "land_fraction": 0.29,
+    "major_landmasses": 10,
+    "largest_share_of_land": 0.467,
+    "landmasses_in_window": 23,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Pangea7",
+    "sea_level_m": 25.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.79,
+    "landmasses_in_window": 24,
+    "speck_land_share": 0.00058,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Q",
+    "sea_level_m": 42.6,
+    "land_fraction": 0.29,
+    "major_landmasses": 6,
+    "largest_share_of_land": 0.547,
+    "landmasses_in_window": 13,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "x7Y2z",
+    "sea_level_m": -19.0,
+    "land_fraction": 0.29,
+    "major_landmasses": 6,
+    "largest_share_of_land": 0.663,
+    "landmasses_in_window": 14,
+    "speck_land_share": 0.00046,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "supercontinent",
+    "seed": "Mundo42",
+    "sea_level_m": 48.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 5,
+    "largest_share_of_land": 0.463,
+    "landmasses_in_window": 13,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "gather",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge",
+      "bridge"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Ab12",
+    "sea_level_m": 7.6,
+    "land_fraction": 0.29,
+    "major_landmasses": 11,
+    "largest_share_of_land": 0.23,
+    "landmasses_in_window": 32,
+    "speck_land_share": 0.00138,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "ab12",
+    "sea_level_m": 7.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 10,
+    "largest_share_of_land": 0.353,
+    "landmasses_in_window": 41,
+    "speck_land_share": 0.00115,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Zx9",
+    "sea_level_m": -18.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 10,
+    "largest_share_of_land": 0.321,
+    "landmasses_in_window": 30,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Terra7",
+    "sea_level_m": 9.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 12,
+    "largest_share_of_land": 0.245,
+    "landmasses_in_window": 23,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Kq3Lm",
+    "sea_level_m": 3.2,
+    "land_fraction": 0.29,
+    "major_landmasses": 17,
+    "largest_share_of_land": 0.162,
+    "landmasses_in_window": 28,
+    "speck_land_share": 0.0,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "N0va",
+    "sea_level_m": 19.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 13,
+    "largest_share_of_land": 0.185,
+    "landmasses_in_window": 27,
+    "speck_land_share": 0.00011,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Pangea7",
+    "sea_level_m": -8.3,
+    "land_fraction": 0.29,
+    "major_landmasses": 13,
+    "largest_share_of_land": 0.218,
+    "landmasses_in_window": 34,
+    "speck_land_share": 0.0008,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Q",
+    "sea_level_m": 28.9,
+    "land_fraction": 0.29,
+    "major_landmasses": 13,
+    "largest_share_of_land": 0.285,
+    "landmasses_in_window": 35,
+    "speck_land_share": 0.0015,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "x7Y2z",
+    "sea_level_m": -20.1,
+    "land_fraction": 0.29,
+    "major_landmasses": 15,
+    "largest_share_of_land": 0.261,
+    "landmasses_in_window": 28,
+    "speck_land_share": 0.00023,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  },
+  {
+    "profile": "fragmented",
+    "seed": "Mundo42",
+    "sea_level_m": 43.5,
+    "land_fraction": 0.29,
+    "major_landmasses": 14,
+    "largest_share_of_land": 0.212,
+    "landmasses_in_window": 23,
+    "speck_land_share": 0.00035,
+    "valid": true,
+    "operations": [
+      "rescale"
+    ],
+    "warnings": []
+  }
+]

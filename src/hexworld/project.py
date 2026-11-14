@@ -31,6 +31,49 @@ LAYER_SPECS: dict[str, tuple[str, str, str]] = {
 }
 
 
+#: v2.0 layers (stored in continental_fields.npz).
+GEO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
+    "continental_fraction": ("float32", "0..1", "continuous share of continental crust (v2)"),
+    "continental_margin_km": ("float32", "km", "signed distance-like field to the crust edge"),
+    "continental_block_id": ("int32", "id", "connected continental crust block, -1 = none"),
+    "macro_elevation_m": ("float32", "m", "absolute macro-elevation in the model datum"),
+    "tectonic_relief_m": ("float32", "m", "tectonic part of the macro-elevation (uplift mask)"),
+    "land_mask": ("bool", "bool", "macro_elevation_m > sea_level_m"),
+    "landmass_id": ("int32", "id", "connected land above sea level, -1 = under water"),
+    "shelf_mask": ("bool", "bool", "coarse submerged continental shelf"),
+}
+
+
+@dataclass
+class GeoData:
+    """Results of the v2.0 stages: continental blocks, macro relief, sea and land."""
+
+    layers: dict[str, np.ndarray]
+    sea_level_m: float
+    blocks: list[dict]
+    landmasses: list[dict]
+    summary: dict
+    stage_keys: dict[str, str]
+    #: World-level rasters over the model area (elevation, continentality) + their grid.
+    world: dict = field(default_factory=dict, repr=False)
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    def content_hashes(self) -> dict[str, str]:
+        out = {f"continental/{k}": array_hash(v) for k, v in self.layers.items()}
+        out["continental/world_elevation_m"] = array_hash(self.world["elevation_m"])
+        out["continental/world_continentality_km"] = array_hash(self.world["continentality_km"])
+        return out
+
+    def geo_hash(self) -> str:
+        h = hashlib.sha256()
+        h.update(repr(float(self.sea_level_m)).encode())
+        for key, value in sorted(self.content_hashes().items()):
+            h.update(f"{key}={value};".encode())
+        return h.hexdigest()
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -58,6 +101,8 @@ class Project:
     warnings: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
     stats: dict = field(default_factory=dict)
+    #: v2.0 data; ``None`` for a project that only has the v1.0 tectonic stage.
+    geo: GeoData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -68,14 +113,24 @@ class Project:
 
     @property
     def layer_names(self) -> list[str]:
-        return list(self.layers)
+        return list(self.layers) + (list(self.geo.layers) if self.geo else [])
+
+    @property
+    def has_geo(self) -> bool:
+        return self.geo is not None
 
     def layer(self, name: str) -> np.ndarray:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
-        try:
+        if name in self.layers:
             return self.layers[name]
-        except KeyError:
-            raise KeyError(f"Unknown layer {name!r}; available: {self.layer_names}") from None
+        if self.geo is not None and name in self.geo.layers:
+            return self.geo.layers[name]
+        if name in GEO_LAYER_SPECS:
+            raise KeyError(
+                f"Layer {name!r} belongs to the v2.0 stage, which has not been generated "
+                "for this project yet"
+            )
+        raise KeyError(f"Unknown layer {name!r}; available: {self.layer_names}")
 
     def plate(self, plate_id: int) -> dict:
         return self.plates[int(plate_id)]
@@ -97,6 +152,17 @@ class Project:
         info["crust"] = CRUST_NAMES[info["crust_type"]]
         info["boundary"] = TYPE_NAMES[info["boundary_type"]]
         info["plate_name"] = self.plates[info["plate_id"]]["name"]
+        if self.geo is not None:
+            for name, arr in self.geo.layers.items():
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[name] = bool(v)
+                else:
+                    info[name] = int(v) if np.issubdtype(arr.dtype, np.integer) else float(v)
+            sea = self.geo.sea_level_m
+            info["sea_level_m"] = sea
+            info["height_above_sea_m"] = max(0.0, info["macro_elevation_m"] - sea)
+            info["depth_m"] = max(0.0, sea - info["macro_elevation_m"])
         return info
 
     # -- world-space queries (resolution independent) -----------------------

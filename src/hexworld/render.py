@@ -165,29 +165,35 @@ def render_project(
     if arrows is None:
         arrows = layer == "motion"
     if arrows:
-        step_px = 46.0
-        gx, gy, vx, vy = motion_arrows(project, step_px * km_per_px)
-        vmax = max(1e-6, float(np.hypot(vx, vy).max())) if gx.size else 1.0
-        for x, y, u, v in zip(gx, gy, vx, vy, strict=True):
-            px = (x - b.xmin) / km_per_px
-            py = (y - b.ymin) / km_per_px
-            length = 0.8 * step_px * float(np.hypot(u, v)) / vmax
-            if length < 2.0:
-                continue
-            ang = float(np.arctan2(v, u))
-            ex, ey = px + length * np.cos(ang), py + length * np.sin(ang)
-            _draw_line(img, px, py, ex, ey, (255, 255, 255), 2)
-            for da in (2.6, -2.6):
-                _draw_line(
-                    img,
-                    ex,
-                    ey,
-                    ex + 7 * np.cos(ang + da),
-                    ey + 7 * np.sin(ang + da),
-                    (255, 255, 255),
-                    2,
-                )
+        draw_motion_arrows(img, project, km_per_px)
     return img
+
+
+def draw_motion_arrows(img: np.ndarray, project: Project, km_per_px: float) -> None:
+    """Draw plate-motion arrows on a rendered image of the whole window (in place)."""
+    b = project.geometry.viewport_bounds
+    step_px = 46.0
+    gx, gy, vx, vy = motion_arrows(project, step_px * km_per_px)
+    vmax = max(1e-6, float(np.hypot(vx, vy).max())) if gx.size else 1.0
+    for x, y, u, v in zip(gx, gy, vx, vy, strict=True):
+        px = (x - b.xmin) / km_per_px
+        py = (y - b.ymin) / km_per_px
+        length = 0.8 * step_px * float(np.hypot(u, v)) / vmax
+        if length < 2.0:
+            continue
+        ang = float(np.arctan2(v, u))
+        ex, ey = px + length * np.cos(ang), py + length * np.sin(ang)
+        _draw_line(img, px, py, ex, ey, (255, 255, 255), 2)
+        for da in (2.6, -2.6):
+            _draw_line(
+                img,
+                ex,
+                ey,
+                ex + 7 * np.cos(ang + da),
+                ey + 7 * np.sin(ang + da),
+                (255, 255, 255),
+                2,
+            )
 
 
 def write_png(path: str | Path, rgb: np.ndarray) -> Path:

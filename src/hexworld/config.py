@@ -13,6 +13,8 @@ from typing import Any
 from .rng import validate_seed
 
 PROFILES = ("few", "earthlike", "fragmented")
+CONTINENT_PROFILES = ("balanced", "supercontinent", "fragmented")
+SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
 MODES = ("regional", "world")
 
 
@@ -76,6 +78,50 @@ class FieldParams:
 
 
 @dataclass(frozen=True)
+class ContinentParams:
+    """v2.0 stage ``continental_blocks`` (RNG namespace ``continents/v2``)."""
+
+    continent_profile: str = "balanced"
+    #: "auto" or the wished number of *major* masses in the simulation area (a goal).
+    major_landmass_count: int | str = "auto"
+    #: 0..1: spread of block sizes and share of secondary fragments.
+    continent_size_variety: float = 0.5
+    #: 0..1.5: large- and mid-scale coast irregularity (never white noise).
+    coast_irregularity: float = 0.7
+    #: A mass counts as "major" above this area, km^2.
+    major_area_km2: float = 2.5e6
+    #: Width of the continental -> oceanic crust transition, km.
+    transition_km: float = 90.0
+    #: Cells along the longer side of the world-level tectonic skeleton raster.
+    skeleton_cells: int = 512
+
+
+@dataclass(frozen=True)
+class ReliefParams:
+    """v2.0 stage ``macro_elevation`` (RNG namespace ``macro_relief/v2``)."""
+
+    #: Strength of macro-tectonic uplift and troughs; detailed mountains are not affected.
+    relief_strength: float = 1.0
+    ocean_floor_m: float = -4430.0
+    continental_interior_m: float = 220.0
+    shelf_edge_m: float = -480.0
+    shelf_scale_km: float = 170.0
+
+
+@dataclass(frozen=True)
+class SeaParams:
+    """v2.0 stage ``sea_level_landmasses`` (RNG namespace ``sea_level/v2``)."""
+
+    sea_mode: str = "target_land_fraction"
+    #: Used when sea_mode == "target_land_fraction": land share of the simulation area.
+    target_land_fraction: float = 0.29
+    #: Used when sea_mode == "fixed_sea_level_m": level in the model vertical datum, m.
+    fixed_sea_level_m: float = 0.0
+    #: Submerged continental crust shallower than this is reported as shelf, m.
+    shelf_max_depth_m: float = 500.0
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -94,6 +140,9 @@ class Config:
     motion: MotionParams = field(default_factory=MotionParams)
     boundaries: BoundaryParams = field(default_factory=BoundaryParams)
     fields: FieldParams = field(default_factory=FieldParams)
+    continents: ContinentParams = field(default_factory=ContinentParams)
+    relief: ReliefParams = field(default_factory=ReliefParams)
+    sea: SeaParams = field(default_factory=SeaParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -116,6 +165,26 @@ class Config:
             raise ConfigError("crust.continental_fraction must be within [0.02, 0.98]")
         if not 32 <= self.reference_cells <= 2048:
             raise ConfigError("reference_cells must be within [32, 2048]")
+        cp = self.continents
+        if cp.continent_profile not in CONTINENT_PROFILES:
+            raise ConfigError(f"continents.continent_profile must be one of {CONTINENT_PROFILES}")
+        m = cp.major_landmass_count
+        if m != "auto" and (not isinstance(m, int) or isinstance(m, bool) or not 1 <= m <= 30):
+            raise ConfigError('continents.major_landmass_count must be "auto" or 1..30')
+        if not 0.0 <= cp.continent_size_variety <= 1.0:
+            raise ConfigError("continents.continent_size_variety must be within [0, 1]")
+        if not 0.0 <= cp.coast_irregularity <= 1.5:
+            raise ConfigError("continents.coast_irregularity must be within [0, 1.5]")
+        if not 128 <= cp.skeleton_cells <= 2048:
+            raise ConfigError("continents.skeleton_cells must be within [128, 2048]")
+        if not 0.0 <= self.relief.relief_strength <= 3.0:
+            raise ConfigError("relief.relief_strength must be within [0, 3]")
+        if self.sea.sea_mode not in SEA_MODES:
+            raise ConfigError(f"sea.sea_mode must be one of {SEA_MODES}")
+        if not 0.01 <= self.sea.target_land_fraction <= 0.99:
+            raise ConfigError("sea.target_land_fraction must be within [0.01, 0.99]")
+        if not -9000.0 <= self.sea.fixed_sea_level_m <= 9000.0:
+            raise ConfigError("sea.fixed_sea_level_m must be within [-9000, 9000] m")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -139,6 +208,9 @@ class Config:
             "motion": MotionParams,
             "boundaries": BoundaryParams,
             "fields": FieldParams,
+            "continents": ContinentParams,
+            "relief": ReliefParams,
+            "sea": SeaParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

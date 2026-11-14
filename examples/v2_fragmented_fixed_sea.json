@@ -1,0 +1,10 @@
+{
+  "seed": "Kq3Lm",
+  "width": 500,
+  "height": 300,
+  "hex_spacing_km": 60.0,
+  "mode": "world",
+  "continents": {"continent_profile": "fragmented", "continent_size_variety": 0.8},
+  "relief": {"relief_strength": 1.3},
+  "sea": {"sea_mode": "fixed_sea_level_m", "fixed_sea_level_m": 60.0}
+}

@@ -1,4 +1,9 @@
-"""Map widget: draws the whole map as one raster image (no per-hex objects)."""
+"""Map widget: draws the whole map as one raster image (no per-hex objects).
+
+The widget knows nothing about individual views: it asks the view registry for
+the colour of every hex and paints it. Zoom, pan and the selected hex belong to
+the widget, so they are shared by all tabs.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +12,7 @@ from PySide6.QtCore import QLineF, QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
-from .. import render
+from .. import render, views
 from ..project import Project
 from ..stages.boundaries import TYPE_NAMES
 
@@ -16,17 +21,18 @@ _MAX_OVERLAY_EDGES = 60000
 
 class MapView(QWidget):
     hexHovered = Signal(str)
-    plateSelected = Signal(int)
+    hexClicked = Signal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.setMinimumSize(320, 240)
         self.project: Project | None = None
-        self.layer = "plates"
-        self.show_boundaries = True
-        self.show_arrows = True
-        self.selected_plate: int | None = None
+        self.view_id = "plates"
+        self.mode = views.VIEWS["plates"].default_mode()
+        self.overlays: frozenset = views.VIEWS["plates"].default_overlays()
+        #: Selected hex (col, row); shared by every tab, like zoom and pan.
+        self.selected_hex: tuple[int, int] | None = None
         self._km_per_px = 1.0
         self._cx = 0.0
         self._cy = 0.0
@@ -43,27 +49,30 @@ class MapView(QWidget):
 
     # -- state -------------------------------------------------------------
     def set_project(self, project: Project | None, keep_view: bool = False):
+        same_grid = (
+            project is not None
+            and self.project is not None
+            and project.layout == self.project.layout
+        )
         self.project = project
-        self.selected_plate = None
+        if not same_grid:
+            self.selected_hex = None
         self._hex_rgb = None
-        if project is not None and not keep_view:
+        if project is not None and not (keep_view or same_grid):
             self.fit()
         self._invalidate()
 
-    def set_layer(self, layer: str):
-        self.layer = layer
+    def set_view(self, view_id: str, mode: str, overlays) -> None:
+        """Switch the presentation only: no generation; zoom, pan and selection are kept."""
+        self.view_id = view_id
+        self.mode = mode
+        self.overlays = frozenset(overlays)
         self._hex_rgb = None
         self._invalidate()
 
-    def set_overlays(self, boundaries: bool, arrows: bool):
-        self.show_boundaries = boundaries
-        self.show_arrows = arrows
+    def select_hex(self, hexagon: tuple[int, int] | None):
+        self.selected_hex = hexagon
         self.update()
-
-    def select_plate(self, plate_id: int | None):
-        self.selected_plate = plate_id
-        self._hex_rgb = None
-        self._invalidate()
 
     def fit(self):
         if self.project is None:
@@ -79,6 +88,9 @@ class MapView(QWidget):
     @property
     def km_per_px(self) -> float:
         return self._km_per_px
+
+    def view_state(self) -> tuple[float, float, float]:
+        return self._cx, self._cy, self._km_per_px
 
     def _invalidate(self, coarse: bool = False):
         self._image = None
@@ -112,12 +124,7 @@ class MapView(QWidget):
         if self._image is not None or self.project is None:
             return
         if self._hex_rgb is None:
-            rgb = render.layer_rgb(self.project, self.layer)
-            if self.selected_plate is not None:
-                other = self.project.layer("plate_id") != self.selected_plate
-                rgb = rgb.copy()
-                rgb[other] = (rgb[other] * 0.55).astype(np.uint8)
-            self._hex_rgb = rgb
+            self._hex_rgb = views.view_rgb(self.project, self.view_id, self.mode, self.overlays)
         scale = 3 if self._coarse else 1
         w = max(1, self.width() // scale)
         h = max(1, self.height() // scale)
@@ -139,13 +146,25 @@ class MapView(QWidget):
                 "Задайте параметры и нажмите «Сгенерировать»",
             )
             return
+        ok, reason = views.VIEWS[self.view_id].availability(self.project)
+        if not ok:
+            painter.setPen(QColor(210, 210, 210))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, reason)
+            return
         self._ensure_image()
         painter.drawImage(self.rect(), self._image)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        if self.show_boundaries:
+        if self.view_id == "plates" and "boundaries" in self.overlays:
             self._paint_boundaries(painter)
-        if self.show_arrows:
+        if self.view_id == "plates" and "motion" in self.overlays:
             self._paint_arrows(painter)
+        if self.selected_hex is not None:
+            wx, wy = self.project.layout.center(*self.selected_hex)
+            sx, sy = self.to_screen(float(wx), float(wy))
+            radius = max(6.0, 0.6 * self.project.layout.spacing_km / self._km_per_px)
+            for pen in (QPen(QColor(0, 0, 0), 4.0), QPen(QColor(255, 255, 255), 2.0)):
+                painter.setPen(pen)
+                painter.drawEllipse(QPointF(sx, sy), radius, radius)
 
     def _paint_boundaries(self, painter: QPainter):
         edges = self.project.boundaries
@@ -253,14 +272,22 @@ class MapView(QWidget):
             if hexagon is None:
                 wx, wy = self.to_world(pos.x(), pos.y())
                 self.hexHovered.emit(f"x {wx:,.0f} км, y {wy:,.0f} км - вне карты")
-            else:
-                info = self.project.hex_info(*hexagon)
-                self.hexHovered.emit(
-                    f"гекс ({info['col']}, {info['row']})  x {info['x_km']:,.0f} км, "
-                    f"y {info['y_km']:,.0f} км  |  плита {info['plate_id']} {info['plate_name']}"
-                    f"  |  кора: {info['crust']}  |  граница: {info['boundary']}"
-                    f"  |  до границы {info['boundary_distance_km']:,.0f} км"
+                return
+            info = self.project.hex_info(*hexagon)
+            text = (
+                f"гекс ({info['col']}, {info['row']})  x {info['x_km']:,.0f} км, "
+                f"y {info['y_km']:,.0f} км  |  плита {info['plate_id']} {info['plate_name']}"
+            )
+            if "macro_elevation_m" in info:
+                rel = info["macro_elevation_m"] - info["sea_level_m"]
+                text += (
+                    f"  |  {'высота' if rel > 0 else 'глубина'} {abs(rel):,.0f} м"
+                    f"  |  блок {info['continental_block_id']}"
+                    f"  |  материк {info['landmass_id']}"
                 )
+            else:
+                text += f"  |  кора (prior): {info['crust']}  |  граница: {info['boundary']}"
+            self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):
         if event.button() != Qt.MouseButton.LeftButton:
@@ -270,7 +297,8 @@ class MapView(QWidget):
         if not moved and self.project is not None:
             hexagon = self._hex_at(event.position())
             if hexagon is not None:
-                self.plateSelected.emit(int(self.project.layer("plate_id")[hexagon[1], hexagon[0]]))
+                self.select_hex(hexagon)
+                self.hexClicked.emit(hexagon[0], hexagon[1])
 
     def _hex_at(self, pos):
         wx, wy = self.to_world(pos.x(), pos.y())

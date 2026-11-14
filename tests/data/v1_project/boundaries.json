@@ -1,0 +1,37 @@
+{
+  "format": "structure of arrays in boundaries.npz; one entry per shared hex edge",
+  "edge_count": 54,
+  "edge_length_km": 69.2820323027551,
+  "arrays": {
+    "col_a/row_a": "int32 - offset coords of the hex on the plate_a side",
+    "col_b/row_b": "int32 - offset coords of the hex on the plate_b side",
+    "direction": "uint8 - hex direction index A->B, 0..5 = axial (1,0),(1,-1),(0,-1),(-1,0),(-1,1),(0,1)",
+    "plate_a/plate_b": "int32 - plate IDs, always plate_a < plate_b",
+    "mid_x/mid_y": "float64 km - world coordinates of the edge midpoint",
+    "normal_x/normal_y": "float32 - unit normal of the geological boundary, from A into B",
+    "vrel_x/vrel_y": "float32 mm/yr - relative velocity v_B - v_A at the midpoint",
+    "vn": "float32 mm/yr - v_rel . normal; < 0 convergent, > 0 divergent",
+    "vt": "float32 mm/yr - v_rel . tangent, tangent = (-ny, nx); > 0 dextral, < 0 sinistral",
+    "boundary_type": "uint8 - {0: 'none', 1: 'convergent', 2: 'divergent', 3: 'transform', 4: 'quiet'}",
+    "intensity": "float32 0..1 - dominant component / boundaries.reference_speed_mm_yr",
+    "crust_a/crust_b": "uint8 - {0: 'oceanic', 1: 'continental'}",
+    "subducting": "uint8 - polarity hint for convergent edges: 0 none, 1 plate_a, 2 plate_b"
+  },
+  "pairs": [
+    {
+      "plate_a": 0,
+      "plate_b": 10,
+      "edges": 54,
+      "length_km": 3741.23,
+      "type_share": {
+        "convergent": 1.0,
+        "divergent": 0.0,
+        "transform": 0.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -89.525,
+      "mean_vt_mm_yr": -20.6208,
+      "mean_intensity": 0.8953
+    }
+  ]
+}

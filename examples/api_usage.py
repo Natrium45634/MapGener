@@ -26,3 +26,19 @@ print(faster.stats["reused_stages"])
 
 save_project(project, "out/api_example")
 print(load_project("out/api_example").geology_hash() == project.geology_hash())
+
+# ---- v2.0: continents, macro relief, sea level --------------------------------
+from hexworld import derive_landmasses, get_layer  # noqa: E402
+
+geo = project.geo
+print(geo.sea_level_m, len(geo.blocks), len(geo.landmasses))
+print(project.layer("macro_elevation_m").dtype, project.layer("land_mask").mean())
+print(geo.landmasses[0]["name"], geo.landmasses[0]["area_km2"])
+
+# Another sea level: only land, landmasses and shelf are recomputed.
+flooded = derive_landmasses(project, sea_level_m=geo.sea_level_m + 150.0)
+print(flooded.stats["reused_stages"], flooded.layer("land_mask").mean())
+
+# The same heights through another window at a finer resolution:
+layout, elev = get_layer(project, "macro_elevation_m", [1000, 1000, 3000, 2500], hex_spacing_km=5.0)
+print(layout.width, layout.height, float(elev.min()), float(elev.max()))
