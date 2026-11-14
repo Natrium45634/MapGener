@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hexworld"
+version = "1.0.0"
+description = "Procedural hexagonal geographic map generator: tectonic foundation (plates, crust, motion, boundaries)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.0", "scipy>=1.13"]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+hexworld = "hexworld.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: large-map load tests (run with: pytest -m slow)"]
+addopts = "-m 'not slow'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

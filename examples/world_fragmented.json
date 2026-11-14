@@ -1,0 +1,8 @@
+{
+  "seed": "Pangea7",
+  "width": 1000,
+  "height": 800,
+  "hex_spacing_km": 40.0,
+  "mode": "world",
+  "plates": {"count": "auto", "profile": "fragmented"}
+}

@@ -1,0 +1,10 @@
+{
+  "seed": "Ab12",
+  "width": 400,
+  "height": 300,
+  "hex_spacing_km": 10.0,
+  "mode": "regional",
+  "viewport_origin_km": [1500.0, 1000.0],
+  "simulation_bounds_km": [-5000.0, -5000.0, 9000.0, 9000.0],
+  "plates": {"count": 8, "profile": "earthlike"}
+}

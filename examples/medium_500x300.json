@@ -1,0 +1,8 @@
+{
+  "seed": "Ab12",
+  "width": 500,
+  "height": 300,
+  "hex_spacing_km": 30.0,
+  "mode": "regional",
+  "plates": {"count": "auto", "profile": "earthlike"}
+}
