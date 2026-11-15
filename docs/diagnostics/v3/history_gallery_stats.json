@@ -3,138 +3,139 @@
     "seed": "Ab12",
     "duration_ma": 40.0,
     "morphologies": {
-      "plateau": 2,
-      "young_sharp": 12,
-      "volcanic_arc": 33,
-      "mature": 9,
-      "old_rounded": 3
+      "young_sharp": 5,
+      "plateau": 1,
+      "volcanic_arc": 14,
+      "mature": 3
     },
     "summary": {
-      "mountain_systems": 59,
-      "ridges": 1135,
-      "peaks": 1905,
-      "passes": 1714,
-      "volcanoes": 2505,
-      "active_volcanoes": 1048,
+      "mountain_systems": 23,
+      "ridges": 1280,
+      "peaks": 2204,
+      "passes": 2131,
+      "volcanoes": 3624,
+      "active_volcanoes": 881,
       "hotspots": 13,
-      "events": 362,
-      "max_elevation_m": 6890.30517578125,
-      "changed_hex_share": 0.8948787878787878,
-      "new_crust_share_viewport": 0.21154545454545454
+      "events": 292,
+      "max_elevation_m": 6739.62548828125,
+      "changed_hex_share": 0.8946212121212122,
+      "new_crust_share_viewport": 0.2165
     },
     "young": {
-      "id": 1,
+      "id": 5,
       "kind": "collision",
-      "morphology": "plateau",
+      "morphology": "young_sharp",
       "age_ma": 0.0,
-      "maturity": 0.202,
-      "max_elevation_m": 6106.47119140625,
-      "length_km": 6139.778234087744
+      "maturity": 0.203,
+      "max_elevation_m": 4203.6240234375,
+      "length_km": 3592.625595690504
     },
     "ancient": {
-      "id": 23,
-      "kind": "inherited",
-      "morphology": "old_rounded",
-      "age_ma": 400.64,
-      "maturity": 0.6855,
-      "max_elevation_m": 342.27178955078125,
-      "length_km": 1118.0526006242421
+      "id": 3,
+      "kind": "collision",
+      "morphology": "young_sharp",
+      "age_ma": 0.0,
+      "maturity": 0.2398,
+      "max_elevation_m": 6045.5283203125,
+      "length_km": 9216.239766813169
     },
     "rift": {
       "event": "ocean_opening:5-17:0",
-      "time_ma": 15.0,
-      "volcanic_centres_within_1500_km": 95
+      "time_ma": 12.0,
+      "volcanic_centres_within_1500_km": 245
     }
   },
   {
     "seed": "Terra7",
     "duration_ma": 40.0,
     "morphologies": {
-      "young_sharp": 11,
-      "mature": 9,
-      "volcanic_arc": 20,
-      "old_rounded": 2
+      "plateau": 1,
+      "young_sharp": 13,
+      "volcanic_arc": 28,
+      "mature": 5
     },
     "summary": {
-      "mountain_systems": 42,
-      "ridges": 1072,
-      "peaks": 1834,
-      "passes": 1688,
-      "volcanoes": 2232,
-      "active_volcanoes": 1072,
+      "mountain_systems": 47,
+      "ridges": 1323,
+      "peaks": 2309,
+      "passes": 2151,
+      "volcanoes": 3967,
+      "active_volcanoes": 1372,
       "hotspots": 13,
-      "events": 371,
-      "max_elevation_m": 5921.23095703125,
-      "changed_hex_share": 0.8941363636363636,
-      "new_crust_share_viewport": 0.14275757575757575
+      "events": 353,
+      "max_elevation_m": 5679.06396484375,
+      "changed_hex_share": 0.8501666666666666,
+      "new_crust_share_viewport": 0.13033333333333333
     },
     "young": {
-      "id": 7,
+      "id": 8,
       "kind": "collision",
       "morphology": "young_sharp",
       "age_ma": 0.0,
-      "maturity": 0.2225,
-      "max_elevation_m": 4318.61962890625,
-      "length_km": 3669.662297893927
+      "maturity": 0.204,
+      "max_elevation_m": 4031.88623046875,
+      "length_km": 3345.136408392316
     },
     "ancient": {
       "id": 14,
       "kind": "arc",
       "morphology": "mature",
-      "age_ma": 14.0,
-      "maturity": 0.5463,
-      "max_elevation_m": 1062.7991943359375,
-      "length_km": 1283.4894793220835
+      "age_ma": 6.0,
+      "maturity": 0.5055,
+      "max_elevation_m": 1835.7088623046875,
+      "length_km": 1652.0064790113852
     },
     "rift": {
       "event": "ocean_opening:5-10:0",
-      "time_ma": 16.0,
-      "volcanic_centres_within_1500_km": 103
+      "time_ma": 15.0,
+      "volcanic_centres_within_1500_km": 267
     }
   },
   {
     "seed": "Kq3Lm",
     "duration_ma": 40.0,
     "morphologies": {
-      "young_sharp": 16,
-      "mature": 17,
-      "volcanic_arc": 27
+      "plateau": 3,
+      "young_sharp": 10,
+      "volcanic_arc": 23,
+      "mature": 3,
+      "old_rounded": 1
     },
     "summary": {
-      "mountain_systems": 60,
-      "ridges": 1464,
-      "peaks": 2483,
-      "passes": 2251,
-      "volcanoes": 2641,
-      "active_volcanoes": 1399,
+      "mountain_systems": 40,
+      "ridges": 1618,
+      "peaks": 2789,
+      "passes": 2632,
+      "volcanoes": 3436,
+      "active_volcanoes": 1211,
       "hotspots": 13,
-      "events": 396,
-      "max_elevation_m": 5964.111328125,
-      "changed_hex_share": 0.9082272727272728,
-      "new_crust_share_viewport": 0.20465151515151514
+      "events": 337,
+      "max_elevation_m": 5950.26904296875,
+      "changed_hex_share": 0.9122878787878788,
+      "new_crust_share_viewport": 0.20525757575757575
     },
     "young": {
-      "id": 7,
+      "id": 1,
       "kind": "collision",
       "morphology": "young_sharp",
       "age_ma": 0.0,
-      "maturity": 0.2138,
-      "max_elevation_m": 4515.0400390625,
-      "length_km": 3847.008217527674
+      "maturity": 0.1801,
+      "max_elevation_m": 5342.05810546875,
+      "length_km": 20289.43159737722
     },
     "ancient": {
-      "id": 30,
-      "kind": "collision",
-      "morphology": "mature",
-      "age_ma": 10.5,
-      "maturity": 0.5185,
-      "max_elevation_m": 1225.0565185546875,
-      "length_km": 658.0773056581603
+      "id": 14,
+      "kind": "arc",
+      "morphology": "volcanic_arc",
+      "age_ma": 4.5,
+      "maturity": 0.456,
+      "max_elevation_m": 2658.4931640625,
+      "length_km": 1613.8897887579487
     },
     "rift": {
-      "event": "ocean_opening:7-46:0",
+      "event": "rifting:10-17:0",
       "time_ma": 7.0,
-      "volcanic_centres_within_1500_km": 98
+      "volcanic_centres_within_1500_km": 204
     }
   }
 ]
