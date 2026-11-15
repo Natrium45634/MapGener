@@ -194,10 +194,13 @@ int pmge_sample_batch(const pmge_plan* plan, const double* x, const double* y, i
                       pmge_sample* out) {
   return guarded([&] {
     need(plan && (n == 0 || (x && y && out)) && n >= 0, "NULL argument or negative count");
-    for (int64_t i = 0; i < n; ++i) {
-      pmge::Sample s = plan->plan.sample(x[i], y[i]);
-      out[i] = {s.height, s.relief, s.structure, s.valley, s.ridge_distance, s.system, s.class_id};
-    }
+    pmge::parallel_for(n, [&](int64_t a, int64_t b) {
+      for (int64_t i = a; i < b; ++i) {
+        pmge::Sample s = plan->plan.sample(x[i], y[i]);
+        out[i] = {s.height, s.relief, s.structure, s.valley, s.ridge_distance, s.system,
+                  s.class_id};
+      }
+    });
   });
 }
 

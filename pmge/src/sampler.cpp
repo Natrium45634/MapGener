@@ -319,9 +319,11 @@ Sample Plan::sample(double x, double y) const {
 void generate_heightmap(const Plan& plan, double x0, double y0, double cell, int nx, int ny,
                         float* out) {
   if (nx <= 0 || ny <= 0 || !(cell > 0)) throw std::invalid_argument("bad raster geometry");
-  for (int j = 0; j < ny; ++j)
-    for (int i = 0; i < nx; ++i)
-      out[size_t(j) * nx + i] = float(plan.sample(x0 + i * cell, y0 + j * cell).height);
+  parallel_for(ny, [&](int64_t j0, int64_t j1) {
+    for (int64_t j = j0; j < j1; ++j)
+      for (int i = 0; i < nx; ++i)
+        out[size_t(j) * nx + i] = float(plan.sample(x0 + i * cell, y0 + j * cell).height);
+  });
 }
 
 void generate_patch(const Plan& plan, double x0, double y0, double cell, int nx, int ny,
@@ -330,7 +332,8 @@ void generate_patch(const Plan& plan, double x0, double y0, double cell, int nx,
   if (policy < PMGE_BLEND_REPLACE || policy > PMGE_BLEND_CONSTRAINED_FIT)
     throw std::invalid_argument("policy is not a PMGE_BLEND_* value");
   const pmge_request& r = plan.request;
-  for (int j = 0; j < ny; ++j) {
+  parallel_for(ny, [&](int64_t j0, int64_t j1) {
+  for (int64_t j = j0; j < j1; ++j) {
     for (int i = 0; i < nx; ++i) {
       double x = x0 + i * cell, y = y0 + j * cell;
       size_t k = size_t(j) * nx + i;
@@ -360,6 +363,7 @@ void generate_patch(const Plan& plan, double x0, double y0, double cell, int nx,
       delta[k] = float(d);
     }
   }
+  });
 }
 
 }  // namespace pmge

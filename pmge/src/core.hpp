@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace pmge {
@@ -111,6 +115,45 @@ inline std::vector<Vec2> resample(const std::vector<Vec2>& p, double step) {
     out[i] = p[j] * (1 - w) + p[j + 1] * w;
   }
   return out;
+}
+
+// Worker count: PMGE_THREADS if set (1 = single-threaded), otherwise all hardware threads.
+inline int worker_count() {
+  if (const char* env = std::getenv("PMGE_THREADS")) {
+    int n = std::atoi(env);
+    if (n >= 1) return n;
+  }
+  unsigned hw = std::thread::hardware_concurrency();
+  return hw ? int(hw) : 1;
+}
+
+// Runs f(begin, end) over [0, n) in contiguous blocks. Every index is computed by exactly
+// one worker and independently of the others, so results never depend on the thread count.
+template <class F>
+void parallel_for(int64_t n, F&& f) {
+  int workers = int(std::min<int64_t>(worker_count(), std::max<int64_t>(1, n / 256)));
+  if (workers <= 1) {
+    f(int64_t(0), n);
+    return;
+  }
+  std::vector<std::thread> pool;
+  std::exception_ptr error;
+  std::mutex guard;
+  int64_t block = (n + workers - 1) / workers;
+  for (int w = 0; w < workers; ++w) {
+    int64_t a = w * block, b = std::min(n, a + block);
+    if (a >= b) break;
+    pool.emplace_back([&, a, b] {
+      try {
+        f(a, b);
+      } catch (...) {
+        std::lock_guard<std::mutex> lock(guard);
+        if (!error) error = std::current_exception();
+      }
+    });
+  }
+  for (auto& t : pool) t.join();
+  if (error) std::rethrow_exception(error);
 }
 
 }  // namespace pmge

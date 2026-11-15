@@ -2,12 +2,24 @@
 // No external test framework: the library must build with a bare C++20 toolchain.
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <string>
 #include <vector>
 
 #include "pmge/pmge.h"
+
+#if defined(_WIN32)
+static void set_threads(const char* v) { _putenv_s("PMGE_THREADS", v ? v : ""); }
+#else
+static void set_threads(const char* v) {
+  if (v)
+    setenv("PMGE_THREADS", v, 1);
+  else
+    unsetenv("PMGE_THREADS");
+}
+#endif
 
 static int g_failed = 0, g_checks = 0;
 #define CHECK(cond)                                                              \
@@ -259,6 +271,19 @@ static void test_chunks_have_no_seams() {
   CHECK(lmax > r.base_m + 500 && rmax > r.base_m + 500);
 }
 
+static void test_thread_count_does_not_change_results() {
+  pmge_request r = base_request();
+  PlanHolder h(pmge_plan_create(&r, nullptr, 0));
+  int n = 300;
+  std::vector<float> one(size_t(n) * n), many(size_t(n) * n);
+  set_threads("1");
+  CHECK(pmge_generate_heightmap(h.p, 0, 0, 200.0, n, n, one.data()) == PMGE_OK);
+  set_threads("7");
+  CHECK(pmge_generate_heightmap(h.p, 0, 0, 200.0, n, n, many.data()) == PMGE_OK);
+  set_threads(nullptr);
+  CHECK(std::memcmp(one.data(), many.data(), one.size() * sizeof(float)) == 0);
+}
+
 static void test_hex_sampling() {
   pmge_request r = base_request();
   PlanHolder h(pmge_plan_create(&r, nullptr, 0));
@@ -366,6 +391,7 @@ int main() {
                {"patch_is_local_and_policies", test_patch_is_local_and_policies},
                {"chunks_have_no_seams", test_chunks_have_no_seams},
                {"hex_sampling", test_hex_sampling},
+               {"thread_count_does_not_change_results", test_thread_count_does_not_change_results},
                {"erosion_models", test_erosion_models},
                {"external_plan", test_external_plan}};
   for (auto& t : tests) {

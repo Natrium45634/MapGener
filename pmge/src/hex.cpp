@@ -33,7 +33,8 @@ void sample_hexes(const Plan& plan, const double* cx, const double* cy, int64_t 
       offs.push_back({0.5 * std::cos(a), 0.5 * std::sin(a)});
     }
   }
-  for (int64_t i = 0; i < n; ++i) {
+  parallel_for(n, [&](int64_t i0, int64_t i1) {
+  for (int64_t i = i0; i < i1; ++i) {
     pmge_hex_sample h{};
     Sample c = plan.sample(cx[i], cy[i]);
     h.center = c.height;
@@ -75,6 +76,7 @@ void sample_hexes(const Plan& plan, const double* cx, const double* cy, int64_t 
     }
     out[i] = h;
   }
+  });
 }
 
 }  // namespace pmge

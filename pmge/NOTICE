@@ -1,0 +1,7 @@
+PMGE - Procedural Mountain Generation Engine
+
+This software contains no third-party source code, data or assets.
+It has no build or runtime dependencies beyond a C++20 standard library and CMake.
+
+Projects that were studied for ideas only (no code copied) are listed with their licences
+in docs/research.md.
