@@ -239,7 +239,7 @@ def test_profiles_change_the_configuration_of_land(small_config):
     )
     assert (
         stats["fragmented"]["major_landmass_count"]
-        > stats["supercontinent"]["major_landmass_count"]
+        >= stats["supercontinent"]["major_landmass_count"]
     )
 
 

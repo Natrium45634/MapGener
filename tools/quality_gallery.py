@@ -57,7 +57,7 @@ def main() -> None:
                 mode="world",
             )
             config = replace(config, continents=ContinentParams(continent_profile=profile))
-            project = generate(config)
+            project = generate(config, through="v2")
             geo = project.geo
             tiles["landmasses"].append(
                 render_view_image(project, "continents", "landmasses", px_per_hex=2)

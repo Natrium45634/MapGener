@@ -381,7 +381,11 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
             if _file_hash(path / name) != expected:
                 raise ProjectIntegrityError(f"{name} does not match the manifest hash")
 
-    config = Config.from_dict(json.loads((path / "config.json").read_text(encoding="utf-8")))
+    raw_config = json.loads((path / "config.json").read_text(encoding="utf-8"))
+    if "layout" not in raw_config.get("crust", {}):
+        # written before the clustered layout existed: that world used the uniform one
+        raw_config.setdefault("crust", {})["layout"] = "uniform"
+    config = Config.from_dict(raw_config)
     plates_doc = json.loads((path / "plates.json").read_text(encoding="utf-8"))
     plates = plates_doc["plates"]
     with np.load(path / "fields.npz") as data:

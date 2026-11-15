@@ -433,12 +433,20 @@ class HistorySimulator:
             np.full(g.shape, -1, np.int32),
         )
         t_rate = np.zeros(g.shape, dtype=np.float32)
+        t_arc = np.full(g.shape, 200.0, dtype=np.float32)
         if trench.any():
             d, inds = ndimage.distance_transform_edt(~trench, return_indices=True)
             t_dist = (d * g.cell).astype(np.float32)
             t_over = owner[inds[0], inds[1]]
             t_under = under[inds[0], inds[1]]
             t_rate = rate[inds[0], inds[1]]
+            # Where the arc stands: above the point where the slab reaches the depth of
+            # magma generation (~105 km). Old, dense crust sinks steeply (arc close to the
+            # trench); young crust and fast convergence give a flat slab (arc far inland).
+            slab_age = np.clip(base.crust_age.ravel()[np.maximum(under_q, 0)] + t, 0.0, 170.0)
+            dip = np.clip(26.0 + 0.22 * slab_age - 0.10 * rate, 18.0, 62.0)
+            arc_km = np.clip(105.0 / np.tan(np.deg2rad(dip)), 95.0, 320.0)
+            t_arc = arc_km[inds[0], inds[1]].astype(np.float32)
         col = kind == 1
         c_dist, c_rate = inf.copy(), np.zeros(g.shape, dtype=np.float32)
         if col.any():
@@ -468,6 +476,7 @@ class HistorySimulator:
             arc_zone=np.zeros(g.shape, dtype=np.float32),
         )
         snap.continental = cont_over
+        snap.trench_arc_km = t_arc
         self._rates(snap, cont_over)
         snap.pairs = self._pairs(snap, rate)
         return snap
@@ -485,9 +494,12 @@ class HistorySimulator:
         s_sub = np.clip(snap.trench_rate / 50.0, 0.0, 2.0)
         over_side = snap.covered & (snap.owner == snap.trench_over)
         d = snap.trench_distance
-        arc_profile = _gauss(d - 210.0, 110.0)
-        arc = (60.0 + 80.0 * cont_over) * k * up * s_sub * arc_profile
-        back_arc = -28.0 * k * down * s_sub * _gauss(d - 640.0, 210.0)
+        arc_km = snap.trench_arc_km
+        # the volcanic line is narrow; the uplifted belt around it is broad
+        arc_profile = _gauss(d - arc_km, 40.0)
+        belt = _gauss(d - arc_km - 30.0, 115.0)
+        arc = (60.0 + 80.0 * cont_over) * k * up * s_sub * belt
+        back_arc = -28.0 * k * down * s_sub * _gauss(d - arc_km - 430.0, 210.0)
         subduction = np.where(over_side, arc + back_arc, 0.0)
         snap.arc_zone = np.where(over_side, np.clip(s_sub, 0, 1) * arc_profile, 0.0).astype(
             np.float32

@@ -302,10 +302,17 @@ def test_reference_sampler_is_continuous_and_seamless(hist_project):
         gain=lambda x, y: np.full(np.shape(x), 0.8),
     )
     sampler = ReferenceBackend().sampler(request)
-    xs = cx + np.linspace(-300.0, 300.0, 2401)  # a 0.25 km step profile across the system
-    profile = sampler.sample_points(xs, np.full(xs.shape, cy)).relief_m
-    assert np.ptp(profile) > 300.0
-    assert np.abs(np.diff(profile)).max() < 60.0  # no cliffs: smooth foothills and flanks
+    main = next(
+        r for r in hist.plan["ridges"] if r["system"] == system["id"] and r["rank"] == "main"
+    )
+    mid = np.array(main["points_km"])[len(main["points_km"]) // 2]
+    cx, cy = float(mid[0]), float(mid[1])
+    line = np.linspace(-300.0, 300.0, 2401)  # 0.25 km steps across the main ridge
+    east = sampler.sample_points(cx + line, np.full(line.shape, cy)).relief_m
+    south = sampler.sample_points(np.full(line.shape, cx), cy + line).relief_m
+    assert max(np.ptp(east), np.ptp(south)) > 300.0
+    for profile in (east, south):
+        assert np.abs(np.diff(profile)).max() < 60.0  # no cliffs: smooth flanks and foothills
     # two adjacent "chunks" evaluated separately agree exactly on their shared edge
     edge_y = cy + np.linspace(-200.0, 200.0, 300)
     left = sampler.sample_points(np.full(edge_y.shape, cx), edge_y).relief_m
@@ -318,7 +325,8 @@ def test_reference_sampler_is_continuous_and_seamless(hist_project):
     )
     pts = np.array(main["points_km"])
     on_ridge = sampler.sample_points(pts[:, 0], pts[:, 1])
-    assert np.allclose(on_ridge.structure, np.array(main["crest"]), atol=0.08)
+    # (near a junction another ridge may stand higher, so the crest is a lower bound)
+    assert np.all(on_ridge.structure >= np.array(main["crest"]) - 1e-3)
 
 
 def test_hex_values_agree_with_the_continuous_surface(hist_project):
@@ -666,3 +674,84 @@ def test_v3_on_the_main_preset():
     project = generate(Config(seed="Ab12", **PRESETS["large"]))
     assert project.hist.validation["ok"], project.hist.validation
     assert project.hist.layers["elevation_m"].shape == (800, 1000)
+
+
+# -- 3.1: realism fixes ----------------------------------------------------------------
+def test_continents_are_grouped_with_unequal_sizes_and_random_assembly():
+    from hexworld.config import ContinentParams, CrustParams
+
+    fast = ContinentParams(skeleton_cells=224)
+    world = Config(
+        seed="Ab12", width=100, height=75, hex_spacing_km=280.0, mode="world", continents=fast
+    )
+    assemblies, largest = [], []
+    for seed in ("Ab12", "ab12", "Zx9", "Kq3Lm", "Q", "N0va"):
+        p = generate(replace(world, seed=seed), through="v2")
+        info = p.crust_model.layout_info
+        assert info["layout"] == "clustered" and 0.0 <= info["assembly"] <= 1.0
+        assemblies.append(info["assembly"])
+        largest.append(p.geo.summary["world"]["largest_landmass_share_of_land"])
+        assert p.geo.validation["ok"]
+    # the degree of assembly is a random element: neither always scattered nor always one
+    assert max(assemblies) - min(assemblies) > 0.3
+    assert min(largest) < 0.6 < max(largest)
+
+    def run(assembly, layout="clustered"):
+        crust = CrustParams(layout=layout, assembly=assembly)
+        return generate(replace(world, crust=crust), through="v2")
+
+    together, apart, even = run(1.0), run(0.0), run("auto", layout="uniform")
+    share = "largest_landmass_share_of_land"
+    assert together.geo.summary["world"][share] > apart.geo.summary["world"][share]
+
+    def unevenness(project):  # how unequal the land shares of the four map quarters are
+        land = project.geo.layers["land_mask"]
+        h, w = land.shape
+        q = [
+            land[: h // 2, : w // 2].mean(),
+            land[: h // 2, w // 2 :].mean(),
+            land[h // 2 :, : w // 2].mean(),
+            land[h // 2 :, w // 2 :].mean(),
+        ]
+        return float(np.std(q))
+
+    assert unevenness(together) > unevenness(even)  # grouped, not spread like noise
+    for p in (together, apart, even):  # the world share of continental crust is kept
+        assert abs(p.geo.summary["continental_crust_fraction_simulation"] - 0.36) < 0.03
+
+
+def test_arc_volcanoes_stand_on_a_narrow_line_set_by_the_slab():
+    young = two_plates((30, 0), (-30, 0), 0, 1)  # 80 Ma old ocean floor goes down
+    snap = young["snap"]
+    arcs = [v for v in young["volcanoes"].volcanoes if v.kind == "arc"]
+    x, y, idx = young["volcanoes"].positions(young["kin"], 20.0)
+    active = np.array([young["volcanoes"].is_active(int(i), 20.0) for i in idx])
+    assert arcs and active.any()
+    off = GRID.bilinear(
+        (snap.trench_distance - snap.trench_arc_km).astype(float), x[active], y[active]
+    )
+    assert np.abs(off).max() < 70.0  # one line, not a band several rows wide
+    assert np.ptp(x[active]) < 140.0  # the boundary runs north-south: a thin strip
+    ys = np.sort(y[active])
+    assert 40.0 < np.median(np.diff(ys)) < 140.0  # tens of km between neighbours
+    # a steeper (older) slab puts the arc closer to the trench
+    arc_km = snap.trench_arc_km[np.isfinite(snap.trench_distance) & (snap.arc_zone > 0.5)]
+    assert 95.0 <= arc_km.min() and arc_km.max() <= 320.0
+    assert all(r.radius_km < 30.0 for r in arcs)
+
+
+def test_volcano_marks_are_filtered_and_drawn_to_scale(hist_project):
+    default = views.view_vectors(hist_project, "volcanism", "centres")
+    everything = views.view_vectors(
+        hist_project, "volcanism", "centres", {"volcanoes", "extinct", "submarine", "hotspots"}
+    )
+
+    def count(layers):
+        return sum(len(v.x) for v in layers if v.kind == "points" and v.label != "hotspots")
+
+    volcanoes = hist_project.hist.volcanoes
+    assert count(default) == sum(1 for v in volcanoes if v["active"] and not v["submarine"])
+    assert count(everything) == len(volcanoes) >= count(default)
+    assert all(v.size_km > 0 for v in default if v.label.endswith("active"))
+    legend = " ".join(i.label for i in views.VIEWS["volcanism"].legend(hist_project, "centres"))
+    assert "один знак = один вулканический центр" in legend and "1,5 млн лет" in legend

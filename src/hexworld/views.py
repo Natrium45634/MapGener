@@ -46,6 +46,9 @@ class VectorLayer:
     size: float = 2.0  # line width or point radius, px
     filled: bool = True
     label: str = ""
+    #: Real radius of the object, km. When set, the mark is drawn to scale and never
+    #: smaller than ``size`` pixels - so a symbol does not exaggerate what it stands for.
+    size_km: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -940,7 +943,15 @@ def _render_volcanism(project: Project, mode: str, overlays: frozenset) -> np.nd
             L["land_mask"][..., None], np.array([104, 110, 100]), np.array([26, 46, 86])
         ).astype(np.float64)
         rgb = (base * (0.6 + 0.5 * shade[..., None])).clip(0, 255).astype(np.uint8)
-        inside = L["volcano_id"] >= 0
+        # tint only the edifices that the chosen overlays show
+        ids = L["volcano_id"]
+        size = max((v["id"] for v in h.volcanoes), default=-1) + 2
+        shown = np.zeros(size, dtype=bool)
+        for v in h.volcanoes:
+            wanted = "volcanoes" in overlays if v["active"] else "extinct" in overlays
+            if wanted and ("submarine" in overlays or not v["submarine"]):
+                shown[v["id"]] = True
+        inside = (ids >= 0) & shown[np.maximum(ids, 0)]
         rgb[inside] = (rgb[inside] * 0.4 + np.array([214, 80, 60]) * 0.6).astype(np.uint8)
     elif mode == "age":
         rgb = _age_ramp(L["volcanic_age_ma"], max(1.0, h.duration_ma))
@@ -951,27 +962,41 @@ def _render_volcanism(project: Project, mode: str, overlays: frozenset) -> np.nd
     return rgb
 
 
+def _volcano_groups(h):
+    v = h.volcanoes
+    return {
+        "arc_active": [x for x in v if x["kind"] == "arc" and x["active"]],
+        "arc_extinct": [x for x in v if x["kind"] == "arc" and not x["active"]],
+        "hot_active": [x for x in v if x["kind"] == "hotspot" and x["active"]],
+        "hot_extinct": [x for x in v if x["kind"] == "hotspot" and not x["active"]],
+    }
+
+
 def _legend_volcanism(project: Project, mode: str) -> list[LegendItem]:
     h = project.hist
-    v = h.volcanoes
-    arcs = [x for x in v if x["kind"] == "arc"]
-    spots = [x for x in v if x["kind"] == "hotspot"]
-    sub = sum(1 for x in v if x["submarine"])
+    g = _volcano_groups(h)
+    window = [x for x in h.volcanoes if x["in_window"]]
+    active = [x for x in window if x["active"]]
     head = [
         LegendItem(f"снимок: t = {h.epoch_time_ma:g} млн лет"),
         LegendItem(
-            f"дуговые вулканы (субдукция): {len(arcs)}, действующих "
-            f"{sum(1 for x in arcs if x['active'])}",
-            _VOLCANO_COLORS["arc"],
+            "один знак = один вулканический центр (постройка или группа конусов), "
+            "нарисован в масштабе"
+        ),
+        LegendItem(f"действующие дуговые: {len(g['arc_active'])}", _VOLCANO_COLORS["arc"]),
+        LegendItem(
+            f"действующие над горячими точками: {len(g['hot_active'])}", _VOLCANO_COLORS["hotspot"]
         ),
         LegendItem(
-            f"вулканы горячих точек: {len(spots)}, действующих "
-            f"{sum(1 for x in spots if x['active'])}",
-            _VOLCANO_COLORS["hotspot"],
+            f"потухшие (контур): дуговых {len(g['arc_extinct'])}, горячих точек "
+            f"{len(g['hot_extinct'])}"
         ),
+        LegendItem(
+            f"в окне действующих {len(active)}, из них под водой "
+            f"{sum(1 for x in active if x['submarine'])}"
+        ),
+        LegendItem("«действующий» = извергался в последние 1,5 млн лет"),
         LegendItem(f"горячих точек (неподвижны в мантии): {len(h.hotspots)}", (255, 255, 255)),
-        LegendItem(f"подводных построек в окне: {sub}"),
-        LegendItem("закрашенный знак - действующий, контур - потухший"),
     ]
     lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
     if mode == "potential":
@@ -992,6 +1017,7 @@ def _legend_volcanism(project: Project, mode: str) -> list[LegendItem]:
 def _vectors_volcanism(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
     h = project.hist
     out: list[VectorLayer] = []
+    submarine_too = "submarine" in overlays
     if "chains" in overlays:
         xs, ys = [], []
         for spot in h.hotspots:
@@ -1002,28 +1028,33 @@ def _vectors_volcanism(project: Project, mode: str, overlays: frozenset) -> list
                 xs.append(np.array([spot["x_km"]] + [v["x_km"] for v in chain]))
                 ys.append(np.array([spot["y_km"]] + [v["y_km"] for v in chain]))
         if xs:
-            out.append(VectorLayer("lines", xs, ys, (255, 220, 120), 1.4, True, "chains"))
-    if "volcanoes" in overlays:
-        for kind, color in _VOLCANO_COLORS.items():
-            for active in (False, True):
-                pts = [
-                    (v["x_km"], v["y_km"])
-                    for v in h.volcanoes
-                    if v["kind"] == kind and v["active"] == active
-                ]
-                if pts:
-                    arr = np.array(pts)
-                    out.append(
-                        VectorLayer(
-                            "points",
-                            arr[:, 0],
-                            arr[:, 1],
-                            color,
-                            3.4,
-                            active,
-                            f"{kind}_{'active' if active else 'extinct'}",
-                        )
+            out.append(VectorLayer("lines", xs, ys, (255, 220, 120), 1.2, True, "chains"))
+    for kind, color in _VOLCANO_COLORS.items():
+        for active, wanted in ((False, "extinct" in overlays), (True, "volcanoes" in overlays)):
+            if not wanted:
+                continue
+            chosen = [
+                v
+                for v in h.volcanoes
+                if v["kind"] == kind
+                and v["active"] == active
+                and (submarine_too or not v["submarine"])
+            ]
+            if chosen:
+                arr = np.array([[v["x_km"], v["y_km"]] for v in chosen])
+                radius = float(np.median([v["radius_km"] for v in chosen]))
+                out.append(
+                    VectorLayer(
+                        "points",
+                        arr[:, 0],
+                        arr[:, 1],
+                        color,
+                        2.0,
+                        active,
+                        f"{kind}_{'active' if active else 'extinct'}",
+                        size_km=radius,
                     )
+                )
     if "hotspots" in overlays and h.hotspots:
         arr = np.array([[s["x_km"], s["y_km"]] for s in h.hotspots])
         out.append(
@@ -1044,7 +1075,9 @@ register_view(
             Option("age", "Возраст построек"),
         ),
         overlays=(
-            Option("volcanoes", "Вулканы", True),
+            Option("volcanoes", "Действующие вулканы", True),
+            Option("extinct", "Потухшие"),
+            Option("submarine", "Подводные"),
             Option("hotspots", "Горячие точки", True),
             Option("chains", "Возрастные цепочки", True),
             Option("coast", "Берег", True),
@@ -1115,7 +1148,7 @@ def draw_vectors(
         else:
             px = np.rint((np.asarray(layer.x) - x0) / km_per_px).astype(np.int64)
             py = np.rint((np.asarray(layer.y) - y0) / km_per_px).astype(np.int64)
-            r = max(1, int(round(layer.size)))
+            r = max(1, int(round(max(layer.size, layer.size_km / km_per_px))))
             for cx, cy in zip(px, py, strict=True):
                 if not (-r <= cx < w + r and -r <= cy < h + r):
                     continue

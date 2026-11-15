@@ -199,7 +199,7 @@ class MapView(QWidget):
                 vis = (xs > x0) & (xs < x1) & (ys > y0) & (ys < y1)
                 if int(vis.sum()) > 6000:
                     continue
-                r = layer.size * grow
+                r = max(layer.size * grow, layer.size_km / k)
                 painter.setPen(QPen(QColor(20, 20, 20) if layer.filled else color, 1.4))
                 painter.setBrush(QBrush(color) if layer.filled else Qt.BrushStyle.NoBrush)
                 for a, b in zip(xs[vis], ys[vis], strict=True):

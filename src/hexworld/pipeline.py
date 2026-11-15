@@ -117,7 +117,13 @@ def stage_keys(config: Config, geometry: WorldGeometry, pad: int) -> dict[str, s
     # count and the same explicit number describe the same world.
     plate_params = {k: v for k, v in asdict(config.plates).items() if k not in ("count", "profile")}
     plates = _key("plates", world, plate_params)
-    crust = _key("crust", world, asdict(config.crust))
+    crust_params = asdict(config.crust)
+    if config.crust.layout == "uniform":
+        # the layout of generators <= 3.0: same key as those versions wrote, so their
+        # projects are extended in place instead of being regenerated
+        crust_params.pop("layout")
+        crust_params.pop("assembly")
+    crust = _key("crust", world, crust_params)
     motion = _key("motion", plates, crust, asdict(config.motion))
     lay = geometry.layout
     raster = _key(

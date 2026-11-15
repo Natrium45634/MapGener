@@ -15,6 +15,7 @@ from .rng import validate_seed
 PROFILES = ("few", "earthlike", "fragmented")
 CONTINENT_PROFILES = ("balanced", "supercontinent", "fragmented")
 SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
+CRUST_LAYOUTS = ("clustered", "uniform")
 HISTORY_PROFILES = ("calm", "earthlike", "active")
 MOUNTAIN_BACKENDS = ("reference", "pmge")
 MODES = ("regional", "world")
@@ -38,6 +39,13 @@ class PlateParams:
 
 @dataclass(frozen=True)
 class CrustParams:
+    #: "clustered" - continents gather around a few former supercontinents, sizes are
+    #: heavy-tailed and the degree of assembly is drawn from the seed (default since 3.1);
+    #: "uniform" - the evenly spread layout of generator versions up to 3.0.
+    layout: str = "clustered"
+    #: "auto" draws the degree of assembly from the seed; a number in [0, 1] fixes it
+    #: (0 = fully dispersed fragments, 1 = one assembled supercontinent).
+    assembly: float | str = "auto"
     continental_fraction: float = 0.36
     mean_continent_area_km2: float = 1.4e7
     warp_strength: float = 0.8
@@ -212,6 +220,11 @@ class Config:
             raise ConfigError("plates.warp_strength must be within [0, 1.2]")
         if not 0.02 <= self.crust.continental_fraction <= 0.98:
             raise ConfigError("crust.continental_fraction must be within [0.02, 0.98]")
+        if self.crust.layout not in CRUST_LAYOUTS:
+            raise ConfigError(f"crust.layout must be one of {CRUST_LAYOUTS}")
+        asm = self.crust.assembly
+        if asm != "auto" and not (isinstance(asm, (int, float)) and 0.0 <= asm <= 1.0):
+            raise ConfigError('crust.assembly must be "auto" or a number in [0, 1]')
         if not 32 <= self.reference_cells <= 2048:
             raise ConfigError("reference_cells must be within [32, 2048]")
         cp = self.continents

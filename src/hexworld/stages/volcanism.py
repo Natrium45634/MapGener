@@ -20,7 +20,8 @@ import numpy as np
 from ..rng import Stream
 
 HOTSPOT, ARC = "hotspot", "arc"
-_EXTINCT_AFTER_MA = 3.0
+#: A centre counts as active while it erupted within this time, Ma.
+_EXTINCT_AFTER_MA = 1.5
 
 
 @dataclass
@@ -170,46 +171,47 @@ class VolcanoBuilder:
                 if math.hypot(float(x[0]) - h.x, float(y[0]) - h.y) < 0.8 * v.radius_km:
                     v.last_active_ma = t
 
-        # -- arcs: every ~2.5 Ma add centres along active arc zones ---------------
+        # -- arcs: centres stand on the narrow arc line of an active subduction zone ----
         if t + 1e-9 < self._arc_clock:
             return
-        self._arc_clock = t + 2.5
-        zone = snap.arc_zone > 0.55
+        self._arc_clock = t + 1.0
+        zone = snap.arc_zone > 0.45
         if self.focus is not None:
             zone &= self.focus
         if not zone.any():
             return
         x_now, y_now, idx_now = self.set.positions(self.kin, t)
         arcs = [k for k, i in enumerate(idx_now) if self.set.volcanoes[int(i)].kind == ARC]
-        ax, ay = x_now[arcs], y_now[arcs]
+        ax, ay = list(x_now[arcs]), list(y_now[arcs])
+        arc_ids = [int(idx_now[k]) for k in arcs]
         gx, gy = grid.centers()
-        rows, cols = np.nonzero(zone)
+        # move every candidate cell onto the line itself (along the trench normal)
+        gy_d, gx_d = np.gradient(snap.trench_distance.astype(np.float64), grid.cell)
+        norm = np.maximum(np.hypot(gx_d, gy_d), 1e-6)
+        off = snap.trench_distance - snap.trench_arc_km
+        rows, cols = np.nonzero(zone & np.isfinite(off))
         stream = Stream(self.seed, f"geohistory/v3/arc/{t:.4f}")
         order = stream.permutation(rows.size)
-        spacing = 130.0
-        placed_x: list[float] = []
-        placed_y: list[float] = []
-        budget = 400
+        spacing = 68.0  # arc volcanoes stand tens of km apart
+        budget = 600
         for k in order:
             if budget <= 0:
                 break
             r, c = int(rows[k]), int(cols[k])
             jitter = stream.random(4)
-            x = float(gx[r, c]) + (jitter[0] - 0.5) * grid.cell
-            y = float(gy[r, c]) + (jitter[1] - 0.5) * grid.cell
-            if ax.size:
-                near = np.hypot(ax - x, ay - y)
+            shift = float(off[r, c]) - (jitter[0] - 0.5) * 16.0
+            x = float(gx[r, c]) - shift * float(gx_d[r, c] / norm[r, c])
+            y = float(gy[r, c]) - shift * float(gy_d[r, c] / norm[r, c])
+            if ax:
+                near = np.hypot(np.array(ax) - x, np.array(ay) - y)
                 j = int(np.argmin(near))
                 if near[j] < spacing:
-                    self.set.volcanoes[int(idx_now[arcs[j]])].last_active_ma = t
+                    if arc_ids[j] >= 0:
+                        self.set.volcanoes[arc_ids[j]].last_active_ma = t
                     continue
-            if placed_x and np.min(np.hypot(np.array(placed_x) - x, np.array(placed_y) - y)) < (
-                spacing
-            ):
-                continue
             continental = float(cont_at_cell[r, c]) > 0.5
             height = (900.0 + 1300.0 * jitter[2]) if continental else (1800.0 + 2200.0 * jitter[2])
-            radius = 26.0 + 16.0 * jitter[3]
+            radius = 14.0 + 12.0 * jitter[3]
             self._add(
                 ARC,
                 -1,
@@ -221,8 +223,9 @@ class VolcanoBuilder:
                 radius,
                 partner=int(snap.trench_under[r, c]),
             )
-            placed_x.append(x)
-            placed_y.append(y)
+            ax.append(x)
+            ay.append(y)
+            arc_ids.append(len(self.set.volcanoes) - 1)
             budget -= 1
 
 
