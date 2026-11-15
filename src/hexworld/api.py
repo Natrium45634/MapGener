@@ -90,6 +90,74 @@ def generate_v2(v1_world: Project, config: Config | None = None, progress=None) 
     return generate(_v2_config(v1_world, config), progress=progress, reuse=v1_world)
 
 
+def generate_history(project: Project, config: Config | None = None, progress=None) -> Project:
+    """Add (or update) the v3.0 geological history; the v1/v2 baseline is only read."""
+    cfg = (
+        project.config
+        if config is None
+        else replace(
+            project.config,
+            continents=config.continents,
+            relief=config.relief,
+            sea=config.sea,
+            history=config.history,
+            mountains=config.mountains,
+        )
+    )
+    return generate(cfg, progress=progress, reuse=project)
+
+
+def select_epoch(project: Project, epoch, progress=None) -> Project:
+    """Show another stored snapshot: ``"initial"``, ``"final"`` or a time in Ma.
+
+    The history is not simulated again; only the hex layers of that epoch are built.
+    """
+    history = replace(project.config.history, epoch=epoch)
+    return generate(replace(project.config, history=history), progress=progress, reuse=project)
+
+
+def history_events(project: Project, time_range=None, region=None, kinds=None) -> list[dict]:
+    """Events of the history, optionally filtered by time (Ma), bounds (km) and type."""
+    if project.hist is None:
+        raise LookupError("this project has no v3.0 geological history")
+    out = []
+    for e in project.hist.events:
+        if time_range is not None and not time_range[0] <= e["time_ma"] <= time_range[1]:
+            continue
+        if region is not None and not (
+            region[0] <= e["x_km"] <= region[2] and region[1] <= e["y_km"] <= region[3]
+        ):
+            continue
+        if kinds is not None and e["type"] not in kinds:
+            continue
+        out.append(e)
+    return out
+
+
+def sample_points(project: Project, x, y, fields=("elevation_m",)) -> dict:
+    """Layer values at world points inside the window (value of the containing hex).
+
+    Points outside the window give NaN (or -1 for integer layers). For another
+    window or resolution use :func:`get_layer`.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    col, row = project.layout.world_to_offset(x, y)
+    inside = project.layout.inside(col, row)
+    cc, rr = np.where(inside, col, 0), np.where(inside, row, 0)
+    out = {"inside": inside}
+    for name in fields:
+        arr = project.layer(name)
+        values = arr[rr, cc]
+        if np.issubdtype(arr.dtype, np.floating):
+            out[name] = np.where(inside, values, np.nan)
+        elif arr.dtype == np.bool_:
+            out[name] = np.where(inside, values, False)
+        else:
+            out[name] = np.where(inside, values.astype(np.int64), -1)
+    return out
+
+
 def derive_landmasses(
     project: Project, sea_level_m: float | None = None, target_land_fraction: float | None = None
 ) -> Project:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from .. import render, views
@@ -37,6 +37,7 @@ class MapView(QWidget):
         self._cx = 0.0
         self._cy = 0.0
         self._hex_rgb: np.ndarray | None = None
+        self._vectors: list | None = None
         self._image: QImage | None = None
         self._image_buf = None
         self._coarse = False
@@ -58,6 +59,7 @@ class MapView(QWidget):
         if not same_grid:
             self.selected_hex = None
         self._hex_rgb = None
+        self._vectors = None
         if project is not None and not (keep_view or same_grid):
             self.fit()
         self._invalidate()
@@ -68,6 +70,7 @@ class MapView(QWidget):
         self.mode = mode
         self.overlays = frozenset(overlays)
         self._hex_rgb = None
+        self._vectors = None
         self._invalidate()
 
     def select_hex(self, hexagon: tuple[int, int] | None):
@@ -158,6 +161,7 @@ class MapView(QWidget):
             self._paint_boundaries(painter)
         if self.view_id == "plates" and "motion" in self.overlays:
             self._paint_arrows(painter)
+        self._paint_vectors(painter)
         if self.selected_hex is not None:
             wx, wy = self.project.layout.center(*self.selected_hex)
             sx, sy = self.to_screen(float(wx), float(wy))
@@ -165,6 +169,42 @@ class MapView(QWidget):
             for pen in (QPen(QColor(0, 0, 0), 4.0), QPen(QColor(255, 255, 255), 2.0)):
                 painter.setPen(pen)
                 painter.drawEllipse(QPointF(sx, sy), radius, radius)
+
+    def _paint_vectors(self, painter: QPainter):
+        """Vector overlays of the current view (ridges, peaks, volcanoes, events ...)."""
+        if self._vectors is None:
+            self._vectors = views.view_vectors(self.project, self.view_id, self.mode, self.overlays)
+        if not self._vectors:
+            return
+        x0, y0 = self._origin()
+        k = self._km_per_px
+        x1, y1 = x0 + self.width() * k, y0 + self.height() * k
+        grow = float(np.clip(0.02 * self.project.layout.spacing_km / k + 0.8, 0.8, 2.2))
+        for layer in self._vectors:
+            color = QColor(*layer.color)
+            if layer.kind == "lines":
+                pen = QPen(color, layer.size * grow)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                for xs, ys in zip(layer.x, layer.y, strict=True):
+                    if xs.max() < x0 or xs.min() > x1 or ys.max() < y0 or ys.min() > y1:
+                        continue
+                    poly = QPolygonF(
+                        [QPointF((a - x0) / k, (b - y0) / k) for a, b in zip(xs, ys, strict=True)]
+                    )
+                    painter.drawPolyline(poly)
+            else:
+                xs, ys = np.asarray(layer.x), np.asarray(layer.y)
+                vis = (xs > x0) & (xs < x1) & (ys > y0) & (ys < y1)
+                if int(vis.sum()) > 6000:
+                    continue
+                r = layer.size * grow
+                painter.setPen(QPen(QColor(20, 20, 20) if layer.filled else color, 1.4))
+                painter.setBrush(QBrush(color) if layer.filled else Qt.BrushStyle.NoBrush)
+                for a, b in zip(xs[vis], ys[vis], strict=True):
+                    painter.drawEllipse(QPointF((a - x0) / k, (b - y0) / k), r, r)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def _paint_boundaries(self, painter: QPainter):
         edges = self.project.boundaries
@@ -271,22 +311,41 @@ class MapView(QWidget):
             hexagon = self._hex_at(pos)
             if hexagon is None:
                 wx, wy = self.to_world(pos.x(), pos.y())
-                self.hexHovered.emit(f"x {wx:,.0f} км, y {wy:,.0f} км - вне карты")
+                self.hexHovered.emit(f"x {wx:,.0f} км, y {wy:,.0f} км - вне карты\nданных нет")
                 return
             info = self.project.hex_info(*hexagon)
             text = (
                 f"гекс ({info['col']}, {info['row']})  x {info['x_km']:,.0f} км, "
                 f"y {info['y_km']:,.0f} км  |  плита {info['plate_id']} {info['plate_name']}"
             )
-            if "macro_elevation_m" in info:
-                rel = info["macro_elevation_m"] - info["sea_level_m"]
-                text += (
-                    f"  |  {'высота' if rel > 0 else 'глубина'} {abs(rel):,.0f} м"
-                    f"  |  блок {info['continental_block_id']}"
-                    f"  |  материк {info['landmass_id']}"
-                )
+            if "elevation_m" in info or "macro_elevation_m" in info:
+                height = info.get("elevation_m", info.get("macro_elevation_m"))
+                rel = height - info["sea_level_m"]
+                text += f"\n{'высота' if rel > 0 else 'глубина'} {abs(rel):,.0f} м"
+                if "epoch_time_ma" in info:
+                    text += f"  |  снимок t = {info['epoch_time_ma']:g} млн лет"
+                    text += f"  |  материк {info['landmass_id']}"
+                    text += f"  |  порода: {info['rock']}"
+                    if info["mountain_system_id"] >= 0:
+                        age = info["orogen_age_ma"]
+                        aged = "нет данных" if age is None else f"{age:.0f} млн лет"
+                        text += (
+                            f"\nгорная система {info['mountain_system_id']}, "
+                            f"возраст горообразования: {aged}"
+                        )
+                    else:
+                        text += "\nгорной системы нет"
+                else:
+                    text += (
+                        f"  |  блок {info['continental_block_id']}"
+                        f"  |  материк {info['landmass_id']}"
+                        "\nгеоистория: данных нет"
+                    )
             else:
-                text += f"  |  кора (prior): {info['crust']}  |  граница: {info['boundary']}"
+                text += (
+                    f"  |  кора (prior): {info['crust']}  |  граница: {info['boundary']}"
+                    "\nматерики, высоты, геоистория: данных нет"
+                )
             self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):

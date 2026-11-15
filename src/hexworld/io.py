@@ -26,18 +26,28 @@ from .config import Config
 from .geometry import resolve_geometry
 from .pipeline import _pad_hexes, _reference_stats, stage_keys, world_id_from_keys
 from .pipeline_v2 import v2_stage_keys
-from .project import GEO_LAYER_SPECS, LAYER_SPECS, GeoData, Project
+from .pipeline_v3 import _state_from_arrays, v3_stage_keys
+from .project import (
+    GEO_LAYER_SPECS,
+    HIST_LAYER_SPECS,
+    LAYER_SPECS,
+    GeoData,
+    HistoryData,
+    Project,
+)
 from .stages.boundaries import TYPE_NAMES, BoundaryEdges
 from .stages.crust import CRUST_NAMES, build_crust_model
 from .stages.motion import PlateMotion
 from .stages.plates import build_plate_model
 from .stages.reference import build_reference_grid
-from .stages.validate import validate_geo, validate_project
+from .stages.validate import validate_geo, validate_history, validate_project
 from .version import (
     ALGORITHM_VERSION,
     CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
     GENERATOR_VERSION,
+    HISTORY_ALGORITHM_VERSION,
+    MOUNTAINS_ALGORITHM_VERSION,
     PRNG_VERSION,
     SCHEMA_VERSION,
     SUPPORTED_SCHEMAS,
@@ -48,6 +58,14 @@ DATA_FILES = ("config.json", "plates.json", "fields.npz", "boundaries.npz", "bou
 V1_DATA_FILES = ("plates.json", "fields.npz", "boundaries.npz", "boundaries.json")
 #: v2.0 data lives in its own files.
 V2_DATA_FILES = ("continental_fields.npz", "continents.json")
+#: v3.0 data: selected epoch, checkpoints, event log, mountain plan.
+V3_DATA_FILES = (
+    "history_fields.npz",
+    "history.json",
+    "events.json",
+    "checkpoints.npz",
+    "mountain_plan.json",
+)
 
 BOUNDARY_SCHEMA = {
     "col_a/row_a": "int32 - offset coords of the hex on the plate_a side",
@@ -135,6 +153,69 @@ def _write_v2_data(project: Project, path: Path) -> None:
     )
 
 
+def _write_v3_data(project: Project, path: Path) -> None:
+    from .mountains.plan import MountainPlan  # noqa: F401  (documented dependency)
+
+    hist = project.hist
+    world = {f"world_{k}": v for k, v in hist.world.items() if k != "grid"}
+    np.savez_compressed(path / "history_fields.npz", **hist.layers, **world)
+    times = sorted(hist.checkpoints)
+    packed = {}
+    for i, t in enumerate(times):
+        for name, arr in hist.checkpoints[t].items():
+            packed[f"c{i}_{name}"] = arr
+    np.savez_compressed(path / "checkpoints.npz", **packed)
+    entry = project.cache.get("geo_history") or {}
+    volcano_set = entry.get("volcanoes")
+    _write_json(
+        path / "events.json",
+        {
+            "units": {
+                "time": "Ma since the baseline (t = 0)",
+                "position": "km, world frame",
+                "intensity": "mm/yr relative plate speed",
+            },
+            "note": "events with derived = true are recomputed for the selected epoch",
+            "events": hist.events,
+        },
+    )
+    _write_json(path / "mountain_plan.json", hist.plan)
+    _write_json(
+        path / "history.json",
+        {
+            "world_id": project.world_id,
+            "algorithm_version": HISTORY_ALGORITHM_VERSION,
+            "mountains_algorithm_version": MOUNTAINS_ALGORITHM_VERSION,
+            "units": {
+                "time": "Ma",
+                "length": "km",
+                "elevation": "m",
+                "plate speed": "mm/yr",
+                "vertical rate": "mm/yr",
+                "identity": "1 mm/yr = 1 km/Ma",
+            },
+            "epoch_time_ma": hist.epoch_time_ma,
+            "epochs_ma": hist.epochs,
+            "checkpoint_times_ma": times,
+            "duration_ma": hist.duration_ma,
+            "sea_level_m": hist.sea_level_m,
+            "world_grid": hist.world.get("grid"),
+            "summary": hist.summary,
+            "stage_keys": hist.stage_keys,
+            "warnings": hist.warnings,
+            "validation": hist.validation,
+            "timings_s": hist.timings,
+            "erosion_balance_per_step": hist.balance,
+            "run_info": entry.get("info", {}),
+            "hotspots": hist.hotspots,
+            "hotspot_state": [vars(h) for h in volcano_set.hotspots] if volcano_set else [],
+            "volcano_records": [v.to_dict() for v in volcano_set.volcanoes] if volcano_set else [],
+            "volcanoes": hist.volcanoes,
+            "landmasses": hist.landmasses,
+        },
+    )
+
+
 def save_project(project: Project, path: str | Path, overwrite: bool = True) -> Path:
     """Save ``project`` into directory ``path``.
 
@@ -143,8 +224,10 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
       or re-rendering never rewrites it.
     * v2.0 data goes to its own files (``continental_fields.npz``,
       ``continents.json``).
-    * When a ``hexworld-project-1`` directory is extended, its original
-      ``config.json`` and ``manifest.json`` are kept as ``*.v1.json`` copies.
+    * v3.0 data goes to ``history_fields.npz``, ``history.json``, ``events.json``,
+      ``checkpoints.npz`` and ``mountain_plan.json``.
+    * When a directory of an older schema is extended, its original ``config.json``
+      and ``manifest.json`` are kept as ``*.v1.json`` / ``*.v2.json`` copies.
     """
     path = Path(path)
     manifest_path = path / "manifest.json"
@@ -160,31 +243,69 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
     )
     if existing and not same_geology and not overwrite:
         raise FileExistsError(f"{path} already contains a different project")
+    stored_geo = (existing.get("v2") or {}).get("geo_hash")
+    stored_hist = (existing.get("v3") or {}).get("hist_hash")
+    geo_same = project.geo is not None and stored_geo == project.geo.geo_hash()
+    hist_same = project.hist is not None and stored_hist == project.hist.hist_hash()
     if same_geology:
-        stored_geo = (existing.get("v2") or {}).get("geo_hash")
-        if project.geo is None or stored_geo == project.geo.geo_hash():
-            if (
-                json.loads((path / "config.json").read_text(encoding="utf-8"))
-                == (project.config.to_dict())
-                or project.geo is None
-            ):
+        nothing_new = (project.geo is None or geo_same) and (project.hist is None or hist_same)
+        if nothing_new:
+            stored_config = json.loads((path / "config.json").read_text(encoding="utf-8"))
+            if stored_config == project.config.to_dict() or project.geo is None:
                 return path  # nothing new to store
-        if existing.get("schema_version") == "hexworld-project-1":
+        old_schema = existing.get("schema_version", "")
+        if old_schema in ("hexworld-project-1", "hexworld-project-2"):
+            tag = "v1" if old_schema.endswith("-1") else "v2"
             for name in ("config.json", "manifest.json"):
-                backup = path / name.replace(".json", ".v1.json")
+                backup = path / name.replace(".json", f".{tag}.json")
                 if not backup.exists():
                     backup.write_bytes((path / name).read_bytes())
     path.mkdir(parents=True, exist_ok=True)
 
     if not same_geology:
         _write_v1_data(project, path)
-        for name in V2_DATA_FILES:  # v2 data of another world must not linger
+        for name in V2_DATA_FILES + V3_DATA_FILES:  # data of another world must not linger
             (path / name).unlink(missing_ok=True)
     _write_json(path / "config.json", project.config.to_dict())
     files = list(DATA_FILES)
     v2_manifest = None
+    v3_manifest = None
+    if project.hist is not None:
+        if not (same_geology and hist_same and all((path / n).exists() for n in V3_DATA_FILES)):
+            _write_v3_data(project, path)
+        files += list(V3_DATA_FILES)
+        v3_manifest = {
+            "algorithm_version": HISTORY_ALGORITHM_VERSION,
+            "mountains_algorithm_version": MOUNTAINS_ALGORITHM_VERSION,
+            "files": list(V3_DATA_FILES),
+            "epoch_time_ma": project.hist.epoch_time_ma,
+            "epochs_ma": project.hist.epochs,
+            "sea_level_m": project.hist.sea_level_m,
+            "hist_hash": project.hist.hist_hash(),
+            "content_hashes": project.hist.content_hashes(),
+            "layers": {
+                name: {
+                    "dtype": str(arr.dtype),
+                    "shape": list(arr.shape),
+                    "unit": HIST_LAYER_SPECS[name][1],
+                    "description": HIST_LAYER_SPECS[name][2],
+                }
+                for name, arr in project.hist.layers.items()
+            },
+            "base_macro_elevation_m": "continental_fields.npz -> macro_elevation_m (reference)",
+            "source_stages": ["v1 plates/crust/kinematics", "v2 continents/macro elevation"],
+            "stage_keys": project.hist.stage_keys,
+        }
+    else:
+        for name in V3_DATA_FILES:  # a v3 result of other v2 inputs would be stale
+            if not (same_geology and geo_same):
+                (path / name).unlink(missing_ok=True)
+        if same_geology and geo_same and all((path / n).exists() for n in V3_DATA_FILES):
+            files += list(V3_DATA_FILES)
+            v3_manifest = existing.get("v3")
     if project.geo is not None:
-        _write_v2_data(project, path)
+        if not (same_geology and geo_same and all((path / n).exists() for n in V2_DATA_FILES)):
+            _write_v2_data(project, path)
         files += list(V2_DATA_FILES)
         v2_manifest = {
             "algorithm_version": CONTINENTS_ALGORITHM_VERSION,
@@ -239,6 +360,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         },
         "content_hashes": project.content_hashes(),
         "v2": v2_manifest,
+        "v3": v3_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -385,4 +507,95 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
                 "macro_elevation_m": arrays["macro_elevation_m"],
                 "tectonic_relief_m": arrays["tectonic_relief_m"],
             }
+    _load_history(project, path, manifest, config, geometry, verify)
     return project
+
+
+def _load_history(project: Project, path: Path, manifest: dict, config, geometry, verify) -> None:
+    """Attach stored v3.0 data, or explain why it cannot be used. Never silently stale."""
+    from .mountains.plan import MountainPlan
+    from .stages.volcanism import Hotspot, Volcano, VolcanoSet
+
+    v3 = manifest.get("v3")
+    if not v3 or project.geo is None:
+        return
+    if not all((path / name).exists() for name in V3_DATA_FILES):
+        project.warnings.append("The manifest lists v3.0 data, but its files are missing.")
+        return
+    doc = json.loads((path / "history.json").read_text(encoding="utf-8"))
+    stored = (doc.get("algorithm_version"), doc.get("mountains_algorithm_version"))
+    if stored != (HISTORY_ALGORITHM_VERSION, MOUNTAINS_ALGORITHM_VERSION):
+        project.warnings.append(
+            f"The stored geological history was produced by algorithms {stored}, this build "
+            f"uses {(HISTORY_ALGORITHM_VERSION, MOUNTAINS_ALGORITHM_VERSION)}. It was NOT "
+            "loaded; generate the history again (the v1/v2 baseline is intact)."
+        )
+        return
+    with np.load(path / "history_fields.npz") as data:
+        arrays = {name: data[name] for name in data.files}
+    world = {k[len("world_") :]: arrays.pop(k) for k in list(arrays) if k.startswith("world_")}
+    world["grid"] = doc["world_grid"]
+    times = [float(t) for t in doc["checkpoint_times_ma"]]
+    checkpoints: dict = {t: {} for t in times}
+    with np.load(path / "checkpoints.npz") as data:
+        for name in data.files:
+            index, field_name = name.split("_", 1)
+            checkpoints[times[int(index[1:])]][field_name] = data[name]
+    events = json.loads((path / "events.json").read_text(encoding="utf-8"))["events"]
+    plan = json.loads((path / "mountain_plan.json").read_text(encoding="utf-8"))
+    hist = HistoryData(
+        layers=arrays,
+        epoch_time_ma=float(doc["epoch_time_ma"]),
+        epochs=[float(t) for t in doc["epochs_ma"]],
+        duration_ma=float(doc["duration_ma"]),
+        sea_level_m=float(doc["sea_level_m"]),
+        events=events,
+        plan=plan,
+        volcanoes=doc["volcanoes"],
+        hotspots=doc["hotspots"],
+        landmasses=doc["landmasses"],
+        summary=doc["summary"],
+        stage_keys=dict(doc["stage_keys"]),
+        world=world,
+        checkpoints=checkpoints,
+        balance=doc.get("erosion_balance_per_step", []),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = hist.content_hashes()
+        for key, expected in v3["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    current = v3_stage_keys(config, project.geo.stage_keys, geometry.layout, hist.epoch_time_ma)
+    if current["geo_history"] != hist.stage_keys.get("geo_history"):
+        project.warnings.append(
+            "The stored geological history does not match the stored v1/v2 baseline or "
+            "configuration. It was NOT loaded; generate the history again."
+        )
+        return
+    project.hist = hist
+    hist.validation = validate_history(project)
+    volcano_set = VolcanoSet(
+        hotspots=[Hotspot(**h) for h in doc.get("hotspot_state", [])],
+        volcanoes=[Volcano(**v) for v in doc.get("volcano_records", [])],
+    )
+    project.cache["geo_history"] = {
+        "sim": None,
+        "relief_model": None,
+        "checkpoints": {t: _state_from_arrays(a) for t, a in checkpoints.items()},
+        "events": [e for e in events if not e.get("derived")],
+        "balance": hist.balance,
+        "info": doc.get("run_info", {}),
+        "volcanoes": volcano_set,
+    }
+    land_layers = ("land_mask", "landmass_id", "shelf_mask")
+    if all(current[k] == hist.stage_keys.get(k) for k in ("mountain_plan", "v3_raster")):
+        stored_plan = MountainPlan.from_dict(plan)
+        stored_plan.system_raster = world["mountain_system_id"]
+        project.cache["mountain_plan"] = stored_plan
+        project.cache["v3_raster"] = {
+            "layers": {k: v for k, v in arrays.items() if k not in land_layers},
+            "world": world,
+            "rates": hist.summary.get("world_rates", {}),
+        }

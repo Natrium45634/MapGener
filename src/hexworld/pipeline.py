@@ -23,6 +23,7 @@ import numpy as np
 from .config import Config
 from .geometry import WorldGeometry, resolve_geometry
 from .pipeline_v2 import run_v2
+from .pipeline_v3 import run_v3
 from .project import Project
 from .rng import Stream
 from .stages import raster as raster_stage
@@ -32,7 +33,7 @@ from .stages.fields import compute_fields, hex_boundary_type
 from .stages.motion import build_motion
 from .stages.plates import SIZE_CLASSES, build_plate_model
 from .stages.reference import build_reference_grid, reference_adjacency
-from .stages.validate import validate_geo, validate_project
+from .stages.validate import validate_geo, validate_history, validate_project
 from .version import ALGORITHM_VERSION, PRNG_VERSION
 
 
@@ -198,17 +199,20 @@ def _reference_stats(ref, count: int):
 def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_total) -> Project:
     """Keep every v1.0 object of ``base`` and (re)run only the v2.0 stages."""
     old_geo_warnings = set(base.geo.warnings) if base.geo is not None else set()
+    old_hist_warnings = set(base.hist.warnings) if base.hist is not None else set()
+    old_geo_warnings |= old_hist_warnings
     project = replace(
         base,
         config=config,
         geometry=geometry,
         geo=None,
+        hist=None,
         warnings=[w for w in base.warnings if w not in old_geo_warnings],
         timings={},
         stats=dict(base.stats, reused_stages=list(STAGES)),
         cache=dict(base.cache),
     )
-    if through == "v2":
+    if through in ("v2", "v3"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -226,19 +230,35 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         project.cache.update(geo_cache)
         project.stats["reused_stages"] = list(STAGES) + geo_reused
         project.timings.update(geo.timings)
-        report("validate", 0.98)
+        report("validate", 0.79)
         geo.validation = validate_geo(project)
         project.warnings.extend(geo.warnings)
+    if through == "v3":
+        _add_history(config, geometry, project, base, report)
     project.timings["total"] = round(time.perf_counter() - t_total, 4)
     report("done", 1.0)
     return project
+
+
+def _add_history(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v3 stages on a project that already holds v1 and v2 data (in place)."""
+    old_keys = previous.hist.stage_keys if previous is not None and previous.hist else {}
+    old_cache = previous.cache if previous is not None else {}
+    hist, hist_cache, hist_reused = run_v3(config, geometry, project, old_keys, old_cache, report)
+    project.hist = hist
+    project.cache.update(hist_cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + hist_reused
+    project.timings.update(hist.timings)
+    report("validate", 0.985)
+    hist.validation = validate_history(project)
+    project.warnings.extend(hist.warnings)
 
 
 def generate(
     config: Config,
     progress: Progress | None = None,
     reuse: Project | None = None,
-    through: str = "v2",
+    through: str = "v3",
 ) -> Project:
     """Run the pipeline. ``reuse`` lets unchanged stages be taken from a previous project.
 
@@ -247,8 +267,8 @@ def generate(
     A ``progress`` callback may raise :class:`GenerationCancelled` to abort; the
     project passed as ``reuse`` is never modified.
     """
-    if through not in ("v1", "v2"):
-        raise ValueError('through must be "v1" or "v2"')
+    if through not in ("v1", "v2", "v3"):
+        raise ValueError('through must be "v1", "v2" or "v3"')
     report = progress or (lambda stage, fraction: None)
     timings: dict[str, float] = {}
     t_total = time.perf_counter()
@@ -456,7 +476,7 @@ def generate(
     )
     timed("assemble", t0)
 
-    if through == "v2":
+    if through in ("v2", "v3"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -475,18 +495,20 @@ def generate(
         reused.extend(geo_reused)
         timings.update(geo.timings)
 
-    report("validate", 0.98)
+    report("validate", 0.79)
     t0 = time.perf_counter()
     project.validation = validate_project(project)
     project.warnings.extend(project.validation["warnings"])
     if project.geo is not None:
         project.geo.validation = validate_geo(project)
         project.warnings.extend(project.geo.warnings)
+    timed("validate", t0)
+    if through == "v3":
+        _add_history(config, geometry, project, reuse, report)
     if project.stats["plates_visible"] < 2:
         project.warnings.append(
             "Only one plate is visible: there are no boundaries in this window."
         )
-    timed("validate", t0)
     timings["total"] = round(time.perf_counter() - t_total, 4)
     report("done", 1.0)
     return project

@@ -171,12 +171,9 @@ def test_sea_level_change_floods_monotonically_and_touches_nothing_else(small_pr
         p = derive_landmasses(base, sea_level_m=level)
         geo = p.geo
         assert geo.sea_level_m == level and geo.validation["ok"]
-        assert p.stats["reused_stages"][-4:] == [
-            "world_tectonics",
-            "continental_blocks",
-            "macro_elevation",
-            "v2_raster",
-        ]
+        assert {"world_tectonics", "continental_blocks", "macro_elevation", "v2_raster"} <= set(
+            p.stats["reused_stages"]
+        )
         for name in (
             "macro_elevation_m",
             "continental_fraction",
@@ -343,7 +340,7 @@ def test_stage_api(small_project):
         atol=0.01,
     )
     layout, stored = get_layer(small_project, "landmass_id")
-    assert stored is small_project.geo.layers["landmass_id"] and layout == small_project.layout
+    assert stored is small_project.layer("landmass_id") and layout == small_project.layout
 
 
 def test_cancel_keeps_the_previous_project(small_config, small_project):
@@ -378,7 +375,8 @@ def test_views_are_pure_presentations(small_project):
     blocks = views.view_rgb(small_project, "continents", "blocks", frozenset())
     lands = views.view_rgb(small_project, "continents", "landmasses", frozenset())
     assert not np.array_equal(blocks, lands)  # crust blocks vs land above water
-    assert "без детализации и эрозии" in views.VIEWS["heights"].note
+    legend = views.VIEWS["heights"].legend(small_project, "baseline")
+    assert "без детализации и эрозии" in legend[0].label
     assert (small_project.content_hashes(), small_project.geo.content_hashes()) == before
 
 
@@ -423,7 +421,7 @@ def test_cli_v2_flow(tmp_path, capsys):
         "view_heights_hypsometric.png",
     ):
         assert (out / name).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-    assert main(["render", str(out), "--view", "rivers"]) == 1  # planned, not drawable
+    assert main(["render", str(out), "--view", "hydrology"]) == 1  # planned, not drawable
     assert main(["export", str(out), "-o", str(tmp_path / "exp")]) == 0
     assert (tmp_path / "exp" / "landmasses.csv").exists()
     assert np.load(tmp_path / "exp" / "macro_elevation_m.npy").shape == (30, 40)
@@ -435,7 +433,7 @@ def test_cli_v2_flow(tmp_path, capsys):
 def test_hash_of_stored_v2_layers_matches_manifest(tmp_path, small_project):
     path = save_project(small_project, tmp_path / "p")
     manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["schema_version"] == "hexworld-project-2"
+    assert manifest["schema_version"] == "hexworld-project-3"
     with np.load(path / "continental_fields.npz") as data:
         for name in small_project.geo.layers:
             assert array_hash(data[name]) == manifest["v2"]["content_hashes"][f"continental/{name}"]
@@ -486,7 +484,7 @@ def test_gui_tabs(tmp_path, small_project):
         assert window.view.selected_hex == (40, 60)  # same selection
         assert window.legend.text()
     assert not window.v2_button.isVisible()
-    assert "Макрорельеф v2.0" in window.note.text()
+    assert "источник" in window.legend.text()  # the height source is always stated
     text = window.info.toPlainText()
     for key in ("plate_id", "continental_block_id", "landmass_id", "уровень моря", "глубина"):
         assert key in text

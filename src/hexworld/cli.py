@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 from . import render, views
-from .api import derive_landmasses, generate_v2
-from .config import CONTINENT_PROFILES, PRESETS, Config, ConfigError
+from .api import derive_landmasses, generate_history, generate_v2, history_events, select_epoch
+from .config import CONTINENT_PROFILES, HISTORY_PROFILES, PRESETS, Config, ConfigError
 from .io import ProjectIntegrityError, load_project, save_project
 from .pipeline import generate
 from .version import GENERATOR_VERSION
@@ -116,6 +116,46 @@ def _apply_v2_args(args, data: dict) -> None:
         sea.update(sea_mode="fixed_sea_level_m", fixed_sea_level_m=args.sea_level)
     if sea:
         data["sea"] = sea
+    hist = dict(data.get("history", {}))
+    for arg, key in (
+        ("duration_ma", "duration_ma"),
+        ("time_step_ma", "time_step_ma"),
+        ("history_intensity", "intensity"),
+        ("erosion", "erosion_intensity"),
+        ("uplift_scale", "uplift_scale"),
+        ("hotspots", "hotspot_density"),
+        ("checkpoint_stride", "checkpoint_stride"),
+    ):
+        if getattr(args, arg, None) is not None:
+            hist[key] = getattr(args, arg)
+    if getattr(args, "epoch", None) is not None:
+        hist["epoch"] = _parse_epoch(args.epoch)
+    if hist:
+        data["history"] = hist
+    mnt = dict(data.get("mountains", {}))
+    if getattr(args, "mountain_detail", None) is not None:
+        mnt["detail"] = args.mountain_detail
+    if getattr(args, "mountain_backend", None) is not None:
+        mnt["backend"] = args.mountain_backend
+    if mnt:
+        data["mountains"] = mnt
+
+
+def _parse_epoch(text):
+    return text if text in ("final", "initial") else float(text)
+
+
+def _add_v3_options(parser) -> None:
+    parser.add_argument("--duration-ma", type=float, help="simulated geological time, Ma")
+    parser.add_argument("--time-step-ma", type=float, help="time step, Ma")
+    parser.add_argument("--checkpoint-stride", type=int, help="store a snapshot every N steps")
+    parser.add_argument("--history-intensity", choices=HISTORY_PROFILES)
+    parser.add_argument("--uplift-scale", type=float, help="multiplier of tectonic uplift")
+    parser.add_argument("--erosion", type=float, help="erosion intensity, 0 = off")
+    parser.add_argument("--hotspots", type=float, help="hotspot density multiplier, 0 = off")
+    parser.add_argument("--mountain-detail", type=float, help="structural mountain relief, 0..2")
+    parser.add_argument("--mountain-backend", choices=("reference", "pmge"))
+    parser.add_argument("--epoch", help='snapshot to show: "final", "initial" or a time in Ma')
 
 
 def _add_v2_options(parser) -> None:
@@ -174,6 +214,32 @@ def _summary(project) -> str:
         ]
         for err in geo.validation.get("errors", []):
             lines.append(f"  ERROR   {err}")
+    if project.hist is None:
+        lines.append("v3.0            not generated (no geological history)")
+    else:
+        h = project.hist
+        m = h.summary
+        lines += [
+            f"history         {h.duration_ma:g} Ma in {m['steps']} steps "
+            f"(x{m['substeps_per_step']} sub-steps); showing t = {h.epoch_time_ma:g} Ma; "
+            f"snapshots at {h.epochs}",
+            f"change          {100 * m['changed_hex_share']:.0f} % of hexes moved by > 50 m; "
+            f"new crust {100 * m['new_crust_share_viewport']:.1f} % of the window",
+            f"final surface   {m['min_elevation_m']:+.0f} .. {m['max_elevation_m']:+.0f} m; land "
+            f"{100 * m['land_fraction_viewport']:.1f} % (baseline "
+            f"{100 * m['baseline_land_fraction_viewport']:.1f} %)",
+            f"mountains       {m['mountain_systems']} systems, {m['ridges']} ridges, "
+            f"{m['peaks']} peaks, {m['passes']} passes, {m['valleys']} valleys "
+            f"[backend: {m['mountain_backend']['name']}"
+            f"{'' if m['mountain_backend']['is_pmge'] else ', PMGE not integrated'}]",
+            f"volcanism       {m['volcanoes']} centres ({m['active_volcanoes']} active), "
+            f"{m['hotspots']} hotspots",
+            f"events          {m['events']}",
+            f"v3 hash         {h.hist_hash()}",
+            f"v3 validation   {'OK' if h.validation.get('ok') else 'FAILED'}",
+        ]
+        for err in h.validation.get("errors", []):
+            lines.append(f"  ERROR   {err}")
     for err in v.get("errors", []):
         lines.append(f"  ERROR   {err}")
     for warn in project.warnings:
@@ -191,7 +257,8 @@ def cmd_generate(args) -> int:
             print(f"[{100 * fraction:5.1f}%] {stage}", file=sys.stderr)
 
     t0 = time.perf_counter()
-    project = generate(config, progress=progress, through="v1" if args.v1_only else "v2")
+    through = "v1" if args.v1_only else ("v2" if args.no_history else "v3")
+    project = generate(config, progress=progress, through=through)
     elapsed = time.perf_counter() - t0
     print(_summary(project))
     peak = _peak_memory_mb()
@@ -238,6 +305,10 @@ def cmd_continents(args) -> int:
     _apply_v2_args(args, data)
     t0 = time.perf_counter()
     result = generate_v2(project, Config.from_dict(data))
+    if result.hist is None and project.hist is None:
+        from .pipeline import generate as _generate
+
+        result = _generate(result.config, reuse=result, through="v2")
     print(_summary(result))
     print(f"time            {time.perf_counter() - t0:.2f} s (v1.0 data reused unchanged)")
     print(f"saved           {save_project(result, _save_target(args))}")
@@ -262,6 +333,53 @@ def cmd_sea(args) -> int:
     print(_summary(result))
     print(f"saved           {save_project(result, _save_target(args))}")
     return 0 if _all_ok(result) else 2
+
+
+def cmd_history(args) -> int:
+    """Add or update the v3.0 geological history of a saved project."""
+    project = load_project(args.project)
+    data = project.config.to_dict()
+    _apply_v2_args(args, data)
+    t0 = time.perf_counter()
+    result = generate_history(project, Config.from_dict(data))
+    print(_summary(result))
+    print(f"time            {time.perf_counter() - t0:.2f} s (v1/v2 baseline reused unchanged)")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if _all_ok(result) else 2
+
+
+def cmd_epoch(args) -> int:
+    """Show another stored snapshot of the history (no re-simulation)."""
+    project = load_project(args.project)
+    if project.hist is None:
+        print(
+            "error: this project has no geological history; run `hexworld history` first",
+            file=sys.stderr,
+        )
+        return 1
+    result = select_epoch(project, _parse_epoch(args.time))
+    print(_summary(result))
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if _all_ok(result) else 2
+
+
+def cmd_events(args) -> int:
+    project = load_project(args.project)
+    if project.hist is None:
+        print("error: this project has no geological history", file=sys.stderr)
+        return 1
+    time_range = (
+        (args.since, args.until) if args.since is not None or args.until is not None else None
+    )
+    if time_range is not None:
+        time_range = (time_range[0] or 0.0, time_range[1] if time_range[1] is not None else 1e9)
+    for e in history_events(project, time_range=time_range, kinds=args.type):
+        end = "" if e.get("end_time_ma") is None else f" .. {e['end_time_ma']:g}"
+        print(
+            f"{e['time_ma']:8.2f}{end:<10} {e['type']:<18} plates {e['plates']!s:<12} "
+            f"at ({e['x_km']:,.0f}, {e['y_km']:,.0f}) km  {e['id']}"
+        )
+    return 0
 
 
 def cmd_views(_args) -> int:
@@ -300,6 +418,17 @@ def cmd_export(args) -> int:
 
     table("plates.csv", project.plates)
     names = list(project.layers)
+    if project.hist is not None:
+        h = project.hist
+        table("events.csv", h.events)
+        table("volcanoes.csv", h.volcanoes)
+        table("mountain_systems.csv", h.plan["systems"])
+        table("peaks.csv", h.plan["peaks"])
+        table("passes.csv", h.plan["passes"])
+        table("landmasses_epoch.csv", h.landmasses)
+        for name, arr in h.layers.items():
+            np.save(out / f"epoch_{name}.npy", arr)
+        print(f"{out}/epoch_*.npy ({len(h.layers)} layers of t = {h.epoch_time_ma:g} Ma)")
     if project.geo is not None:
         table("continental_blocks.csv", project.geo.blocks)
         table("landmasses.csv", project.geo.landmasses)
@@ -307,7 +436,7 @@ def cmd_export(args) -> int:
         np.save(out / "world_elevation_m.npy", project.geo.world["elevation_m"])
         print(out / "world_elevation_m.npy")
     for name in names:
-        np.save(out / f"{name}.npy", project.layer(name))
+        np.save(out / f"{name}.npy", project.baseline_layer(name))
         print(out / f"{name}.npy")
     return 0
 
@@ -440,7 +569,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="stop after the v1.0 tectonic stage (no continents / heights)",
     )
+    g.add_argument(
+        "--no-history",
+        action="store_true",
+        help="stop after v2.0 (no geological history, mountains, volcanism)",
+    )
     _add_v2_options(g)
+    _add_v3_options(g)
     g.add_argument("--quiet", "-q", action="store_true")
     g.set_defaults(func=cmd_generate)
 
@@ -451,6 +586,27 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--out", "-o", help="save to another directory instead of updating in place")
     _add_v2_options(c)
     c.set_defaults(func=cmd_continents)
+
+    hi = sub.add_parser(
+        "history", help="add or update the v3.0 geological history of a saved project"
+    )
+    hi.add_argument("project")
+    hi.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    _add_v3_options(hi)
+    hi.set_defaults(func=cmd_history)
+
+    ep = sub.add_parser("epoch", help="show another stored snapshot (initial / final / time)")
+    ep.add_argument("project")
+    ep.add_argument("time", help='"initial", "final" or a time in Ma')
+    ep.add_argument("--out", "-o")
+    ep.set_defaults(func=cmd_epoch)
+
+    ev = sub.add_parser("events", help="print the chronology of geological events")
+    ev.add_argument("project")
+    ev.add_argument("--since", type=float, help="from this time, Ma")
+    ev.add_argument("--until", type=float, help="up to this time, Ma")
+    ev.add_argument("--type", nargs="*", help="event types to show")
+    ev.set_defaults(func=cmd_events)
 
     s = sub.add_parser("sea", help="change only the sea level of a saved v2.0 project")
     s.add_argument("project")

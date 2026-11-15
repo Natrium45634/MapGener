@@ -185,3 +185,76 @@ def validate_geo(project) -> dict:
     checks["land_fraction_viewport"] = round(float(land.mean()), 5)
     checks["sea_level_m"] = geo.sea_level_m
     return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
+
+
+def validate_history(project) -> dict:
+    """Structural and physical checks of the v3.0 data of the selected epoch."""
+    from .sea import label_mask
+
+    hist = project.hist
+    layout = project.layout
+    errors: list[str] = []
+    warnings: list[str] = []
+    checks: dict = {}
+    shape = (layout.height, layout.width)
+    for name, arr in hist.layers.items():
+        if arr.shape != shape:
+            errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")
+    if errors:
+        return {"ok": False, "errors": errors, "warnings": warnings, "checks": checks}
+    nan_ok = {"orogen_age_ma", "last_tectonic_ma", "volcanic_age_ma"}
+    for name, arr in hist.layers.items():
+        if np.issubdtype(arr.dtype, np.floating) and name not in nan_ok:
+            if not np.isfinite(arr).all():
+                errors.append(f"layer {name} contains non-finite values")
+    elev = hist.layers["elevation_m"]
+    land = hist.layers["land_mask"]
+    ids = hist.layers["landmass_id"]
+    cap = project.config.mountains.max_elevation_m
+    if not np.array_equal(land, elev > np.float32(hist.sea_level_m)):
+        errors.append("land_mask is not (elevation_m > sea_level_m)")
+    if not np.array_equal(ids >= 0, land):
+        errors.append("landmass_id must be >= 0 exactly on land hexes")
+    if not np.array_equal(label_mask(land, layout)[0], ids):
+        errors.append("landmass_id is not the set of edge-connected components")
+    if float(elev.max()) > cap + 0.5:
+        errors.append(f"elevation exceeds the absolute limit of {cap:g} m")
+    for name in ("erosion_total_m", "sediment_thickness_m"):
+        if float(hist.layers[name].min()) < 0.0:
+            errors.append(f"{name} is negative")
+    for name in ("volcanic_potential", "rock_resistance", "continental_fraction"):
+        a = hist.layers[name]
+        if float(a.min()) < 0.0 or float(a.max()) > 1.0:
+            errors.append(f"{name} is outside [0, 1]")
+    if project.geo is not None:
+        expected = elev - project.geo.layers["macro_elevation_m"]
+        if not np.allclose(hist.layers["delta_elevation_m"], expected, atol=0.01):
+            errors.append("delta_elevation_m is not elevation_m - base_macro_elevation_m")
+        if hist.sea_level_m != project.geo.sea_level_m:
+            errors.append("v3 and v2 use different sea levels")
+    n_plates = len(project.plates)
+    owner = hist.layers["plate_id_epoch"]
+    if owner.min() < 0 or owner.max() >= n_plates:
+        errors.append("plate_id_epoch refers to a non-existent plate")
+    times = [e["time_ma"] for e in hist.events]
+    if times != sorted(times):
+        errors.append("events are not ordered by time")
+    if len({e["id"] for e in hist.events}) != len(hist.events):
+        errors.append("event ids are not unique")
+    if any(not 0.0 <= e["time_ma"] <= hist.duration_ma + 1e-6 for e in hist.events):
+        errors.append("an event lies outside the simulated time span")
+    peaks = {p["id"] for p in hist.plan["peaks"]}
+    for item in hist.plan["passes"]:
+        if not set(item["between_peaks"]) <= peaks:
+            errors.append("a pass refers to a peak that does not exist")
+            break
+    checks.update(
+        epoch_time_ma=hist.epoch_time_ma,
+        epochs=len(hist.epochs),
+        events=len(hist.events),
+        mountain_systems=len(hist.plan["systems"]),
+        volcanoes=len(hist.volcanoes),
+        max_elevation_m=float(elev.max()),
+        land_fraction_viewport=round(float(land.mean()), 5),
+    )
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}

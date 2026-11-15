@@ -1,0 +1,71 @@
+{
+  "seed": "V2compat",
+  "width": 60,
+  "height": 50,
+  "hex_spacing_km": 120.0,
+  "mode": "regional",
+  "viewport_origin_km": [
+    0.0,
+    0.0
+  ],
+  "simulation_bounds_km": null,
+  "reference_cells": 384,
+  "plates": {
+    "count": "auto",
+    "profile": "earthlike",
+    "warp_strength": 0.7,
+    "warp_wavelength_factor": 0.9,
+    "warp_octaves": 6
+  },
+  "crust": {
+    "continental_fraction": 0.36,
+    "mean_continent_area_km2": 14000000.0,
+    "warp_strength": 0.8,
+    "warp_wavelength_km": 4000.0,
+    "warp_octaves": 6,
+    "roughness": 0.4
+  },
+  "motion": {
+    "speed_scale": 1.0,
+    "rotation_scale": 1.0
+  },
+  "boundaries": {
+    "quiet_threshold_mm_yr": 3.0,
+    "obliquity_deg": 30.0,
+    "reference_speed_mm_yr": 100.0
+  },
+  "fields": {
+    "collision_width_km": 350.0,
+    "subduction_width_km": 280.0,
+    "trench_width_km": 90.0,
+    "arc_offset_km": 170.0,
+    "arc_width_km": 90.0,
+    "rift_width_km": 160.0,
+    "ridge_volcanism_width_km": 70.0,
+    "transform_width_km": 110.0,
+    "max_influence_km": 900.0,
+    "max_pad_hexes": 64
+  },
+  "continents": {
+    "continent_profile": "balanced",
+    "major_landmass_count": "auto",
+    "continent_size_variety": 0.5,
+    "coast_irregularity": 0.7,
+    "major_area_km2": 2500000.0,
+    "transition_km": 90.0,
+    "skeleton_cells": 512
+  },
+  "relief": {
+    "relief_strength": 1.0,
+    "ocean_floor_m": -4430.0,
+    "continental_interior_m": 220.0,
+    "shelf_edge_m": -480.0,
+    "shelf_scale_km": 170.0
+  },
+  "sea": {
+    "sea_mode": "target_land_fraction",
+    "target_land_fraction": 0.29,
+    "fixed_sea_level_m": 0.0,
+    "shelf_max_depth_m": 500.0
+  }
+}

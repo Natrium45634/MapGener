@@ -1,6 +1,6 @@
-# Формат проекта HexWorld (`hexworld-project-2`)
+# Формат проекта HexWorld (`hexworld-project-3`)
 
-Читаются обе схемы: `hexworld-project-1` (только v1.0) и `hexworld-project-2`.
+Читаются три схемы: `hexworld-project-1` (только v1.0), `hexworld-project-2` и `hexworld-project-3`.
 
 Проект — папка с файлами:
 
@@ -14,7 +14,12 @@
 | `continental_fields.npz` | **v2.0:** слои материков и рельефа, мировые растры |
 | `continents.json` | **v2.0:** уровень моря, сводка, блоки, материки, ключи стадий |
 | `manifest.json` | версии, система координат, единицы, ключи стадий, контрольные хэши |
-| `config.v1.json`, `manifest.v1.json` | копии исходных файлов, если проект v1.0 был дополнен v2.0 |
+| `history_fields.npz` | **v3.0:** слои выбранной эпохи и мировые растры этой эпохи |
+| `history.json` | **v3.0:** эпохи, сводка, вулканы, горячие точки, материки эпохи, баланс эрозии |
+| `events.json` | **v3.0:** журнал геологических событий |
+| `checkpoints.npz` | **v3.0:** состояние породы на каждом сохранённом снимке |
+| `mountain_plan.json` | **v3.0:** горные системы, хребты, вершины, перевалы, долины |
+| `config.v1.json`, `manifest.v1.json`, `*.v2.json` | копии исходных файлов, если проект старой схемы был дополнен |
 
 PNG — только изображение. Оно никогда не читается как данные.
 
@@ -126,6 +131,73 @@ PNG — только изображение. Оно никогда не чита
 Площади и центры относятся к части объекта **внутри окна**; `touches_window_edge` говорит,
 что объект продолжается за его краем.
 
+## Данные v3.0
+
+**Контракт эпох.** v1/v2 — неизменяемая исходная эпоха `t = 0`. v3 создаёт новые снимки и
+не редактирует массивы v1/v2. `history.epoch` в `config.json` выбирает, какой сохранённый
+снимок показан в `history_fields.npz`: `"final"`, `"initial"` или время в млн лет.
+
+**Единицы.** Время — млн лет от исходной эпохи; длина — км; высоты и толщины — м; скорость
+плит — мм/год; вертикальная скорость — мм/год. 1 мм/год = 1 км/млн лет.
+
+### `history_fields.npz`
+
+| Слой | Тип | Единицы | Смысл |
+|---|---|---|---|
+| `elevation_m` | float32 | м | итоговая высота выбранной эпохи; только она задаёт сушу этой эпохи |
+| `delta_elevation_m` | float32 | м | `elevation_m` минус `macro_elevation_m` исходной эпохи |
+| `plate_id_epoch` | int32 | — | плита, владеющая гексом в эту эпоху |
+| `new_crust` | bool | — | кора, созданная за время истории (рифт или новое дно) |
+| `boundary_class` | uint8 | — | 0 нет, 1 коллизия, 2 субдукция, 3 расхождение, 4 прочие |
+| `continental_fraction` | float32 | 0..1 | доля континентальной коры в эту эпоху |
+| `crust_age_ma` | float32 | млн лет | возраст коры |
+| `rock_type`, `rock_resistance` | uint8, float32 | —, 0..1 | категория породы (`history.json → summary.rock_types`) и сопротивление эрозии |
+| `uplift_rate_mm_yr` | float32 | мм/год | тектоническая вертикальная скорость в эту эпоху |
+| `uplift_total_m` | float32 | м | суммарное тектоническое смещение с `t = 0` |
+| `erosion_total_m`, `sediment_thickness_m` | float32 | м | снято и отложено с `t = 0`, не меньше нуля |
+| `mountain_system_id` | int32 | — | горная система, −1 — нет |
+| `mountain_class` | uint8 | — | 0 нет, 1 гребень, 2 склон, 3 перевал, 4 долина, 5 предгорье, 6 вулкан |
+| `orogen_age_ma`, `last_tectonic_ma` | float32 | млн лет | время с последнего горообразования и последнего тектонического изменения; NaN — не было |
+| `volcanic_potential` | float32 | 0..1 | где магматизм правдоподобен; не вероятность извержения |
+| `volcano_id`, `volcanic_age_ma` | int32, float32 | —, млн лет | вулканический центр на гексе и его возраст; −1 и NaN — нет |
+| `slope_m_per_km`, `local_relief_m` | float32 | м/км, м | уклон к соседям и перепад непрерывной поверхности внутри гекса |
+| `land_mask`, `landmass_id`, `shelf_mask` | bool, int32, bool | — | суша, материки и шельф **выбранной эпохи** |
+
+`base_macro_elevation_m` отдельно не хранится: это `macro_elevation_m` из
+`continental_fields.npz`. Одноимённые слои v2 (`land_mask`, `landmass_id`, `shelf_mask`,
+`continental_fraction`) остаются в файле v2 и описывают исходную эпоху.
+
+Мировые растры эпохи (префикс `world_`): `elevation_m`, `orogenic_relief_m`, `plate_id`,
+`new_crust`, `mountain_system_id`; сетка — `history.json → world_grid`.
+
+### `checkpoints.npz`
+
+Для снимка с номером `i` (времена — `history.json → checkpoint_times_ma`) массивы
+`c{i}_{имя}` на растре истории. В материальной системе плит (исходные координаты):
+`uplift`, `orogenic`, `erosion`, `sediment`, `volcanic`, `orogen_first`, `orogen_last`,
+`orogen_kind`, `last_tectonic`. В системе мантии: `gap_open`, `gap_sediment`.
+Положения плит не хранятся: они вычисляются точно из скоростей и времени.
+
+### `events.json`
+
+`id` (устойчивый: `тип:плита-плита:номер`), `type`, `time_ma`, `end_time_ma`, `x_km`, `y_km`,
+`plates`, `roles`, `intensity_mm_yr`, `cells`. Типы: `collision_start`, `subduction_start`,
+`rifting_start`, `ocean_opening`, `orogeny`, `volcanic_episode`. События с `derived: true`
+пересчитываются для выбранной эпохи.
+
+### `mountain_plan.json`
+
+`systems[]` (вид, морфология, возраст, зрелость, острота, площадь, длина), `ridges[]`
+(ранг `main` / `branch` / `spur`, родитель, точки в км, относительная высота гребня),
+`peaks[]`, `passes[]` (с `between_peaks`), `knots[]`, `valleys[]`. Координаты мировые,
+план не обрезается окном.
+
+### Устаревшие данные
+
+При загрузке сверяются версии алгоритмов (`geohistory-1`, `mountains-1`) и ключ стадии
+истории. При несовпадении данные v3 **не загружаются**, в `warnings` пишется причина,
+исходная эпоха v1/v2 остаётся доступной.
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от
@@ -158,6 +230,16 @@ project = generate_v2(load_project("old_v1_project"))  # данные v1 не п
 project.layer("macro_elevation_m")
 flooded = derive_landmasses(project, sea_level_m=150)  # только суша, материки, шельф
 layout, elev = get_layer(project, "macro_elevation_m", bounds, hex_spacing_km=5.0)
+
+# v3.0
+from hexworld import generate_history, select_epoch, history_events, sample_points
+
+project = generate_history(load_project("old_v2_project"))  # исходная эпоха не меняется
+project.layer("elevation_m")
+project.layer("base_macro_elevation_m")
+middle = select_epoch(project, 15.0)  # без повторной симуляции
+history_events(project, time_range=(0, 10), kinds=["collision_start"])
+sample_points(project, x_km, y_km, fields=("elevation_m", "rock_type"))
 ```
 
 Полный пример — `examples/api_usage.py`.

@@ -1,0 +1,16 @@
+{
+  "seed": "Terra7",
+  "width": 500,
+  "height": 300,
+  "hex_spacing_km": 60.0,
+  "mode": "world",
+  "history": {
+    "duration_ma": 40.0,
+    "time_step_ma": 1.0,
+    "checkpoint_stride": 5,
+    "intensity": "active",
+    "erosion_intensity": 1.0,
+    "hotspot_density": 1.5
+  },
+  "mountains": {"detail": 1.2}
+}

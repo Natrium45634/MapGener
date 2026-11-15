@@ -1,0 +1,1834 @@
+{
+  "world_id": "e1c54aa7fb36b082",
+  "units": {
+    "length": "km",
+    "area": "km2",
+    "velocity": "mm/yr",
+    "rotation": "deg/Myr"
+  },
+  "plate_model": {
+    "kind": "additively-weighted-voronoi+domain-warp",
+    "formula": "plate(p) = argmin_i |W(p) - site_i| - weight_i",
+    "warp": {
+      "wavelength_km": 5727.564927611034,
+      "octaves": 6,
+      "strength": 0.7
+    },
+    "warp_stream": "plates/warp",
+    "model_hash": "bc9933b06fe51aea24fab9e66675e712fb790c5bb5b707f11ec55f43b7b0c3b3"
+  },
+  "crust_model": {
+    "kind": "warped-elliptical-nuclei",
+    "formula": "continentality(p) = max_i(r_i - |E_i(W(p) - c_i)|) + rough(p) + offset",
+    "nuclei": 137,
+    "offset_km": 133.19467417462639,
+    "warp": {
+      "wavelength_km": 4000.0,
+      "octaves": 6,
+      "strength": 0.8
+    },
+    "model_hash": "c28b529639a5727afade831a7baeac37d0b4e99068aa7c92a5a32966b03b24a0"
+  },
+  "plates": [
+    {
+      "id": 0,
+      "name": "Thenotis",
+      "color": "#6ab770",
+      "size_class": "large",
+      "halo": false,
+      "site_km": [
+        8316.05907812462,
+        -4342.022616863966
+      ],
+      "weight_km": 2366.746148521148,
+      "area_km2": 27459409.605779488,
+      "centroid_km": [
+        7918.717128782303,
+        -3269.1639842463383
+      ],
+      "continental_fraction": 0.3787713558705925,
+      "oceanic_fraction": 0.6212286441294075,
+      "velocity_mm_yr": [
+        -4.359265792739593,
+        -13.604461762685258
+      ],
+      "speed_mm_yr": 14.285817376129195,
+      "omega_deg_myr": 0.17910245341125408,
+      "rotation_pole_km": [
+        8316.05907812462,
+        -4342.022616863966
+      ],
+      "neighbors": [
+        2,
+        3,
+        9,
+        11,
+        20,
+        25,
+        46
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 1,
+      "name": "Dalirak",
+      "color": "#ea6985",
+      "size_class": "large",
+      "halo": false,
+      "site_km": [
+        11232.383694822256,
+        7825.299020108541
+      ],
+      "weight_km": 2847.854492645126,
+      "area_km2": 45186749.28584651,
+      "centroid_km": [
+        9429.920091982973,
+        7632.193879559254
+      ],
+      "continental_fraction": 0.7735807377954496,
+      "oceanic_fraction": 0.22641926220455044,
+      "velocity_mm_yr": [
+        -0.4553378175437972,
+        8.384861623511338
+      ],
+      "speed_mm_yr": 8.397216025178746,
+      "omega_deg_myr": 0.09460690654329058,
+      "rotation_pole_km": [
+        11232.383694822256,
+        7825.299020108541
+      ],
+      "neighbors": [
+        2,
+        5,
+        10,
+        14
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 2,
+      "name": "Drenosk",
+      "color": "#4591d9",
+      "size_class": "large",
+      "halo": false,
+      "site_km": [
+        11903.129681852952,
+        -608.743973251384
+      ],
+      "weight_km": 1987.3387270187811,
+      "area_km2": 18525868.494484454,
+      "centroid_km": [
+        10058.96374262789,
+        846.2180325139482
+      ],
+      "continental_fraction": 0.16864224137931033,
+      "oceanic_fraction": 0.8313577586206897,
+      "velocity_mm_yr": [
+        -22.552672810419992,
+        -12.421192476951493
+      ],
+      "speed_mm_yr": 25.74702067120259,
+      "omega_deg_myr": 0.319734832578847,
+      "rotation_pole_km": [
+        11903.129681852952,
+        -608.743973251384
+      ],
+      "neighbors": [
+        0,
+        1,
+        3,
+        9,
+        10
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 3,
+      "name": "Nir",
+      "color": "#b5c867",
+      "size_class": "large",
+      "halo": false,
+      "site_km": [
+        2373.83360418136,
+        -1628.7607118752412
+      ],
+      "weight_km": 2054.2495166910667,
+      "area_km2": 54379812.26182721,
+      "centroid_km": [
+        2217.4239430017315,
+        -892.1944858562089
+      ],
+      "continental_fraction": 0.30892070484581496,
+      "oceanic_fraction": 0.6910792951541851,
+      "velocity_mm_yr": [
+        -3.4197737288717844,
+        -10.55446632606246
+      ],
+      "speed_mm_yr": 11.094665915865518,
+      "omega_deg_myr": 0.04840121534199111,
+      "rotation_pole_km": [
+        2373.83360418136,
+        -1628.7607118752412
+      ],
+      "neighbors": [
+        0,
+        2,
+        5,
+        6,
+        10,
+        11,
+        25,
+        32,
+        35
+      ],
+      "visible_hexes": 1458,
+      "visible_area_km2": 18182376.55753505,
+      "visible_continental_fraction": 0.5438957475994513
+    },
+    {
+      "id": 4,
+      "name": "Surn",
+      "color": "#ad46b7",
+      "size_class": "medium",
+      "halo": false,
+      "site_km": [
+        68.88573002764224,
+        11388.70349307375
+      ],
+      "weight_km": 862.7838896678202,
+      "area_km2": 19534011.12268646,
+      "centroid_km": [
+        876.9931061944385,
+        9762.271264023295
+      ],
+      "continental_fraction": 0.3500255493101686,
+      "oceanic_fraction": 0.6499744506898314,
+      "velocity_mm_yr": [
+        -32.22362117979988,
+        -27.469368687284103
+      ],
+      "speed_mm_yr": 42.3429802684836,
+      "omega_deg_myr": -0.06558199089891872,
+      "rotation_pole_km": [
+        68.88573002764224,
+        11388.70349307375
+      ],
+      "neighbors": [
+        5,
+        7,
+        8,
+        14,
+        21
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 5,
+      "name": "Shalin",
+      "color": "#88eac4",
+      "size_class": "medium",
+      "halo": false,
+      "site_km": [
+        5235.642152513479,
+        5736.47219456381
+      ],
+      "weight_km": 184.2950150793346,
+      "area_km2": 34536371.22355399,
+      "centroid_km": [
+        4147.1807148069465,
+        5776.489758923269
+      ],
+      "continental_fraction": 0.17254335260115608,
+      "oceanic_fraction": 0.827456647398844,
+      "velocity_mm_yr": [
+        -3.261394787893564,
+        -14.170413470285265
+      ],
+      "speed_mm_yr": 14.540884219377492,
+      "omega_deg_myr": 0.1073134414749603,
+      "rotation_pole_km": [
+        5235.642152513479,
+        5736.47219456381
+      ],
+      "neighbors": [
+        1,
+        3,
+        4,
+        6,
+        7,
+        10,
+        14
+      ],
+      "visible_hexes": 1334,
+      "visible_area_km2": 16636001.596537555,
+      "visible_continental_fraction": 0.05997001499250375
+    },
+    {
+      "id": 6,
+      "name": "Daeven",
+      "color": "#d98861",
+      "size_class": "medium",
+      "halo": false,
+      "site_km": [
+        -1604.353065377526,
+        875.9966627995964
+      ],
+      "weight_km": 242.85463929476916,
+      "area_km2": 13744677.21816007,
+      "centroid_km": [
+        -879.6158905346633,
+        2173.6367002002085
+      ],
+      "continental_fraction": 0.2585330428467683,
+      "oceanic_fraction": 0.7414669571532317,
+      "velocity_mm_yr": [
+        30.50709307757969,
+        -17.98055826895576
+      ],
+      "speed_mm_yr": 35.41162526215683,
+      "omega_deg_myr": -0.02770784745295462,
+      "rotation_pole_km": [
+        -1604.353065377526,
+        875.9966627995964
+      ],
+      "neighbors": [
+        3,
+        5,
+        7,
+        32
+      ],
+      "visible_hexes": 181,
+      "visible_area_km2": 2257208.6124237613,
+      "visible_continental_fraction": 0.7237569060773481
+    },
+    {
+      "id": 7,
+      "name": "Elizan",
+      "color": "#4440c8",
+      "size_class": "medium",
+      "halo": false,
+      "site_km": [
+        -3832.9675338076177,
+        8776.632932858856
+      ],
+      "weight_km": 589.8008414876725,
+      "area_km2": 26501175.028478567,
+      "centroid_km": [
+        -3020.313603059362,
+        8040.311995645771
+      ],
+      "continental_fraction": 0.15668549905838042,
+      "oceanic_fraction": 0.8433145009416196,
+      "velocity_mm_yr": [
+        17.39075608495881,
+        11.867748066552359
+      ],
+      "speed_mm_yr": 21.054259459256436,
+      "omega_deg_myr": 0.14020749350709497,
+      "rotation_pole_km": [
+        -3832.9675338076177,
+        8776.632932858856
+      ],
+      "neighbors": [
+        4,
+        5,
+        6,
+        8,
+        12,
+        21,
+        32,
+        48
+      ],
+      "visible_hexes": 12,
+      "visible_area_km2": 149649.18977395102,
+      "visible_continental_fraction": 0.0
+    },
+    {
+      "id": 8,
+      "name": "Sunalune",
+      "color": "#75b75e",
+      "size_class": "small",
+      "halo": false,
+      "site_km": [
+        -2029.5316759451025,
+        10038.189237482668
+      ],
+      "weight_km": -316.3122939702678,
+      "area_km2": 2295770.341450121,
+      "centroid_km": [
+        -1391.6085514552144,
+        9982.266652432361
+      ],
+      "continental_fraction": 0.09130434782608696,
+      "oceanic_fraction": 0.908695652173913,
+      "velocity_mm_yr": [
+        23.42092887052419,
+        -5.235043791871067
+      ],
+      "speed_mm_yr": 23.99886648700228,
+      "omega_deg_myr": -0.0614004946911243,
+      "rotation_pole_km": [
+        -2029.5316759451025,
+        10038.189237482668
+      ],
+      "neighbors": [
+        4,
+        7,
+        21
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 9,
+      "name": "Oraidor",
+      "color": "#ea5aaa",
+      "size_class": "small",
+      "halo": false,
+      "site_km": [
+        10650.354587148591,
+        -2719.4511612854612
+      ],
+      "weight_km": 1181.2035206876362,
+      "area_km2": 5869186.785968135,
+      "centroid_km": [
+        10903.437108021968,
+        -3338.381551707006
+      ],
+      "continental_fraction": 0.06972789115646258,
+      "oceanic_fraction": 0.9302721088435374,
+      "velocity_mm_yr": [
+        22.53898733067539,
+        -51.560794986475166
+      ],
+      "speed_mm_yr": 56.27185379503388,
+      "omega_deg_myr": -0.13320304713535436,
+      "rotation_pole_km": [
+        10650.354587148591,
+        -2719.4511612854612
+      ],
+      "neighbors": [
+        0,
+        2
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 10,
+      "name": "Trunam",
+      "color": "#7ecbd9",
+      "size_class": "small",
+      "halo": false,
+      "site_km": [
+        7123.345009957269,
+        2368.7419011244638
+      ],
+      "weight_km": -2190.545122448741,
+      "area_km2": 2245862.290549031,
+      "centroid_km": [
+        6926.384737547346,
+        2813.7270684307477
+      ],
+      "continental_fraction": 0.7155555555555555,
+      "oceanic_fraction": 0.2844444444444445,
+      "velocity_mm_yr": [
+        -44.29250312640909,
+        3.953877319582852
+      ],
+      "speed_mm_yr": 44.468629156533154,
+      "omega_deg_myr": -0.2607034458143871,
+      "rotation_pole_km": [
+        7123.345009957269,
+        2368.7419011244638
+      ],
+      "neighbors": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "visible_hexes": 15,
+      "visible_area_km2": 187061.4872174388,
+      "visible_continental_fraction": 0.0
+    },
+    {
+      "id": 11,
+      "name": "Tarenotis",
+      "color": "#c8b95a",
+      "size_class": "small",
+      "halo": false,
+      "site_km": [
+        5118.342041230899,
+        -3143.008563555419
+      ],
+      "weight_km": -24.599186534270416,
+      "area_km2": 1946413.9851424936,
+      "centroid_km": [
+        5460.042580718158,
+        -2947.600603616935
+      ],
+      "continental_fraction": 0.6205128205128205,
+      "oceanic_fraction": 0.37948717948717947,
+      "velocity_mm_yr": [
+        28.851396248017743,
+        36.24676747314004
+      ],
+      "speed_mm_yr": 46.32743482767004,
+      "omega_deg_myr": -0.11061286229356705,
+      "rotation_pole_km": [
+        5118.342041230899,
+        -3143.008563555419
+      ],
+      "neighbors": [
+        0,
+        3,
+        25
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 12,
+      "name": "Troum",
+      "color": "#823ab7",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -7152.570024629993,
+        5846.075188053621
+      ],
+      "weight_km": 226.88376301988134,
+      "area_km2": 2904648.562443414,
+      "centroid_km": [
+        -5345.065329100722,
+        6486.9954956497795
+      ],
+      "continental_fraction": 0.0,
+      "oceanic_fraction": 1.0,
+      "velocity_mm_yr": [
+        -7.464800933371319,
+        16.486944540729727
+      ],
+      "speed_mm_yr": 18.098137839677293,
+      "omega_deg_myr": 0.06115417687041447,
+      "rotation_pole_km": [
+        -7152.570024629993,
+        5846.075188053621
+      ],
+      "neighbors": [
+        7,
+        32
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 13,
+      "name": "Selourak",
+      "color": "#78ea98",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        15693.194725987889,
+        14771.048992915652
+      ],
+      "weight_km": 1074.4394133296908,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.2745935806586077,
+      "oceanic_fraction": 0.7254064193413923,
+      "velocity_mm_yr": [
+        -42.79148164569441,
+        29.078983675783082
+      ],
+      "speed_mm_yr": 51.73681661109679,
+      "omega_deg_myr": 0.04533843909030875,
+      "rotation_pole_km": [
+        15693.194725987889,
+        14771.048992915652
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 14,
+      "name": "Naliria",
+      "color": "#d95355",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        5466.332178390499,
+        13693.026509370271
+      ],
+      "weight_km": 1102.7833724380127,
+      "area_km2": 10320984.926345326,
+      "centroid_km": [
+        5013.233333617239,
+        10792.72804710901
+      ],
+      "continental_fraction": 0.2678916827852998,
+      "oceanic_fraction": 0.7321083172147003,
+      "velocity_mm_yr": [
+        -17.37824312580216,
+        4.25334335772441
+      ],
+      "speed_mm_yr": 17.891178380928082,
+      "omega_deg_myr": 0.001366137449003429,
+      "rotation_pole_km": [
+        5466.332178390499,
+        13693.026509370271
+      ],
+      "neighbors": [
+        1,
+        4,
+        5
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 15,
+      "name": "Morun",
+      "color": "#748dc8",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        19601.611520643477,
+        -14277.179999393244
+      ],
+      "weight_km": 1531.2147558277807,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.2431578947368421,
+      "oceanic_fraction": 0.7568421052631579,
+      "velocity_mm_yr": [
+        27.59229625423995,
+        70.9840241640028
+      ],
+      "speed_mm_yr": 76.1581676453516,
+      "omega_deg_myr": -0.022378552532263195,
+      "rotation_pole_km": [
+        19601.611520643477,
+        -14277.179999393244
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 16,
+      "name": "Menor",
+      "color": "#8eb752",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        -7742.033527330048,
+        -16148.499578490928
+      ],
+      "weight_km": 2480.1920675483293,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.3887749120750293,
+      "oceanic_fraction": 0.6112250879249708,
+      "velocity_mm_yr": [
+        57.121626356726715,
+        -46.22838544047523
+      ],
+      "speed_mm_yr": 73.48431001289077,
+      "omega_deg_myr": 0.07629469205182277,
+      "rotation_pole_km": [
+        -7742.033527330048,
+        -16148.499578490928
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 17,
+      "name": "Bin",
+      "color": "#ea4bd8",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -984.9005621186243,
+        20427.81594429612
+      ],
+      "weight_km": 1072.1825347130537,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.7143191389798783,
+      "oceanic_fraction": 0.2856808610201217,
+      "velocity_mm_yr": [
+        -19.111261095310212,
+        12.602592198483322
+      ],
+      "speed_mm_yr": 22.89247978647989,
+      "omega_deg_myr": -0.009140109436310662,
+      "rotation_pole_km": [
+        -984.9005621186243,
+        20427.81594429612
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 18,
+      "name": "Shix",
+      "color": "#70d9c6",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        5690.754777773449,
+        -14200.7178118003
+      ],
+      "weight_km": 2153.405234719698,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.10255536626916524,
+      "oceanic_fraction": 0.8974446337308347,
+      "velocity_mm_yr": [
+        5.574229928850532,
+        -81.15014547085102
+      ],
+      "speed_mm_yr": 81.34136800693713,
+      "omega_deg_myr": 0.06614871232729763,
+      "rotation_pole_km": [
+        5690.754777773449,
+        -14200.7178118003
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 19,
+      "name": "Goth",
+      "color": "#c88e4d",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        17708.515193479914,
+        6120.112638455108
+      ],
+      "weight_km": 533.0126592991448,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.39657100260901973,
+      "oceanic_fraction": 0.6034289973909803,
+      "velocity_mm_yr": [
+        50.009048041687834,
+        -10.508371715054615
+      ],
+      "speed_mm_yr": 51.10118161195103,
+      "omega_deg_myr": 0.19271239517062666,
+      "rotation_pole_km": [
+        17708.515193479914,
+        6120.112638455108
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 20,
+      "name": "Taraelune",
+      "color": "#7c6ab7",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        11510.688651942031,
+        -8867.575004271745
+      ],
+      "weight_km": 1821.280796486954,
+      "area_km2": 339374.74612740916,
+      "centroid_km": [
+        11674.365922197108,
+        -5750.766164059273
+      ],
+      "continental_fraction": 1.0,
+      "oceanic_fraction": 0.0,
+      "velocity_mm_yr": [
+        6.745745259748726,
+        -10.651105172419388
+      ],
+      "speed_mm_yr": 12.607581865820324,
+      "omega_deg_myr": -0.04838080313305182,
+      "rotation_pole_km": [
+        11510.688651942031,
+        -8867.575004271745
+      ],
+      "neighbors": [
+        0,
+        46
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 21,
+      "name": "Brunia",
+      "color": "#70ea69",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -5922.647386452167,
+        12758.052275481086
+      ],
+      "weight_km": 921.6307772157292,
+      "area_km2": 3473600.3427158347,
+      "centroid_km": [
+        -4427.6436730298165,
+        11484.142154660523
+      ],
+      "continental_fraction": 0.7126436781609196,
+      "oceanic_fraction": 0.28735632183908044,
+      "velocity_mm_yr": [
+        -32.751901799155654,
+        5.915570980940536
+      ],
+      "speed_mm_yr": 33.28184266972129,
+      "omega_deg_myr": 0.11983272261420724,
+      "rotation_pole_km": [
+        -5922.647386452167,
+        12758.052275481086
+      ],
+      "neighbors": [
+        4,
+        7,
+        8,
+        48
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 22,
+      "name": "Eliria",
+      "color": "#d94578",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        3672.6308181417135,
+        17576.399409223508
+      ],
+      "weight_km": 1123.8800898258426,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.8226014166130071,
+      "oceanic_fraction": 0.17739858338699288,
+      "velocity_mm_yr": [
+        -4.281280948105457,
+        4.5298115693391185
+      ],
+      "speed_mm_yr": 6.232861253896904,
+      "omega_deg_myr": 0.09324201285675428,
+      "rotation_pole_km": [
+        3672.6308181417135,
+        17576.399409223508
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 23,
+      "name": "Anougan",
+      "color": "#67a5c8",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        20761.671261968244,
+        -3551.521494914605
+      ],
+      "weight_km": 2344.4924622616923,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.1733615221987315,
+      "oceanic_fraction": 0.8266384778012685,
+      "velocity_mm_yr": [
+        -18.121275172322235,
+        -6.29361866483035
+      ],
+      "speed_mm_yr": 19.18307195861297,
+      "omega_deg_myr": 0.04082445016657894,
+      "rotation_pole_km": [
+        20761.671261968244,
+        -3551.521494914605
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 24,
+      "name": "Elarania",
+      "color": "#afb746",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        -7882.312471892279,
+        -7508.995462744018
+      ],
+      "weight_km": 1466.3796493789032,
+      "area_km2": 618859.8311735109,
+      "centroid_km": [
+        -5835.413082152223,
+        -4770.2647970341095
+      ],
+      "continental_fraction": 0.7741935483870968,
+      "oceanic_fraction": 0.22580645161290325,
+      "velocity_mm_yr": [
+        -16.36568879288415,
+        -5.685231863962959
+      ],
+      "speed_mm_yr": 17.32505789348346,
+      "omega_deg_myr": -0.02414158582185595,
+      "rotation_pole_km": [
+        -7882.312471892279,
+        -7508.995462744018
+      ],
+      "neighbors": [
+        32,
+        35
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 25,
+      "name": "Brunax",
+      "color": "#d488ea",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        2429.18696437407,
+        -6733.957087090128
+      ],
+      "weight_km": 2040.3581926636277,
+      "area_km2": 8544258.314266536,
+      "centroid_km": [
+        2387.1297276859955,
+        -5248.596601646921
+      ],
+      "continental_fraction": 0.26869158878504673,
+      "oceanic_fraction": 0.7313084112149533,
+      "velocity_mm_yr": [
+        14.87109085298701,
+        55.900839554792505
+      ],
+      "speed_mm_yr": 57.845079359340914,
+      "omega_deg_myr": 0.06749249130804554,
+      "rotation_pole_km": [
+        2429.18696437407,
+        -6733.957087090128
+      ],
+      "neighbors": [
+        0,
+        3,
+        11,
+        35
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 26,
+      "name": "Bus",
+      "color": "#61d99c",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        15141.14643764897,
+        -4537.165572003503
+      ],
+      "weight_km": 685.9517970971104,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.2597921662669864,
+      "oceanic_fraction": 0.7402078337330136,
+      "velocity_mm_yr": [
+        28.837683263385088,
+        45.741777560091876
+      ],
+      "speed_mm_yr": 54.07330386018821,
+      "omega_deg_myr": 0.11318489542172892,
+      "rotation_pole_km": [
+        15141.14643764897,
+        -4537.165572003503
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 27,
+      "name": "Isaex",
+      "color": "#c85a40",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -11805.605782136488,
+        14969.075623034985
+      ],
+      "weight_km": 836.2409242410541,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.16044426602435435,
+      "oceanic_fraction": 0.8395557339756456,
+      "velocity_mm_yr": [
+        3.985085214984254,
+        -11.525158619724444
+      ],
+      "speed_mm_yr": 12.19467856814991,
+      "omega_deg_myr": -0.25428415666992527,
+      "rotation_pole_km": [
+        -11805.605782136488,
+        14969.075623034985
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 28,
+      "name": "Vunand",
+      "color": "#5e67b7",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        16464.330331472614,
+        -10087.47307703828
+      ],
+      "weight_km": 539.6737614719739,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.17960971724412583,
+      "oceanic_fraction": 0.8203902827558742,
+      "velocity_mm_yr": [
+        -0.21422715573520534,
+        -17.42481156005729
+      ],
+      "speed_mm_yr": 17.426128404719176,
+      "omega_deg_myr": 0.061322245152154134,
+      "rotation_pole_km": [
+        16464.330331472614,
+        -10087.47307703828
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 29,
+      "name": "Moreridor",
+      "color": "#92ea5a",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        21983.4401873935,
+        436.2947996151506
+      ],
+      "weight_km": 1727.6977798796456,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.41964285714285715,
+      "oceanic_fraction": 0.5803571428571428,
+      "velocity_mm_yr": [
+        46.29867633625012,
+        21.514390687028165
+      ],
+      "speed_mm_yr": 51.05327058203941,
+      "omega_deg_myr": 0.08693359071157275,
+      "rotation_pole_km": [
+        21983.4401873935,
+        436.2947996151506
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 30,
+      "name": "Anenogan",
+      "color": "#d97ebc",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -11241.733563642418,
+        21669.14196683647
+      ],
+      "weight_km": 623.5452584005712,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.42751763951250804,
+      "oceanic_fraction": 0.572482360487492,
+      "velocity_mm_yr": [
+        14.352928308124405,
+        63.49267650873361
+      ],
+      "speed_mm_yr": 65.0947503356519,
+      "omega_deg_myr": -0.051886110226370415,
+      "rotation_pole_km": [
+        -11241.733563642418,
+        21669.14196683647
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 31,
+      "name": "Orenotis",
+      "color": "#5ac5c8",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        4555.970598046368,
+        21844.880979539572
+      ],
+      "weight_km": 364.3551849543752,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.05636978579481398,
+      "oceanic_fraction": 0.943630214205186,
+      "velocity_mm_yr": [
+        15.385446496979753,
+        19.530363378032057
+      ],
+      "speed_mm_yr": 24.862563375271712,
+      "omega_deg_myr": -0.02584649586701517,
+      "rotation_pole_km": [
+        4555.970598046368,
+        21844.880979539572
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 32,
+      "name": "Rador",
+      "color": "#b7963a",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        -6249.45924563916,
+        841.857052129928
+      ],
+      "weight_km": 2636.88772202259,
+      "area_km2": 35384808.088872515,
+      "centroid_km": [
+        -4075.6993575150295,
+        1037.533338199861
+      ],
+      "continental_fraction": 0.41889985895627646,
+      "oceanic_fraction": 0.5811001410437235,
+      "velocity_mm_yr": [
+        7.508612176160694,
+        38.31836322376708
+      ],
+      "speed_mm_yr": 39.04710254244909,
+      "omega_deg_myr": -0.1142850482292172,
+      "rotation_pole_km": [
+        -6249.45924563916,
+        841.857052129928
+      ],
+      "neighbors": [
+        3,
+        6,
+        7,
+        12,
+        24,
+        35
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 33,
+      "name": "Derim",
+      "color": "#ab78ea",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        21938.815675011232,
+        9676.175050079642
+      ],
+      "weight_km": 554.6839577982638,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.0,
+      "oceanic_fraction": 1.0,
+      "velocity_mm_yr": [
+        15.094021088549361,
+        25.58702091230593
+      ],
+      "speed_mm_yr": 29.707324211183238,
+      "omega_deg_myr": 0.21309678531536838,
+      "rotation_pole_km": [
+        21938.815675011232,
+        9676.175050079642
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 34,
+      "name": "Taroum",
+      "color": "#53d968",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        12816.622335658301,
+        -15333.09792095045
+      ],
+      "weight_km": 2171.558583711041,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.32169280852323173,
+      "oceanic_fraction": 0.6783071914767682,
+      "velocity_mm_yr": [
+        43.13555186373245,
+        -27.65809732773102
+      ],
+      "speed_mm_yr": 51.24105953606926,
+      "omega_deg_myr": 0.009916113223476327,
+      "rotation_pole_km": [
+        12816.622335658301,
+        -15333.09792095045
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 35,
+      "name": "Vutis",
+      "color": "#c87480",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -2828.5308237303416,
+        -6533.6891108732125
+      ],
+      "weight_km": 1100.6813953243693,
+      "area_km2": 9452584.840666367,
+      "centroid_km": [
+        -3425.4986453186816,
+        -5006.197370438885
+      ],
+      "continental_fraction": 0.4171066525871172,
+      "oceanic_fraction": 0.5828933474128828,
+      "velocity_mm_yr": [
+        41.17314785311539,
+        5.176024476086582
+      ],
+      "speed_mm_yr": 41.497220792621135,
+      "omega_deg_myr": 0.08566101504833673,
+      "rotation_pole_km": [
+        -2828.5308237303416,
+        -6533.6891108732125
+      ],
+      "neighbors": [
+        3,
+        24,
+        25,
+        32
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 36,
+      "name": "Anegan",
+      "color": "#527eb7",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        17844.606827686803,
+        11033.069464815382
+      ],
+      "weight_km": 249.40508622462016,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.03028263795423957,
+      "oceanic_fraction": 0.9697173620457604,
+      "velocity_mm_yr": [
+        -44.573200405672885,
+        -18.488136317899148
+      ],
+      "speed_mm_yr": 48.25537668398724,
+      "omega_deg_myr": 0.12263192704860572,
+      "rotation_pole_km": [
+        17844.606827686803,
+        11033.069464815382
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 37,
+      "name": "Veris",
+      "color": "#beea4b",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        -14248.504230289902,
+        -5043.960641969699
+      ],
+      "weight_km": 238.731414090809,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.18348144276006273,
+      "oceanic_fraction": 0.8165185572399373,
+      "velocity_mm_yr": [
+        8.22170092590007,
+        -40.35903331058358
+      ],
+      "speed_mm_yr": 41.187958627246154,
+      "omega_deg_myr": 0.07836307606916973,
+      "rotation_pole_km": [
+        -14248.504230289902,
+        -5043.960641969699
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 38,
+      "name": "Traind",
+      "color": "#d870d9",
+      "size_class": "medium",
+      "halo": true,
+      "site_km": [
+        8770.911365478221,
+        21985.74927068025
+      ],
+      "weight_km": 573.5883926560765,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.30505540166204986,
+      "oceanic_fraction": 0.6949445983379501,
+      "velocity_mm_yr": [
+        1.0561618216281898,
+        29.140687794275234
+      ],
+      "speed_mm_yr": 29.159821037120352,
+      "omega_deg_myr": 0.04652411719773592,
+      "rotation_pole_km": [
+        8770.911365478221,
+        21985.74927068025
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 39,
+      "name": "Shim",
+      "color": "#4dc8a2",
+      "size_class": "large",
+      "halo": true,
+      "site_km": [
+        3158.3507534504806,
+        -10725.643233894905
+      ],
+      "weight_km": 1970.52754603271,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.5720381526104418,
+      "oceanic_fraction": 0.4279618473895582,
+      "velocity_mm_yr": [
+        14.910899523539179,
+        -2.7323486866025144
+      ],
+      "speed_mm_yr": 15.159177218644137,
+      "omega_deg_myr": 0.06386518417395486,
+      "rotation_pole_km": [
+        3158.3507534504806,
+        -10725.643233894905
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 40,
+      "name": "Kararalune",
+      "color": "#b7896a",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -8219.545994744676,
+        -3732.464858791527
+      ],
+      "weight_km": -439.91484980160203,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.0806697108066971,
+      "oceanic_fraction": 0.9193302891933028,
+      "velocity_mm_yr": [
+        26.734251487862213,
+        1.0699236697374126
+      ],
+      "speed_mm_yr": 26.755652473362098,
+      "omega_deg_myr": -0.0428600548959748,
+      "rotation_pole_km": [
+        -8219.545994744676,
+        -3732.464858791527
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 41,
+      "name": "Daven",
+      "color": "#7769ea",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        4447.843809626955,
+        -8499.1599695515
+      ],
+      "weight_km": 475.0588454382141,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.7678244972577697,
+      "oceanic_fraction": 0.2321755027422303,
+      "velocity_mm_yr": [
+        -2.0607029790731604,
+        1.6634109544360614
+      ],
+      "speed_mm_yr": 2.648288649543113,
+      "omega_deg_myr": 0.02767885394320707,
+      "rotation_pole_km": [
+        4447.843809626955,
+        -8499.1599695515
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 42,
+      "name": "Morainia",
+      "color": "#60d945",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -6453.320461680356,
+        18322.36098926521
+      ],
+      "weight_km": -2875.8146038187174,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.3256172839506173,
+      "oceanic_fraction": 0.6743827160493827,
+      "velocity_mm_yr": [
+        53.97579096219866,
+        7.433896324011316
+      ],
+      "speed_mm_yr": 54.48530833675364,
+      "omega_deg_myr": 0.1121231799078432,
+      "rotation_pole_km": [
+        -6453.320461680356,
+        18322.36098926521
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 43,
+      "name": "Shaeven",
+      "color": "#c86795",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        16353.6956683367,
+        8761.810443790046
+      ],
+      "weight_km": -1116.523302658472,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.7708333333333334,
+      "oceanic_fraction": 0.22916666666666663,
+      "velocity_mm_yr": [
+        -17.324065555824788,
+        -4.657990136472273
+      ],
+      "speed_mm_yr": 17.939345570393247,
+      "omega_deg_myr": -0.19717715777780517,
+      "rotation_pole_km": [
+        16353.6956683367,
+        8761.810443790046
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 44,
+      "name": "Zerix",
+      "color": "#469db7",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -14375.049244567093,
+        662.1297098462474
+      ],
+      "weight_km": -4475.266577041936,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.0,
+      "oceanic_fraction": 1.0,
+      "velocity_mm_yr": [
+        -4.624175030833121,
+        72.2249637575723
+      ],
+      "speed_mm_yr": 72.37284286594256,
+      "omega_deg_myr": 0.03573066629086259,
+      "rotation_pole_km": [
+        -14375.049244567093,
+        662.1297098462474
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 45,
+      "name": "Elararn",
+      "color": "#eae488",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        13881.470689291242,
+        3331.5026397171987
+      ],
+      "weight_km": -1368.0539386848395,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.0,
+      "oceanic_fraction": 1.0,
+      "velocity_mm_yr": [
+        66.79598356232476,
+        31.827610290224143
+      ],
+      "speed_mm_yr": 73.99121702502765,
+      "omega_deg_myr": 0.12387455326611685,
+      "rotation_pole_km": [
+        13881.470689291242,
+        3331.5026397171987
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 46,
+      "name": "Elotis",
+      "color": "#af61d9",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        13668.169518513545,
+        -6275.420192656269
+      ],
+      "weight_km": 15.878174343556793,
+      "area_km2": 19963.220360435833,
+      "centroid_km": [
+        11941.766768714706,
+        -5292.364712886258
+      ],
+      "continental_fraction": 1.0,
+      "oceanic_fraction": 0.0,
+      "velocity_mm_yr": [
+        17.860820001147676,
+        -2.328760937289039
+      ],
+      "speed_mm_yr": 18.01199651944337,
+      "omega_deg_myr": -0.07292019480212886,
+      "rotation_pole_km": [
+        13668.169518513545,
+        -6275.420192656269
+      ],
+      "neighbors": [
+        0,
+        20
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 47,
+      "name": "Selaras",
+      "color": "#40c871",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        8254.304481803885,
+        -10820.372274167054
+      ],
+      "weight_km": -138.59593634124622,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.7835420393559929,
+      "oceanic_fraction": 0.21645796064400713,
+      "velocity_mm_yr": [
+        1.4267115067155158,
+        -30.358682608101
+      ],
+      "speed_mm_yr": 30.392188394763686,
+      "omega_deg_myr": 0.09359844898451757,
+      "rotation_pole_km": [
+        8254.304481803885,
+        -10820.372274167054
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 48,
+      "name": "Brairak",
+      "color": "#b7645e",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -6966.532508829754,
+        9386.179840729035
+      ],
+      "weight_km": -1061.9969867810305,
+      "area_km2": 119779.32216261499,
+      "centroid_km": [
+        -5900.1384318026185,
+        10284.958959613936
+      ],
+      "continental_fraction": 0.5833333333333334,
+      "oceanic_fraction": 0.41666666666666663,
+      "velocity_mm_yr": [
+        29.807196455280977,
+        41.43926263947287
+      ],
+      "speed_mm_yr": 51.04587592183062,
+      "omega_deg_myr": 0.014119974825319436,
+      "rotation_pole_km": [
+        -6966.532508829754,
+        9386.179840729035
+      ],
+      "neighbors": [
+        7,
+        21
+      ],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 49,
+      "name": "Serim",
+      "color": "#5a7aea",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        3014.5551227919004,
+        20354.81169063985
+      ],
+      "weight_km": -615.4589696537719,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.022988505747126436,
+      "oceanic_fraction": 0.9770114942528736,
+      "velocity_mm_yr": [
+        8.489222398044648,
+        20.32351005398806
+      ],
+      "speed_mm_yr": 22.0252572706431,
+      "omega_deg_myr": -0.12431288122687705,
+      "rotation_pole_km": [
+        3014.5551227919004,
+        20354.81169063985
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 50,
+      "name": "Nerin",
+      "color": "#add97e",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        13740.810356929693,
+        -3207.948258194281
+      ],
+      "weight_km": 434.11667979789513,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.024193548387096774,
+      "oceanic_fraction": 0.9758064516129032,
+      "velocity_mm_yr": [
+        -5.099689614952948,
+        -14.94103790313902
+      ],
+      "speed_mm_yr": 15.787382550375339,
+      "omega_deg_myr": 0.02360312093678525,
+      "rotation_pole_km": [
+        13740.810356929693,
+        -3207.948258194281
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 51,
+      "name": "Nunam",
+      "color": "#c85ab3",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -3636.690468106013,
+        -11407.956461089974
+      ],
+      "weight_km": -2030.9188742511574,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.9203296703296703,
+      "oceanic_fraction": 0.07967032967032972,
+      "velocity_mm_yr": [
+        43.539381337041014,
+        -3.9262840747873406
+      ],
+      "speed_mm_yr": 43.71605464641342,
+      "omega_deg_myr": -0.06073021096315469,
+      "rotation_pole_km": [
+        -3636.690468106013,
+        -11407.956461089974
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 52,
+      "name": "Isorox",
+      "color": "#3ab7ab",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -15572.543004012727,
+        -11696.742703327518
+      ],
+      "weight_km": -5167.193966195105,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.0,
+      "oceanic_fraction": 1.0,
+      "velocity_mm_yr": [
+        77.9523446953249,
+        61.446824780760764
+      ],
+      "speed_mm_yr": 99.25865362343106,
+      "omega_deg_myr": 0.1309073432644144,
+      "rotation_pole_km": [
+        -15572.543004012727,
+        -11696.742703327518
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    },
+    {
+      "id": 53,
+      "name": "Laizan",
+      "color": "#eabe78",
+      "size_class": "small",
+      "halo": true,
+      "site_km": [
+        -13188.305307126207,
+        -9318.071453262604
+      ],
+      "weight_km": -2281.157852757926,
+      "area_km2": 0.0,
+      "centroid_km": null,
+      "continental_fraction": 0.30814441645675905,
+      "oceanic_fraction": 0.691855583543241,
+      "velocity_mm_yr": [
+        23.336886129152923,
+        2.4049389962839602
+      ],
+      "speed_mm_yr": 23.460477100453378,
+      "omega_deg_myr": -0.1345003504972281,
+      "rotation_pole_km": [
+        -13188.305307126207,
+        -9318.071453262604
+      ],
+      "neighbors": [],
+      "visible_hexes": 0,
+      "visible_area_km2": 0.0,
+      "visible_continental_fraction": null
+    }
+  ]
+}

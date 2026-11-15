@@ -1,0 +1,14 @@
+{
+  "seed": "Ab12",
+  "width": 500,
+  "height": 300,
+  "hex_spacing_km": 60.0,
+  "mode": "world",
+  "history": {
+    "duration_ma": 80.0,
+    "time_step_ma": 2.0,
+    "checkpoint_stride": 5,
+    "intensity": "calm",
+    "erosion_intensity": 2.0
+  }
+}

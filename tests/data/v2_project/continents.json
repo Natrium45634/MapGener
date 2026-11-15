@@ -1,0 +1,199 @@
+{
+  "world_id": "e1c54aa7fb36b082",
+  "algorithm_version": "continents-1",
+  "units": {
+    "length": "km",
+    "area": "km2",
+    "elevation": "m"
+  },
+  "sea_level_m": -17.348,
+  "summary": {
+    "sea_mode": "target_land_fraction",
+    "sea_level_m": -17.348,
+    "vertical_datum": "0 m = model datum; sea level is a scenario parameter",
+    "target_land_fraction": 0.29,
+    "land_fraction_viewport": 0.25466666666666665,
+    "shelf_fraction_viewport": 0.06233333333333333,
+    "continental_crust_fraction_viewport": 0.31733333333333336,
+    "continental_crust_fraction_simulation": 0.36027777777777775,
+    "blocks_in_window": 1,
+    "landmasses_in_window": 1,
+    "major_landmasses_in_window": 1,
+    "min_elevation_m": -5686.69091796875,
+    "max_elevation_m": 2046.508544921875,
+    "world": {
+      "land_fraction_simulation": 0.29,
+      "landmass_count_simulation": 21,
+      "major_landmass_count": 8,
+      "largest_landmass_share_of_land": 0.41169779693486586,
+      "largest_landmasses_km2": [
+        38611987.0,
+        17950054.0,
+        11223697.0,
+        7197989.0,
+        6114360.0,
+        3413711.0,
+        2796099.0,
+        2593971.0,
+        1246454.0,
+        903960.0,
+        342494.0,
+        314421.0
+      ],
+      "simulation_area_km2": 323404169.8390604
+    },
+    "structure": {
+      "kind": "prior-crust + structure(bridges, rifts) + tectonics + coast detail",
+      "bridges_km": [
+        [
+          11475.01,
+          11369.637,
+          10185.57,
+          12014.357,
+          728.405
+        ],
+        [
+          -3047.837,
+          -5741.074,
+          -4289.882,
+          -3394.989,
+          677.711
+        ],
+        [
+          10006.049,
+          4951.73,
+          10006.049,
+          7792.061,
+          722.316
+        ]
+      ],
+      "rift_samples": 0,
+      "balance_km": 31.579,
+      "remap": null,
+      "operations": [
+        {
+          "op": "bridge",
+          "gap_km": 167.6,
+          "half_width_km": 728.4
+        },
+        {
+          "op": "bridge",
+          "gap_km": 1441.3,
+          "half_width_km": 677.7
+        },
+        {
+          "op": "bridge",
+          "gap_km": 1573.6,
+          "half_width_km": 722.3
+        },
+        {
+          "op": "summary",
+          "natural_major_blocks": 11,
+          "target": 7,
+          "major_blocks": 8
+        }
+      ],
+      "transition_km": 90.0
+    },
+    "continent_profile": "balanced",
+    "requested_major_landmass_count": "auto"
+  },
+  "world_grid": {
+    "x0_km": -16144.872145865413,
+    "y0_km": -16144.872145865413,
+    "cell_km": 74.9310064417433,
+    "nx": 512,
+    "ny": 512,
+    "note": "cell (j, i) is centred at (x0 + i*cell, y0 + j*cell)"
+  },
+  "stage_keys": {
+    "world_tectonics": "2eac578cd38245b5eb3d8902ce14c7765f4859ff43192eb6bde50f191469eb01",
+    "continental_blocks": "a2c5f1a55f500c88b32a8e2e794d27b591bd390bca349c0b8ddcf2d4bbf3dcbf",
+    "macro_elevation": "e28de7c1bc61e716c61de67fc957f6511dd1c27562b8e229ef6a5ce27bc034e7",
+    "v2_raster": "3a76fdaa8a9e5ce1fc95be85bd5a79c1f4ffd2d61bdc0a07b6b64ccb89c97c22",
+    "sea_level_landmasses": "a6c89a44e9e0214a9fdfc8ed225b18e7229ae08740b503130cbca1d338067bbd"
+  },
+  "warnings": [],
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "checks": {
+      "landmasses": 1,
+      "continental_blocks": 1,
+      "speck_land_share": 0.0,
+      "speck_landmasses": 0,
+      "land_fraction_viewport": 0.25467,
+      "sea_level_m": -17.348
+    }
+  },
+  "timings_s": {
+    "world_tectonics": 0.5471,
+    "continental_blocks": 5.9886,
+    "macro_elevation": 0.7385,
+    "v2_raster": 0.0262,
+    "sea_level_landmasses": 0.0057
+  },
+  "blocks": [
+    {
+      "id": 0,
+      "hexes": 952,
+      "area_km2": 11872169.055400115,
+      "centroid_km": [
+        1558.4818505919084,
+        2143.109243697479
+      ],
+      "bounds_km": [
+        0.0,
+        0.0,
+        3879.793808954285,
+        4560.0
+      ],
+      "touches_window_edge": true,
+      "plates": {
+        "3": 0.8162,
+        "6": 0.1355,
+        "5": 0.0483
+      },
+      "plate_count": 3,
+      "name": "Yarilon",
+      "land_area_km2": 9527665.082274882,
+      "submerged_area_km2": 2344503.973125233,
+      "landmass_ids": [
+        0
+      ]
+    }
+  ],
+  "landmasses": [
+    {
+      "id": 0,
+      "hexes": 764,
+      "area_km2": 9527665.082274882,
+      "centroid_km": [
+        1311.7337660462679,
+        2098.586387434555
+      ],
+      "bounds_km": [
+        0.0,
+        0.0,
+        3360.1785666836217,
+        4500.0
+      ],
+      "touches_window_edge": true,
+      "plates": {
+        "3": 0.8207,
+        "6": 0.1636,
+        "5": 0.0157
+      },
+      "plate_count": 3,
+      "name": "Orawen",
+      "is_major": true,
+      "mean_height_m": 620.3307442103381,
+      "max_height_m": 2063.8564453125,
+      "on_oceanic_crust_share": 0.0,
+      "block_ids": [
+        0
+      ]
+    }
+  ]
+}

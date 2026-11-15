@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 from .. import render, views
 from ..config import (
     CONTINENT_PROFILES,
+    HISTORY_PROFILES,
     MODES,
     PRESETS,
     PROFILES,
@@ -65,6 +66,10 @@ STAGE_TITLES = {
     "macro_elevation": "макрорельеф",
     "v2_raster": "выборка v2 на гексы",
     "sea_level_landmasses": "уровень моря и суша",
+    "geo_history": "геологическая история",
+    "mountain_plan": "план горных систем",
+    "v3_raster": "итоговый рельеф на гексах",
+    "v3_sea": "суша итоговой эпохи",
     "validate": "проверка",
     "done": "готово",
 }
@@ -117,7 +122,7 @@ class MainWindow(QMainWindow):
         self._view_ids = list(views.VIEWS)
 
         self.view = MapView()
-        self.view.hexHovered.connect(lambda text: self.statusBar().showMessage(text))
+        self.view.hexHovered.connect(self._on_hover)
         self.view.hexClicked.connect(self._on_hex_clicked)
 
         # -- tabs + per-view controls above the map ---------------------------
@@ -149,12 +154,22 @@ class MainWindow(QMainWindow):
         map_column.addWidget(self.tabs)
         map_column.addLayout(controls)
         map_column.addWidget(self.view, 1)
+        # hover inspector: bottom right, under the map
+        self.hover = QLabel("Наведите курсор на карту")
+        self.hover.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        self.hover.setMinimumHeight(54)
+        self.hover.setStyleSheet("padding: 2px 6px;")
+        hover_row = QHBoxLayout()
+        hover_row.addStretch(1)
+        hover_row.addWidget(self.hover)
+        map_column.addLayout(hover_row)
 
         # -- side panel -------------------------------------------------------
         side = QWidget()
         col = QVBoxLayout(side)
         col.addWidget(self._build_world_box())
         col.addWidget(self._build_v2_box())
+        col.addWidget(self._build_v3_box())
         buttons = QHBoxLayout()
         self.generate_btn = QPushButton("Сгенерировать")
         self.generate_btn.clicked.connect(self.start_generation)
@@ -182,6 +197,15 @@ class MainWindow(QMainWindow):
         for b in (self.png_btn, self.png_all_btn, fit):
             export.addWidget(b)
         col.addLayout(export)
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("Масштаб интерфейса"))
+        self.ui_scale = self._spin(70, 220, 100)
+        self.ui_scale.setSuffix(" %")
+        self.ui_scale.setSingleStep(10)
+        self.ui_scale.valueChanged.connect(self._apply_ui_scale)
+        scale_row.addWidget(self.ui_scale)
+        col.addLayout(scale_row)
+        self._base_font_pt = max(6.0, QApplication.instance().font().pointSizeF())
 
         box = QGroupBox("Легенда вкладки")
         inner = QVBoxLayout(box)
@@ -310,6 +334,68 @@ class MainWindow(QMainWindow):
         self._sync_sea_mode()
         return box
 
+    def _build_v3_box(self) -> QGroupBox:
+        box = QGroupBox("Геоистория, горы, вулканизм (v3.0)")
+        form = QFormLayout(box)
+        self.history_on = QCheckBox("считать геологическую историю")
+        self.history_on.setChecked(True)
+        self.duration = self._double(0.0, 400.0, 30.0, 1, " млн лет", 5.0)
+        self.time_step = self._double(0.05, 20.0, 1.0, 2, " млн лет", 0.5)
+        self.history_profile = QComboBox()
+        self.history_profile.addItems(HISTORY_PROFILES)
+        self.history_profile.setCurrentText("earthlike")
+        self.uplift_scale = self._double(0.0, 5.0, 1.0, 2, "", 0.1)
+        self.erosion = self._double(0.0, 5.0, 1.0, 2, "", 0.1)
+        self.hotspots = self._double(0.0, 5.0, 1.0, 2, "", 0.25)
+        self.mountain_detail = self._double(0.0, 2.0, 1.0, 2, "", 0.1)
+        self.epoch_box = QComboBox()
+        self.epoch_box.setToolTip(
+            "Сохранённые снимки истории. Смена снимка не пересчитывает "
+            "историю: строятся только слои выбранной эпохи."
+        )
+        self.epoch_btn = QPushButton("Показать выбранный снимок")
+        self.epoch_btn.clicked.connect(self.apply_epoch)
+        form.addRow(self.history_on)
+        form.addRow("Длительность", self.duration)
+        form.addRow("Шаг времени", self.time_step)
+        form.addRow("Интенсивность", self.history_profile)
+        form.addRow("Скорость поднятия ×", self.uplift_scale)
+        form.addRow("Эрозия ×", self.erosion)
+        form.addRow("Горячие точки ×", self.hotspots)
+        form.addRow("Детализация гор", self.mountain_detail)
+        form.addRow("Снимок", self.epoch_box)
+        form.addRow(self.epoch_btn)
+        return box
+
+    def _apply_ui_scale(self, percent: int):
+        font = QApplication.instance().font()
+        font.setPointSizeF(self._base_font_pt * percent / 100.0)
+        QApplication.instance().setFont(font)
+        for widget in self.findChildren(QWidget):
+            widget.setFont(font)
+        self.note.setStyleSheet("font-weight: bold;")
+
+    def _on_hover(self, text: str):
+        self.hover.setText(text)
+
+    def _fill_epochs(self):
+        self.epoch_box.blockSignals(True)
+        self.epoch_box.clear()
+        hist = self.project.hist if self.project is not None else None
+        if hist is not None:
+            for t in hist.epochs:
+                tag = (
+                    " (исходная)"
+                    if t == hist.epochs[0]
+                    else (" (итоговая)" if t == hist.epochs[-1] else "")
+                )
+                self.epoch_box.addItem(f"t = {t:g} млн лет{tag}", t)
+            index = min(
+                range(len(hist.epochs)), key=lambda i: abs(hist.epochs[i] - hist.epoch_time_ma)
+            )
+            self.epoch_box.setCurrentIndex(index)
+        self.epoch_box.blockSignals(False)
+
     @staticmethod
     def _spin(lo, hi, value):
         box = QSpinBox()
@@ -435,6 +521,18 @@ class MainWindow(QMainWindow):
             ),
             relief=replace(base.relief, relief_strength=self.relief_strength.value()),
             sea=self._sea_params(base.sea),
+            history=replace(
+                base.history,
+                enabled=self.history_on.isChecked(),
+                duration_ma=self.duration.value(),
+                time_step_ma=self.time_step.value(),
+                intensity=self.history_profile.currentText(),
+                uplift_scale=self.uplift_scale.value(),
+                erosion_intensity=self.erosion.value(),
+                hotspot_density=self.hotspots.value(),
+                epoch="final",
+            ),
+            mountains=replace(base.mountains, detail=self.mountain_detail.value()),
         )
         if self.pin_world.isChecked() and self.project is not None:
             g = self.project.geometry
@@ -466,6 +564,7 @@ class MainWindow(QMainWindow):
         self.png_all_btn.setEnabled(not busy and has)
         self.png_btn.setEnabled(not busy and has)
         self.sea_btn.setEnabled(not busy and has and self.project.geo is not None)
+        self.epoch_btn.setEnabled(not busy and has and self.project.hist is not None)
         self.cancel_btn.setEnabled(busy)
         self.progress.setVisible(busy)
 
@@ -529,6 +628,22 @@ class MainWindow(QMainWindow):
             lambda project: self._show_project(project, "Уровень моря применён"),
         )
 
+    def apply_epoch(self):
+        """Build the layers of another stored snapshot; the history itself is reused."""
+        if self.project is None or self.project.hist is None:
+            return
+        when = self.epoch_box.currentData()
+        if when is None:
+            return
+        config = replace(
+            self.project.config, history=replace(self.project.config.history, epoch=float(when))
+        )
+        previous = self.project
+        self._run(
+            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda project: self._show_project(project, f"Снимок t = {when:g} млн лет"),
+        )
+
     def open_project(self):
         path = QFileDialog.getExistingDirectory(self, "Открыть проект HexWorld")
         if path:
@@ -588,21 +703,28 @@ class MainWindow(QMainWindow):
             self._sync_form(project.config)
         if project.geo is not None:
             self.sea_level.setValue(project.geo.sea_level_m)
+        self._fill_epochs()
         self.view.set_project(project)
         self._apply_view()
         self._show_info()
         total = project.timings.get("total")
-        ok = project.validation.get("ok") and (
-            project.geo is None or project.geo.validation.get("ok")
+        ok = (
+            project.validation.get("ok")
+            and (project.geo is None or project.geo.validation.get("ok"))
+            and (project.hist is None or project.hist.validation.get("ok"))
         )
         state = "проверка пройдена" if ok else "ПРОВЕРКА НЕ ПРОЙДЕНА"
         timing = f", {total:.1f} с" if total else ""
         extra = "" if project.geo is not None else "; материки и высоты ещё не сгенерированы"
+        if project.geo is not None and project.hist is None:
+            extra = "; геоистория ещё не сгенерирована"
         self.statusBar().showMessage(f"{message}: {state}{timing}{extra}")
         if not ok:
             errors = list(project.validation.get("errors", []))
             if project.geo is not None:
                 errors += project.geo.validation.get("errors", [])
+            if project.hist is not None:
+                errors += project.hist.validation.get("errors", [])
             QMessageBox.warning(self, "Проверка", "\n".join(errors))
 
     def _sync_form(self, c: Config):
@@ -628,6 +750,14 @@ class MainWindow(QMainWindow):
         self.sea_mode.setCurrentIndex(self.sea_mode.findData(c.sea.sea_mode))
         self.land_fraction.setValue(c.sea.target_land_fraction)
         self.sea_level.setValue(c.sea.fixed_sea_level_m)
+        self.history_on.setChecked(c.history.enabled)
+        self.duration.setValue(c.history.duration_ma)
+        self.time_step.setValue(c.history.time_step_ma)
+        self.history_profile.setCurrentText(c.history.intensity)
+        self.uplift_scale.setValue(c.history.uplift_scale)
+        self.erosion.setValue(c.history.erosion_intensity)
+        self.hotspots.setValue(c.history.hotspot_density)
+        self.mountain_detail.setValue(c.mountains.detail)
 
     # -- property panel ----------------------------------------------------
     def _project_text(self) -> str:
@@ -657,6 +787,26 @@ class MainWindow(QMainWindow):
                 f"континентальных блоков в окне: {len(p.geo.blocks)}; шельф "
                 f"{100 * s['shelf_fraction_viewport']:.1f} % окна",
                 f"высоты: {s['min_elevation_m']:+.0f} … {s['max_elevation_m']:+.0f} м",
+            ]
+        if p.hist is None:
+            if p.geo is not None:
+                lines.append("Геоистория ещё не сгенерирована (проект v2.0).")
+        else:
+            m = p.hist.summary
+            backend = m["mountain_backend"]
+            lines += [
+                f"история: {p.hist.duration_ma:g} млн лет, показан снимок t = "
+                f"{p.hist.epoch_time_ma:g}",
+                f"изменилось гексов (> 50 м): {100 * m['changed_hex_share']:.0f} %; новая кора "
+                f"{100 * m['new_crust_share_viewport']:.1f} % окна",
+                f"итоговые высоты: {m['min_elevation_m']:+.0f} … {m['max_elevation_m']:+.0f} м; "
+                f"суша {100 * m['land_fraction_viewport']:.1f} % окна",
+                f"горных систем {m['mountain_systems']}, хребтов {m['ridges']}, вершин "
+                f"{m['peaks']}, перевалов {m['passes']}",
+                f"вулканов {m['volcanoes']} (действующих {m['active_volcanoes']}), горячих "
+                f"точек {m['hotspots']}; событий {m['events']}",
+                "горный backend: "
+                + ("PMGE" if backend["is_pmge"] else "референсный (PMGE не подключён)"),
             ]
         if p.stats.get("reused_stages"):
             lines.append("без пересчёта: " + ", ".join(p.stats["reused_stages"]))
@@ -726,6 +876,36 @@ class MainWindow(QMainWindow):
                 f"высота над морем: {info['height_above_sea_m']:,.0f} м; "
                 f"глубина: {info['depth_m']:,.0f} м",
                 f"тектонический вклад в высоту: {info['tectonic_relief_m']:+,.0f} м",
+            ]
+        if p.hist is not None:
+
+            def shown(key, unit="", digits=0):
+                value = info.get(key)
+                return "нет данных" if value is None else f"{value:,.{digits}f}{unit}"
+
+            system = info["mountain_system_id"]
+            lines += [
+                "",
+                f"— снимок t = {info['epoch_time_ma']:g} млн лет —",
+                f"итоговая высота: {info['elevation_m']:+,.0f} м (исходная "
+                f"{info['macro_elevation_m']:+,.0f} м, изменение "
+                f"{info['delta_elevation_m']:+,.0f} м)",
+                f"плита в эту эпоху: {info['plate_id_epoch']} "
+                f"{p.plate(info['plate_id_epoch'])['name']}"
+                + (" (новая кора)" if info["new_crust"] else ""),
+                f"порода: {info['rock']}, сопротивление эрозии "
+                f"{info['rock_resistance']:.2f}; возраст коры {shown('crust_age_ma', ' млн лет')}",
+                f"скорость поднятия: {info['uplift_rate_mm_yr']:+.3f} мм/год; поднято всего "
+                f"{info['uplift_total_m']:+,.0f} м",
+                f"снято эрозией {info['erosion_total_m']:,.0f} м; осадков "
+                f"{info['sediment_thickness_m']:,.0f} м",
+                f"горная система: {system if system >= 0 else 'нет'}; возраст горообразования: "
+                f"{shown('orogen_age_ma', ' млн лет')}",
+                f"вулкан: {info['volcano_id'] if info['volcano_id'] >= 0 else 'нет'}; возраст "
+                f"постройки: {shown('volcanic_age_ma', ' млн лет', 1)}; потенциал "
+                f"{info['volcanic_potential']:.2f}",
+                f"уклон {info['slope_m_per_km']:.1f} м/км; перепад внутри гекса "
+                f"{info['local_relief_m']:,.0f} м",
             ]
         lines += ["", "— проект —", self._project_text()]
         self.info.setPlainText("\n".join(lines))

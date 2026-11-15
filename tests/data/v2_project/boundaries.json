@@ -1,0 +1,127 @@
+{
+  "format": "structure of arrays in boundaries.npz; one entry per shared hex edge",
+  "edge_count": 222,
+  "edge_length_km": 69.2820323027551,
+  "arrays": {
+    "col_a/row_a": "int32 - offset coords of the hex on the plate_a side",
+    "col_b/row_b": "int32 - offset coords of the hex on the plate_b side",
+    "direction": "uint8 - hex direction index A->B, 0..5 = axial (1,0),(1,-1),(0,-1),(-1,0),(-1,1),(0,1)",
+    "plate_a/plate_b": "int32 - plate IDs, always plate_a < plate_b",
+    "mid_x/mid_y": "float64 km - world coordinates of the edge midpoint",
+    "normal_x/normal_y": "float32 - unit normal of the geological boundary, from A into B",
+    "vrel_x/vrel_y": "float32 mm/yr - relative velocity v_B - v_A at the midpoint",
+    "vn": "float32 mm/yr - v_rel . normal; < 0 convergent, > 0 divergent",
+    "vt": "float32 mm/yr - v_rel . tangent, tangent = (-ny, nx); > 0 dextral, < 0 sinistral",
+    "boundary_type": "uint8 - {0: 'none', 1: 'convergent', 2: 'divergent', 3: 'transform', 4: 'quiet'}",
+    "intensity": "float32 0..1 - dominant component / boundaries.reference_speed_mm_yr",
+    "crust_a/crust_b": "uint8 - {0: 'oceanic', 1: 'continental'}",
+    "subducting": "uint8 - polarity hint for convergent edges: 0 none, 1 plate_a, 2 plate_b"
+  },
+  "pairs": [
+    {
+      "plate_a": 3,
+      "plate_b": 5,
+      "edges": 105,
+      "length_km": 7274.613,
+      "type_share": {
+        "convergent": 0.2286,
+        "divergent": 0.0,
+        "transform": 0.7714,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -4.007,
+      "mean_vt_mm_yr": -11.3281,
+      "mean_intensity": 0.1075
+    },
+    {
+      "plate_a": 3,
+      "plate_b": 6,
+      "edges": 64,
+      "length_km": 4434.05,
+      "type_share": {
+        "convergent": 0.9844,
+        "divergent": 0.0,
+        "transform": 0.0156,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -38.2612,
+      "mean_vt_mm_yr": -1.299,
+      "mean_intensity": 0.3875
+    },
+    {
+      "plate_a": 3,
+      "plate_b": 10,
+      "edges": 8,
+      "length_km": 554.256,
+      "type_share": {
+        "convergent": 0.0,
+        "divergent": 0.0,
+        "transform": 1.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -7.1991,
+      "mean_vt_mm_yr": 39.001,
+      "mean_intensity": 0.39
+    },
+    {
+      "plate_a": 5,
+      "plate_b": 6,
+      "edges": 21,
+      "length_km": 1454.923,
+      "type_share": {
+        "convergent": 1.0,
+        "divergent": 0.0,
+        "transform": 0.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -32.8367,
+      "mean_vt_mm_yr": 11.2754,
+      "mean_intensity": 0.3284
+    },
+    {
+      "plate_a": 5,
+      "plate_b": 7,
+      "edges": 7,
+      "length_km": 484.974,
+      "type_share": {
+        "convergent": 0.0,
+        "divergent": 0.0,
+        "transform": 1.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -11.7796,
+      "mean_vt_mm_yr": -52.0392,
+      "mean_intensity": 0.5204
+    },
+    {
+      "plate_a": 5,
+      "plate_b": 10,
+      "edges": 12,
+      "length_km": 831.384,
+      "type_share": {
+        "convergent": 1.0,
+        "divergent": 0.0,
+        "transform": 0.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": -48.9441,
+      "mean_vt_mm_yr": -3.8692,
+      "mean_intensity": 0.4894
+    },
+    {
+      "plate_a": 6,
+      "plate_b": 7,
+      "edges": 5,
+      "length_km": 346.41,
+      "type_share": {
+        "convergent": 0.0,
+        "divergent": 1.0,
+        "transform": 0.0,
+        "quiet": 0.0
+      },
+      "mean_vn_mm_yr": 40.2611,
+      "mean_vt_mm_yr": -8.0962,
+      "mean_intensity": 0.4026
+    }
+  ]
+}

@@ -15,6 +15,8 @@ from .rng import validate_seed
 PROFILES = ("few", "earthlike", "fragmented")
 CONTINENT_PROFILES = ("balanced", "supercontinent", "fragmented")
 SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
+HISTORY_PROFILES = ("calm", "earthlike", "active")
+MOUNTAIN_BACKENDS = ("reference", "pmge")
 MODES = ("regional", "world")
 
 
@@ -122,6 +124,51 @@ class SeaParams:
 
 
 @dataclass(frozen=True)
+class HistoryParams:
+    """v3.0 stage ``geo_history`` (RNG namespace ``geohistory/v3``)."""
+
+    enabled: bool = True
+    #: Simulated time from the baseline snapshot (t = 0), million years.
+    duration_ma: float = 30.0
+    #: Time step, Ma. Internally sub-stepped so no plate moves more than one cell per step.
+    time_step_ma: float = 1.0
+    #: A checkpoint is stored every this many steps (plus the initial and final states).
+    checkpoint_stride: int = 5
+    #: Tectonic intensity profile.
+    intensity: str = "earthlike"
+    #: Multipliers of tectonic uplift and subsidence rates.
+    uplift_scale: float = 1.0
+    subsidence_scale: float = 1.0
+    #: Multiplier of hillslope and runoff erosion; 0 switches erosion off.
+    erosion_intensity: float = 1.0
+    #: Multiplier of the number of intraplate hotspots; 0 switches them off.
+    hotspot_density: float = 1.0
+    #: Age (Ma before t = 0) assigned to the mountain belts inherited from the baseline.
+    inherited_orogen_age_ma: float = 140.0
+    #: Which stored epoch the hex layers show: "final", "initial" or a checkpoint time in Ma.
+    epoch: float | str = "final"
+
+
+@dataclass(frozen=True)
+class MountainParams:
+    """v3.0 stage ``mountains`` (RNG namespace ``mountains/v3``)."""
+
+    #: "reference" - built-in CPU reference backend; "pmge" - external PMGE library (C ABI).
+    backend: str = "reference"
+    #: 0 switches the structural mountain detail off; 1 is the default relief contrast.
+    detail: float = 1.0
+    #: Mean spacing of peaks along a ridge, km.
+    peak_spacing_km: float = 85.0
+    #: Half-width of a main range and of a spur, km.
+    range_half_width_km: float = 60.0
+    spur_half_width_km: float = 34.0
+    #: Hard physical limit of the final surface, m (applied point-wise, never by rescaling).
+    max_elevation_m: float = 8800.0
+    #: Orogenic relief above which a cell belongs to a mountain system, m.
+    system_threshold_m: float = 450.0
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -143,6 +190,8 @@ class Config:
     continents: ContinentParams = field(default_factory=ContinentParams)
     relief: ReliefParams = field(default_factory=ReliefParams)
     sea: SeaParams = field(default_factory=SeaParams)
+    history: HistoryParams = field(default_factory=HistoryParams)
+    mountains: MountainParams = field(default_factory=MountainParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -185,6 +234,26 @@ class Config:
             raise ConfigError("sea.target_land_fraction must be within [0.01, 0.99]")
         if not -9000.0 <= self.sea.fixed_sea_level_m <= 9000.0:
             raise ConfigError("sea.fixed_sea_level_m must be within [-9000, 9000] m")
+        h = self.history
+        if not 0.0 <= h.duration_ma <= 400.0:
+            raise ConfigError("history.duration_ma must be within [0, 400] Ma")
+        if not 0.05 <= h.time_step_ma <= 20.0:
+            raise ConfigError("history.time_step_ma must be within [0.05, 20] Ma")
+        if not isinstance(h.checkpoint_stride, int) or h.checkpoint_stride < 1:
+            raise ConfigError("history.checkpoint_stride must be a positive integer")
+        if h.intensity not in HISTORY_PROFILES:
+            raise ConfigError(f"history.intensity must be one of {HISTORY_PROFILES}")
+        for name in ("uplift_scale", "subsidence_scale", "erosion_intensity", "hotspot_density"):
+            if not 0.0 <= getattr(h, name) <= 5.0:
+                raise ConfigError(f"history.{name} must be within [0, 5]")
+        if isinstance(h.epoch, str) and h.epoch not in ("final", "initial"):
+            raise ConfigError('history.epoch must be "final", "initial" or a time in Ma')
+        if self.mountains.backend not in MOUNTAIN_BACKENDS:
+            raise ConfigError(f"mountains.backend must be one of {MOUNTAIN_BACKENDS}")
+        if not 0.0 <= self.mountains.detail <= 2.0:
+            raise ConfigError("mountains.detail must be within [0, 2]")
+        if not 2000.0 <= self.mountains.max_elevation_m <= 12000.0:
+            raise ConfigError("mountains.max_elevation_m must be within [2000, 12000] m")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -211,6 +280,8 @@ class Config:
             "continents": ContinentParams,
             "relief": ReliefParams,
             "sea": SeaParams,
+            "history": HistoryParams,
+            "mountains": MountainParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

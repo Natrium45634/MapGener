@@ -42,3 +42,20 @@ print(flooded.stats["reused_stages"], flooded.layer("land_mask").mean())
 # The same heights through another window at a finer resolution:
 layout, elev = get_layer(project, "macro_elevation_m", [1000, 1000, 3000, 2500], hex_spacing_km=5.0)
 print(layout.width, layout.height, float(elev.min()), float(elev.max()))
+
+# ---- v3.0: geological history, mountains, volcanism -----------------------------
+from hexworld import history_events, sample_points, select_epoch  # noqa: E402
+
+hist = project.hist
+print(hist.duration_ma, hist.epochs, hist.epoch_time_ma)
+print(project.layer("elevation_m").max(), project.layer("base_macro_elevation_m").max())
+print(len(hist.plan["systems"]), len(hist.plan["peaks"]), len(hist.volcanoes))
+for event in history_events(project, time_range=(0.0, 10.0))[:5]:
+    print(event["time_ma"], event["type"], event["plates"])
+
+# Another stored snapshot - the history is not simulated again:
+middle = select_epoch(project, hist.epochs[len(hist.epochs) // 2])
+print(middle.hist.epoch_time_ma, "geo_history" in middle.stats["reused_stages"])
+
+x, y = project.layout.center(20, 30)
+print(sample_points(project, [x], [y], fields=("elevation_m", "rock_type", "orogen_age_ma")))

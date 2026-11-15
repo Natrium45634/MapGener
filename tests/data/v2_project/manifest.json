@@ -1,0 +1,360 @@
+{
+  "schema_version": "hexworld-project-2",
+  "generator_version": "2.0.0",
+  "algorithm_version": "tectonics-1",
+  "prng_version": "sha256-pcg64-raw-1",
+  "coordinate_version": "km-x-east-y-south/flat-top-odd-q-1",
+  "world_id": "e1c54aa7fb36b082",
+  "geology_hash": "06ddcd80390e34f7d4b7dd37224f6565061c3c0e852117f64893b753023576d8",
+  "coordinates": {
+    "world": "planar, km; +x east, +y south; origin arbitrary",
+    "hex": "flat-top; storage odd-q offset [row, col]; computation axial/cube",
+    "vertical": "metres; 0 m = model datum; sea level is a scenario parameter",
+    "geometry": {
+      "mode": "regional",
+      "simulation_bounds_km": [
+        -6000.0,
+        -6000.0,
+        12000.0,
+        12000.0
+      ],
+      "viewport_bounds_km": [
+        0.0,
+        0.0,
+        6270.023923399336,
+        6060.0
+      ],
+      "model_bounds_km": [
+        -16182.337649086285,
+        -16182.337649086285,
+        22182.337649086287,
+        22182.337649086287
+      ],
+      "width_hex": 60,
+      "height_hex": 50,
+      "hex_spacing_km": 120.0,
+      "hex_radius_km": 69.2820323027551,
+      "hex_area_km2": 12470.765814495919,
+      "plate_count": 12,
+      "plate_class_counts": {
+        "large": 4,
+        "medium": 4,
+        "small": 4
+      },
+      "plate_spacing_km": 6363.961030678927,
+      "halo_km": 10182.337649086285
+    }
+  },
+  "units": {
+    "plate_id": "id",
+    "crust_type": "enum",
+    "continentality_km": "km",
+    "velocity_x": "mm/yr",
+    "velocity_y": "mm/yr",
+    "boundary_type": "enum",
+    "boundary_distance_km": "km",
+    "uplift": "0..1",
+    "rifting": "0..1",
+    "subduction": "0..1",
+    "volcanism": "0..1",
+    "seismicity": "0..1"
+  },
+  "layers": {
+    "plate_id": {
+      "dtype": "int32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "ID of the lithospheric plate owning the hex"
+    },
+    "crust_type": {
+      "dtype": "uint8",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "0 oceanic, 1 continental (not a land/sea mask)"
+    },
+    "continentality_km": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "signed pseudo-distance to the crust-type border"
+    },
+    "velocity_x": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "plate velocity at the hex centre, +x east"
+    },
+    "velocity_y": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "plate velocity at the hex centre, +y south"
+    },
+    "boundary_type": {
+      "dtype": "uint8",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "0 none,1 convergent,2 divergent,3 transform,4 quiet"
+    },
+    "boundary_distance_km": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "distance to the nearest plate boundary"
+    },
+    "uplift": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "diagnostic uplift potential"
+    },
+    "rifting": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "diagnostic rifting potential"
+    },
+    "subduction": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "diagnostic subduction potential"
+    },
+    "volcanism": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "diagnostic volcanism potential"
+    },
+    "seismicity": {
+      "dtype": "float32",
+      "shape": [
+        50,
+        60
+      ],
+      "description": "diagnostic seismicity potential"
+    }
+  },
+  "stage_keys": {
+    "plates": "dd8e5216e037302c307f90daacadd26c70d15e52b78600e849216dd281281790",
+    "crust": "ff90c3cdd2d91667b2a9a5a9955dca9d071ef8a6b76f77a62bae1b099d734cc3",
+    "motion": "6e8a2086559b42a933308f328c9a96c6c77731c237c2244e62e2dc3d993fda95",
+    "raster": "9cd747bc348357c335d5ca4006c893530b1c7106ab56a170eee7aa4e3af2ca4b",
+    "boundary_edges": "dd9f2c45e6cfe9fab10bf90ce50920334d735277fe15bf2c43477de1b3057020",
+    "tectonic_fields": "d9792da31cc1db92f253e8739bd5686a7d660336cc991054d8cd11251b381dab"
+  },
+  "stats": {
+    "pad_hexes": 8,
+    "orphan_hexes_reassigned": 0,
+    "reused_stages": [],
+    "plates_total": 54,
+    "plates_in_simulation": 12,
+    "plates_visible": 5,
+    "continental_fraction_visible": 0.33466666666666667
+  },
+  "timings_s": {
+    "plates": 0.2797,
+    "crust": 0.9726,
+    "motion": 0.0003,
+    "raster": 0.0336,
+    "boundary_edges": 0.0039,
+    "tectonic_fields": 0.0062,
+    "assemble": 0.0024,
+    "world_tectonics": 0.5471,
+    "continental_blocks": 5.9886,
+    "macro_elevation": 0.7385,
+    "v2_raster": 0.0262,
+    "sea_level_landmasses": 0.0057,
+    "validate": 0.013,
+    "total": 8.6212
+  },
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "checks": {
+      "all_hexes_assigned": true,
+      "plates_in_view": 5,
+      "components": 5,
+      "detached_components": 0,
+      "edge_split_components": 0,
+      "tiny_fragments": 0,
+      "boundary_edges": 222,
+      "world_split_plates": 0
+    }
+  },
+  "warnings": [],
+  "environment": {
+    "python": "3.13.18",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "platform": "Linux-6.18.44-fc-v470-x86_64-with-glibc2.39"
+  },
+  "content_hashes": {
+    "fields/plate_id": "6abd54aa5edafe6687b04f611cbc9fc2c0b1639b6f47179d9af04660071dcdaa",
+    "fields/crust_type": "cc2c7184165a02e300002d4ecb55e4160fa8da2dc586a95b9266beec3ff47ecf",
+    "fields/continentality_km": "5925b11d9346849b6bbe3d70a88e1c062a5bd0bc3599e889dc4395ed510b9f53",
+    "fields/velocity_x": "cb81b320fec023e86c60a9d5078e637ab968c71979bde6fb7cc1b69417f30854",
+    "fields/velocity_y": "aa2160ec20a26ca402e3c3416baf31e6e10ec88e96198f59bf16e79f2a0008b1",
+    "fields/boundary_type": "5f3d426d7fe21f15729feedaddea7f4576243b23ab9db6d1fe52109423c99ac8",
+    "fields/boundary_distance_km": "8cb1725957b90c92c4f331f47286fd410340b5361d7bf8a4f9e87585428ce4c4",
+    "fields/uplift": "37120f2247e43fc70d7d525fcc050583ecfcf8b85f4c0e35ce77555af71c1a3f",
+    "fields/rifting": "ce1c26a7599ee45e3d07cb1af98c9010fe1dfcac1322274b6ca83b6b06a8c852",
+    "fields/subduction": "07b0f35b4433bb78e2803944b8e48b396ca1d14fcd670e76bb03260abaeeaacf",
+    "fields/volcanism": "4a02b2294cbfba2bf6bffdfd6ac238e98d0cf3867467dfd0358a11e402db8037",
+    "fields/seismicity": "80747b30bc11b765554909b362efb02e43dc8424281b660d13e2105c68492b82",
+    "boundaries/col_a": "678d2c49a7a9b3e2fba55baeafc22ea679035e1d461eea906189296c24864272",
+    "boundaries/row_a": "8da334be548dd2e3f4645acecb130b911727226981e20b0f59de330eabbea1e7",
+    "boundaries/col_b": "e9deaae897c57348472f1b2942ed1608723ce45f18da09b09377b9aa60989592",
+    "boundaries/row_b": "df2b6472747d8de4ea92f66556db1133076d9064e06163aac4577198ccff7814",
+    "boundaries/direction": "9af028153f57d7d27a7828db7743a6657f597584d8bb8e3a3ae334dd34ef7fd2",
+    "boundaries/plate_a": "d78aa4b697acc366cb7d527627ed298e553c1d067eee0ff058233f0f84c75346",
+    "boundaries/plate_b": "0d501fcecb0a1708e8eb9ddc494aeb74c90603b8922fc0c3e7aa52757cdfc93d",
+    "boundaries/mid_x": "826d9bb91070066c084e4dc010c8a565c96c3aa98ad3c57b377b924140f4f553",
+    "boundaries/mid_y": "31ea8a26580a0bd96a65e698a83d7f858604953ebe8300f6ce7988afcfdbc487",
+    "boundaries/normal_x": "da8f0e21e36a6ffa59a14cffafbc2a8690c81ef8d2a09893104d02c3f573eda8",
+    "boundaries/normal_y": "dc7972d1cccc51cf74b7b34af48843cd30c5a203c4f09b8b32c35d6c26e4330a",
+    "boundaries/vrel_x": "8e5043818768afa4529714c12261767f307cbf3cfd9f67d2fdcd0f13195161ca",
+    "boundaries/vrel_y": "ac5aa57d3b163d813015708ae633918b5ef9f0e949f52c2b9d9be6e18f019bae",
+    "boundaries/vn": "8822fe4db0553bfc5a9e1f2309b25bec87084e825f5ee0603cc73146c0de0849",
+    "boundaries/vt": "5f40734a9de115f5bb2239c0311fa220ea37dbf35f5ff42295a0c5a0b2da2ddd",
+    "boundaries/boundary_type": "66098460194e10c1508a2d978d4fce2038280d323c14ea3f053db0d4a54be1da",
+    "boundaries/intensity": "3cfda5479a8ac300ddd283a718c3188136ca3be6d1e14dc5ff30b86826dd1ac5",
+    "boundaries/crust_a": "94a5becac62d98d66f172965fa48232adb068bf76e95489c6a02b6a637722e56",
+    "boundaries/crust_b": "ac03668b990b693ee2dc8ecfa00c79187eadf6a2c2290c8c194f734b4b00aa20",
+    "boundaries/subducting": "771e7678f4bf85dc3a8f4ca23d1798bf74d896724171bbd6e14ba7c547d35fa1"
+  },
+  "v2": {
+    "algorithm_version": "continents-1",
+    "files": [
+      "continental_fields.npz",
+      "continents.json"
+    ],
+    "sea_level_m": -17.348,
+    "geo_hash": "ab43d27047a5220c3825a4d46dc017ec3497460d77bfa8f53162f88a67cc401b",
+    "content_hashes": {
+      "continental/continental_fraction": "4f111b83071bfafbf7e8779a4f6a61f2bbc93710226d59e7c6546786d2bac187",
+      "continental/continental_margin_km": "4cb494bfa10c4888eb8976947e0e095e4a28c23b026634e7d108ec3add4c8e5f",
+      "continental/continental_block_id": "e1e8333820a09d859a56d4a9de6c851a3a7b694e221d75cbfad16bb02ceb88d5",
+      "continental/macro_elevation_m": "9744054d6f8d58c70f6448941e7db22d4ba58740e84b1ffcb691517aaed48bfd",
+      "continental/tectonic_relief_m": "1beb9d48161b4fb5e2934f4d9e27d8155e149589c569a63f917ad4ecd0c5cafb",
+      "continental/land_mask": "bc61c84b5b32fb8c11b86756c97a75fd54921d0b4db60e5b0d6b537e50fab9f6",
+      "continental/landmass_id": "f00e5069dee29b79b4c56e6a8779992d1aff0f1b20fc7c3a7a88b9fb61343554",
+      "continental/shelf_mask": "e39b79e00c9e470bde24d09c3d69beec07fc85b204fa1116b9e7580e76279fc9",
+      "continental/world_elevation_m": "a6d39b7591ba91fd8945f9010e8dad513675d8e389ae8ca61a948c4c54b30b0c",
+      "continental/world_continentality_km": "c6d7552eef6147dffcaaed6037a0d61548f4b82e3876088fba9a15ccc4767690"
+    },
+    "layers": {
+      "continental_fraction": {
+        "dtype": "float32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "0..1",
+        "description": "continuous share of continental crust (v2)"
+      },
+      "continental_margin_km": {
+        "dtype": "float32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "km",
+        "description": "signed distance-like field to the crust edge"
+      },
+      "continental_block_id": {
+        "dtype": "int32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "id",
+        "description": "connected continental crust block, -1 = none"
+      },
+      "macro_elevation_m": {
+        "dtype": "float32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "m",
+        "description": "absolute macro-elevation in the model datum"
+      },
+      "tectonic_relief_m": {
+        "dtype": "float32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "m",
+        "description": "tectonic part of the macro-elevation (uplift mask)"
+      },
+      "land_mask": {
+        "dtype": "bool",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "bool",
+        "description": "macro_elevation_m > sea_level_m"
+      },
+      "landmass_id": {
+        "dtype": "int32",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "id",
+        "description": "connected land above sea level, -1 = under water"
+      },
+      "shelf_mask": {
+        "dtype": "bool",
+        "shape": [
+          50,
+          60
+        ],
+        "unit": "bool",
+        "description": "coarse submerged continental shelf"
+      }
+    },
+    "stage_keys": {
+      "world_tectonics": "2eac578cd38245b5eb3d8902ce14c7765f4859ff43192eb6bde50f191469eb01",
+      "continental_blocks": "a2c5f1a55f500c88b32a8e2e794d27b591bd390bca349c0b8ddcf2d4bbf3dcbf",
+      "macro_elevation": "e28de7c1bc61e716c61de67fc957f6511dd1c27562b8e229ef6a5ce27bc034e7",
+      "v2_raster": "3a76fdaa8a9e5ce1fc95be85bd5a79c1f4ffd2d61bdc0a07b6b64ccb89c97c22",
+      "sea_level_landmasses": "a6c89a44e9e0214a9fdfc8ed225b18e7229ae08740b503130cbca1d338067bbd"
+    }
+  },
+  "file_hashes": {
+    "config.json": "9c62a8f4f3248e8b80a6766d586f95da5c8f678821d8db5a3c771e6e65c8230b",
+    "plates.json": "1427398b905e3e476ff0b757612b870bc2abe46d320c5105d871b2638dc0c66b",
+    "fields.npz": "f6e799e214c291a6aba726e9ecb3888b68520513b0055c3fd3163c5cfb03ca44",
+    "boundaries.npz": "857bfb4e6bed5db1f53ca979435507a1bd39c54e01dc434f72bb42e919c5f18e",
+    "boundaries.json": "3a788482ae29674c7b0a1533a28b219e74bfb7ed063f07c8a226781bd5552245",
+    "continental_fields.npz": "829bb230c1d9273a9a2a301b843165f6bd6047e10b08f7ba75992704c3c1a41b",
+    "continents.json": "e9cd7e0107e2df4d3230ed3f5ec921ed6de20c35c21b9950f8adddb5ecd9ca3e"
+  }
+}

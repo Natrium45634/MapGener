@@ -74,6 +74,94 @@ class GeoData:
         return h.hexdigest()
 
 
+#: v3.0 layers of the selected epoch (stored in history_fields.npz).
+HIST_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
+    "elevation_m": ("float32", "m", "final surface of the selected epoch (model datum)"),
+    "delta_elevation_m": ("float32", "m", "elevation_m minus the v2 baseline macro elevation"),
+    "plate_id_epoch": ("int32", "id", "plate owning the hex at the selected epoch"),
+    "new_crust": ("bool", "bool", "crust created during the history (rift or new ocean floor)"),
+    "boundary_class": ("uint8", "enum", "0 none,1 collision,2 subduction,3 divergent,4 other"),
+    "continental_fraction": ("float32", "0..1", "continental crust share at the epoch"),
+    "crust_age_ma": ("float32", "Ma", "age of the crust at the epoch"),
+    "rock_type": ("uint8", "enum", "see history.json -> rock_types"),
+    "rock_resistance": ("float32", "0..1", "resistance to erosion"),
+    "uplift_rate_mm_yr": ("float32", "mm/yr", "tectonic vertical rate at the epoch"),
+    "uplift_total_m": ("float32", "m", "net tectonic vertical displacement since t = 0"),
+    "erosion_total_m": ("float32", "m", "rock removed since t = 0 (>= 0)"),
+    "sediment_thickness_m": ("float32", "m", "sediment deposited since t = 0 (>= 0)"),
+    "mountain_system_id": ("int32", "id", "mountain system, -1 = none"),
+    "mountain_class": (
+        "uint8",
+        "enum",
+        "0 none,1 crest,2 slope,3 pass,4 valley,5 foothill,6 volcano",
+    ),
+    "orogen_age_ma": ("float32", "Ma", "time since the last mountain-building, NaN = never"),
+    "last_tectonic_ma": ("float32", "Ma", "time since the last tectonic change, NaN = never"),
+    "volcanic_potential": ("float32", "0..1", "where magmatism is plausible; not a probability"),
+    "volcano_id": ("int32", "id", "volcanic centre covering the hex, -1 = none"),
+    "volcanic_age_ma": ("float32", "Ma", "age of that centre, NaN = none"),
+    "slope_m_per_km": ("float32", "m/km", "steepest slope to a neighbouring hex"),
+    "local_relief_m": ("float32", "m", "height range of the continuous surface within the hex"),
+    "land_mask": ("bool", "bool", "elevation_m > sea_level_m"),
+    "landmass_id": ("int32", "id", "connected land of the epoch, -1 = under water"),
+    "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
+}
+ROCK_TYPES = (
+    "oceanic_basalt",
+    "craton_crystalline",
+    "platform_sedimentary",
+    "orogenic_metamorphic",
+    "volcanic",
+    "unconsolidated_sediment",
+)
+
+
+@dataclass
+class HistoryData:
+    """Results of the v3.0 stages for one selected epoch, plus the whole history record."""
+
+    layers: dict[str, np.ndarray]
+    epoch_time_ma: float
+    #: Times (Ma) of every stored snapshot: initial, checkpoints, final.
+    epochs: list[float]
+    duration_ma: float
+    sea_level_m: float
+    events: list[dict]
+    plan: dict
+    volcanoes: list[dict]
+    hotspots: list[dict]
+    landmasses: list[dict]
+    summary: dict
+    stage_keys: dict[str, str]
+    #: World rasters of the selected epoch on the history grid + the grid itself.
+    world: dict = field(default_factory=dict, repr=False)
+    #: Material-frame state of every stored epoch: {time: {name: array}}.
+    checkpoints: dict = field(default_factory=dict, repr=False)
+    balance: list[dict] = field(default_factory=list, repr=False)
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def is_final(self) -> bool:
+        return abs(self.epoch_time_ma - self.duration_ma) < 1e-9
+
+    def content_hashes(self) -> dict[str, str]:
+        out = {f"history/{k}": array_hash(v) for k, v in self.layers.items()}
+        for t, state in sorted(self.checkpoints.items()):
+            for name, arr in sorted(state.items()):
+                out[f"checkpoint/{t:g}/{name}"] = array_hash(arr)
+        return out
+
+    def hist_hash(self) -> str:
+        h = hashlib.sha256()
+        h.update(repr((float(self.epoch_time_ma), float(self.sea_level_m))).encode())
+        for key, value in sorted(self.content_hashes().items()):
+            h.update(f"{key}={value};".encode())
+        h.update(repr([e["id"] for e in self.events]).encode())
+        return h.hexdigest()
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -103,6 +191,8 @@ class Project:
     stats: dict = field(default_factory=dict)
     #: v2.0 data; ``None`` for a project that only has the v1.0 tectonic stage.
     geo: GeoData | None = None
+    #: v3.0 data (geological history, mountains, volcanism); ``None`` if not generated.
+    hist: HistoryData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -113,7 +203,28 @@ class Project:
 
     @property
     def layer_names(self) -> list[str]:
-        return list(self.layers) + (list(self.geo.layers) if self.geo else [])
+        names = list(self.layers) + (list(self.geo.layers) if self.geo else [])
+        if self.hist is not None:
+            names += [n for n in self.hist.layers if n not in names]
+        return names
+
+    @property
+    def has_history(self) -> bool:
+        return self.hist is not None
+
+    def baseline_layer(self, name: str) -> np.ndarray:
+        """A v1/v2 layer of the baseline epoch, never the v3 version of the same name."""
+        if name in self.layers:
+            return self.layers[name]
+        if self.geo is not None and name in self.geo.layers:
+            return self.geo.layers[name]
+        raise KeyError(f"No baseline layer {name!r}")
+
+    @property
+    def current_sea_level_m(self) -> float | None:
+        if self.hist is not None:
+            return self.hist.sea_level_m
+        return self.geo.sea_level_m if self.geo is not None else None
 
     @property
     def has_geo(self) -> bool:
@@ -121,10 +232,19 @@ class Project:
 
     def layer(self, name: str) -> np.ndarray:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
+        if name == "base_macro_elevation_m" and self.geo is not None:
+            return self.geo.layers["macro_elevation_m"]  # a reference, not a copy
+        if self.hist is not None and name in self.hist.layers:
+            return self.hist.layers[name]  # the selected v3 epoch wins over the baseline
         if name in self.layers:
             return self.layers[name]
         if self.geo is not None and name in self.geo.layers:
             return self.geo.layers[name]
+        if name in HIST_LAYER_SPECS and name not in GEO_LAYER_SPECS:
+            raise KeyError(
+                f"Layer {name!r} belongs to the v3.0 stage, which has not been generated "
+                "for this project yet"
+            )
         if name in GEO_LAYER_SPECS:
             raise KeyError(
                 f"Layer {name!r} belongs to the v2.0 stage, which has not been generated "
@@ -163,6 +283,25 @@ class Project:
             info["sea_level_m"] = sea
             info["height_above_sea_m"] = max(0.0, info["macro_elevation_m"] - sea)
             info["depth_m"] = max(0.0, sea - info["macro_elevation_m"])
+        if self.hist is not None:
+            # baseline values keep explicit names; unprefixed ones describe the epoch
+            for name in ("land_mask", "landmass_id", "shelf_mask", "continental_fraction"):
+                if name in info:
+                    info[f"baseline_{name}"] = info[name]
+            for name, arr in self.hist.layers.items():
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[name] = bool(v)
+                elif np.issubdtype(arr.dtype, np.integer):
+                    info[name] = int(v)
+                else:
+                    info[name] = None if np.isnan(v) else float(v)
+            sea = self.hist.sea_level_m
+            info["epoch_time_ma"] = self.hist.epoch_time_ma
+            info["sea_level_m"] = sea
+            info["height_above_sea_m"] = max(0.0, info["elevation_m"] - sea)
+            info["depth_m"] = max(0.0, sea - info["elevation_m"])
+            info["rock"] = ROCK_TYPES[info["rock_type"]]
         return info
 
     # -- world-space queries (resolution independent) -----------------------
