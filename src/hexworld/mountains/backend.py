@@ -21,9 +21,6 @@ contract (plan, layers, ids stay the same).
 
 from __future__ import annotations
 
-import ctypes
-import ctypes.util
-import os
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -218,44 +215,116 @@ class ReferenceBackend:
         return ReferenceSampler(request)
 
 
+class PmgeSampler:
+    """Heights from the PMGE library for HexWorld's structural plan."""
+
+    def __init__(self, request: MountainRequest, library):
+        from .pmge_binding import ExternalPlan
+
+        self.request = request
+        plan = request.plan
+        sharp = {s.id: s.sharpness for s in plan.systems}
+        ridges = [
+            {
+                "points": r.points,
+                "crest": r.crest,
+                "half_width_km": r.half_width_km,
+                "rank": r.rank,
+                "system": r.system,
+                "sharpness": sharp.get(r.system, 1.2),
+            }
+            for r in plan.ridges
+        ]
+        valleys = [
+            {"points": v.points, "depth": v.depth, "half_width_km": v.half_width_km}
+            for v in plan.valleys
+        ]
+        grid = request.constraints["grid"]
+        seed = int.from_bytes(request.world_seed.encode("ascii")[:8].ljust(8, b"\0"), "little")
+        self._plan = (
+            ExternalPlan(
+                library,
+                seed,
+                request.detail,
+                ridges,
+                valleys,
+                grid,
+                request.constraints["amplitude"],
+                request.constraints["gain"],
+                mean_offset=0.33,
+            )
+            if ridges
+            else None
+        )
+        passes = [[p["x_km"], p["y_km"]] for p in plan.passes]
+        self.pass_tree = cKDTree(np.array(passes)) if passes else None
+
+    def sample_points(self, x, y) -> HeightPatch:
+        x = np.asarray(x, dtype=np.float64)
+        shape = x.shape
+        if self._plan is None or x.size == 0:
+            zero = np.zeros(shape)
+            return HeightPatch(
+                zero, zero, zero, np.full(shape, -1, dtype=np.int32), np.full(shape, np.inf)
+            )
+        s = self._plan.sample(x, y)
+        dist = np.where(s["ridge_distance"] >= 0, s["ridge_distance"] / 1000.0, np.inf)
+        return HeightPatch(
+            s["relief"].reshape(shape),
+            s["structure"].reshape(shape),
+            s["valley"].reshape(shape),
+            s["system"].reshape(shape),
+            dist.reshape(shape),
+        )
+
+    def pass_distance(self, x, y) -> np.ndarray:
+        if self.pass_tree is None:
+            return np.full(np.shape(x), np.inf)
+        d, _ = self.pass_tree.query(np.column_stack([np.ravel(x), np.ravel(y)]))
+        return d.reshape(np.shape(x))
+
+
 class PmgeBackend:
-    """Loader for the external PMGE library (C ABI). Unavailable unless the library exists."""
+    """The external PMGE library (C++20) through its C ABI."""
 
     name = "pmge"
 
     def __init__(self, library: str | None = None):
-        path = (
-            library or os.environ.get("HEXWORLD_PMGE_LIBRARY") or ctypes.util.find_library("pmge")
-        )
+        from .pmge_binding import ABI_VERSION, Library, find_library
+
+        path = library or find_library()
         if not path:
             raise BackendUnavailable(
-                "PMGE is not integrated: no PMGE shared library was found (set "
-                'HEXWORLD_PMGE_LIBRARY to its path). Use mountains.backend = "reference".'
+                "PMGE library not found: build it (cmake -S pmge -B pmge/build && cmake "
+                "--build pmge/build) or set HEXWORLD_PMGE_LIBRARY to its path."
             )
         try:
-            self._lib = ctypes.CDLL(path)
-        except OSError as exc:
+            self.library = Library(path)
+        except (OSError, AttributeError) as exc:
             raise BackendUnavailable(f"PMGE library could not be loaded: {exc}") from exc
-        try:
-            get_abi = self._lib.pmge_abi_version
-        except AttributeError as exc:
-            raise BackendUnavailable("the library does not export pmge_abi_version") from exc
-        get_abi.restype = ctypes.c_int
-        abi = int(get_abi())
-        if abi != ADAPTER_ABI_VERSION:
+        if self.library.abi != ABI_VERSION:
             raise BackendUnavailable(
-                f"PMGE C ABI version {abi} is not supported (adapter speaks {ADAPTER_ABI_VERSION})"
+                f"PMGE C ABI version {self.library.abi} is not supported (adapter speaks "
+                f"{ABI_VERSION})"
             )
-        self.version = f"pmge-abi-{abi}"
+        self.version = self.library.version
 
     def capabilities(self) -> dict:
-        return {"is_pmge": True, "abi": ADAPTER_ABI_VERSION}
+        return {
+            "is_pmge": True,
+            "abi": self.library.abi,
+            "library": self.library.version,
+            "path": self.library.path,
+            "note": "PMGE C++ library: heights for HexWorld's structural plan",
+        }
 
-    def sampler(self, request: MountainRequest):
-        raise BackendUnavailable(
-            "The PMGE height calls are not wired yet: the real PMGE API was not available "
-            "to verify against. Only loading and version negotiation are implemented."
-        )
+    def sampler(self, request: MountainRequest) -> PmgeSampler:
+        if request.policy not in POLICIES:
+            raise ValueError(f"unknown composition policy {request.policy!r}")
+        for key in ("grid", "amplitude", "gain"):
+            if key not in request.constraints:
+                raise ValueError(f"the PMGE backend needs constraints[{key!r}]")
+        return PmgeSampler(request, self.library)
 
 
 def get_backend(name: str):
@@ -263,7 +332,17 @@ def get_backend(name: str):
         return ReferenceBackend()
     if name == "pmge":
         return PmgeBackend()
+    if name == "auto":
+        try:
+            return PmgeBackend()
+        except BackendUnavailable:
+            return ReferenceBackend()
     raise ValueError(f"unknown mountain backend {name!r}")
+
+
+def resolve_backend_name(name: str) -> str:
+    """The backend that ``name`` stands for in this environment (for stage keys)."""
+    return get_backend(name).name if name == "auto" else name
 
 
 def limit_elevation(elevation, cap: float):

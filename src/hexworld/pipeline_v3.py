@@ -34,6 +34,7 @@ from .mountains.backend import (
     CLASS_SLOPE,
     CLASS_VALLEY,
     CLASS_VOLCANO,
+    resolve_backend_name,
 )
 from .noise import FractalNoise
 from .pipeline_v2 import _component_table, _names
@@ -78,9 +79,10 @@ def v3_stage_keys(config: Config, v2_keys: dict, layout, epoch_time: float | Non
     hist = asdict(config.history)
     hist.pop("epoch")
     history = _key("geo_history", HISTORY_ALGORITHM_VERSION, v2_keys["macro_elevation"], hist)
-    plan = _key(
-        "mountain_plan", MOUNTAINS_ALGORITHM_VERSION, history, epoch_time, asdict(config.mountains)
-    )
+    mountains = asdict(config.mountains)
+    # the backend that will really be used: "auto" must not hide a change of backend
+    mountains["backend"] = resolve_backend_name(config.mountains.backend)
+    plan = _key("mountain_plan", MOUNTAINS_ALGORITHM_VERSION, history, epoch_time, mountains)
     raster = _key(
         "v3_raster", plan, layout.width, layout.height, layout.spacing_km, layout.x0, layout.y0
     )
@@ -335,6 +337,11 @@ def sample_epoch(
             detail=config.mountains.detail,
             max_elevation_m=config.mountains.max_elevation_m,
             policy="masked",
+            constraints={
+                "grid": grid.to_dict(),
+                "amplitude": np.asarray(world["relief"], dtype=np.float32),
+                "gain": np.asarray(gain_raster, dtype=np.float32),
+            },
         )
         sampler = backend.sampler(request)
         result = sampler.sample_points(px[mnt], py[mnt])
@@ -806,7 +813,10 @@ def run_v3(
             f"{halo:,.0f} km halo of the model area: its rim may show edge effects."
         )
     if not summary["mountain_backend"]["is_pmge"]:
-        warnings.append("Mountains use the built-in reference backend; PMGE is not integrated.")
+        warnings.append(
+            "Mountains use the built-in reference backend: the PMGE library was not found "
+            "(build it with cmake from the pmge directory)."
+        )
     timings["v3_sea"] = round(time.perf_counter() - t0, 4)
 
     hist = HistoryData(

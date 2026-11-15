@@ -502,18 +502,55 @@ def test_sea_level_changes_only_the_masks_of_the_selected_surface(hist_project):
     assert hist_project.baseline_layer("land_mask") is hist_project.geo.layers["land_mask"]
 
 
-# -- 11. PMGE --
-def test_pmge_is_reported_as_not_integrated(hist_config, hist_project, monkeypatch):
+# -- 11. PMGE ------------------------------------------------------------------------
+def test_backend_choice_is_explicit_and_honest(hist_config, hist_project, monkeypatch):
     backend = hist_project.hist.summary["mountain_backend"]
-    assert backend["name"] == "reference" and backend["is_pmge"] is False
-    assert any("PMGE is not integrated" in w for w in hist_project.hist.warnings)
+    assert backend["name"] in ("reference", "pmge")
+    if not backend["is_pmge"]:
+        assert any("PMGE library was not found" in w for w in hist_project.hist.warnings)
+    ref = generate(
+        replace(hist_config, mountains=MountainParams(backend="reference")), reuse=hist_project
+    )
+    assert ref.hist.summary["mountain_backend"]["is_pmge"] is False
     assert ReferenceBackend().capabilities()["missing_vs_pmge"]
-    monkeypatch.delenv("HEXWORLD_PMGE_LIBRARY", raising=False)
-    with pytest.raises(BackendUnavailable, match="not integrated"):
+    # a missing library is reported, never faked
+    monkeypatch.setenv("HEXWORLD_PMGE_LIBRARY", "/nonexistent/libpmge.so")
+    monkeypatch.setattr(
+        "hexworld.mountains.pmge_binding._candidates", lambda: ["/nonexistent/libpmge.so"]
+    )
+    with pytest.raises(BackendUnavailable):
         PmgeBackend()
     with pytest.raises(BackendUnavailable):
         generate(replace(hist_config, mountains=MountainParams(backend="pmge")), reuse=hist_project)
+    assert get_backend("auto").name == "reference"  # auto falls back, and says so
     assert get_backend("reference").name == "reference"
+
+
+def test_pmge_backend_through_the_c_abi(hist_config, hist_project):
+    from hexworld.mountains.pmge_binding import find_library
+
+    if not find_library():
+        pytest.skip("PMGE library not built (cmake -S pmge -B pmge/build)")
+    ref = generate(
+        replace(hist_config, mountains=MountainParams(backend="reference")), reuse=hist_project
+    )
+    pm = generate(
+        replace(hist_config, mountains=MountainParams(backend="pmge")), reuse=hist_project
+    )
+    assert pm.hist.validation["ok"], pm.hist.validation
+    info = pm.hist.summary["mountain_backend"]
+    assert info["is_pmge"] and info["abi"] == 1 and "pmge" in info["library"]
+    assert "geo_history" in pm.stats["reused_stages"]  # the backend does not touch history
+    assert pm.hist.stage_keys["mountain_plan"] != ref.hist.stage_keys["mountain_plan"]
+    a, b = ref.hist.layers["elevation_m"], pm.hist.layers["elevation_m"]
+    mountains = ref.hist.layers["mountain_system_id"] >= 0
+    assert np.abs(a - b)[~mountains].max() < 1.0  # only mountain relief comes from PMGE
+    assert np.median(np.abs(a - b)[mountains]) < 50.0  # same structure, same heights
+    # the structural plan stays HexWorld's; only the sampled summit heights differ
+    assert pm.hist.plan["ridges"] == ref.hist.plan["ridges"]
+    assert [(p["x_km"], p["y_km"]) for p in pm.hist.plan["peaks"]] == [
+        (p["x_km"], p["y_km"]) for p in ref.hist.plan["peaks"]
+    ]
 
 
 # -- views, API, CLI, GUI --
@@ -614,7 +651,8 @@ def test_cli_v3_flow(tmp_path, capsys):
     assert main(["events", str(out)]) == 0
     assert main(["info", str(out)]) == 0
     text = capsys.readouterr().out
-    assert "PMGE not integrated" in text and "history" in text
+    assert "backend: pmge" in text or "PMGE library not found" in text
+    assert "history" in text
     assert main(["export", str(out), "-o", str(tmp_path / "e")]) == 0
     assert (tmp_path / "e" / "epoch_elevation_m.npy").exists()
     assert (tmp_path / "e" / "mountain_systems.csv").exists()

@@ -796,7 +796,12 @@ def _legend_relief(project: Project, mode: str) -> list[LegendItem]:
     head = [
         LegendItem(f"снимок: t = {h.epoch_time_ma:g} млн лет; уровень моря {h.sea_level_m:+.0f} м"),
         LegendItem(
-            "горы: " + ("PMGE" if backend["is_pmge"] else "референсный backend (PMGE не подключён)")
+            "горы: "
+            + (
+                "PMGE (" + backend.get("library", "") + ")"
+                if backend["is_pmge"]
+                else "встроенный модуль (библиотека PMGE не найдена)"
+            )
         ),
     ]
     lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))

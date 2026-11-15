@@ -805,8 +805,8 @@ class MainWindow(QMainWindow):
                 f"{m['peaks']}, перевалов {m['passes']}",
                 f"вулканов {m['volcanoes']} (действующих {m['active_volcanoes']}), горячих "
                 f"точек {m['hotspots']}; событий {m['events']}",
-                "горный backend: "
-                + ("PMGE" if backend["is_pmge"] else "референсный (PMGE не подключён)"),
+                "горный модуль: "
+                + ("PMGE" if backend["is_pmge"] else "встроенный (библиотека PMGE не найдена)"),
             ]
         if p.stats.get("reused_stages"):
             lines.append("без пересчёта: " + ", ".join(p.stats["reused_stages"]))

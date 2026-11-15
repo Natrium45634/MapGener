@@ -154,7 +154,7 @@ def _add_v3_options(parser) -> None:
     parser.add_argument("--erosion", type=float, help="erosion intensity, 0 = off")
     parser.add_argument("--hotspots", type=float, help="hotspot density multiplier, 0 = off")
     parser.add_argument("--mountain-detail", type=float, help="structural mountain relief, 0..2")
-    parser.add_argument("--mountain-backend", choices=("reference", "pmge"))
+    parser.add_argument("--mountain-backend", choices=("auto", "reference", "pmge"))
     parser.add_argument("--epoch", help='snapshot to show: "final", "initial" or a time in Ma')
 
 
@@ -231,7 +231,7 @@ def _summary(project) -> str:
             f"mountains       {m['mountain_systems']} systems, {m['ridges']} ridges, "
             f"{m['peaks']} peaks, {m['passes']} passes, {m['valleys']} valleys "
             f"[backend: {m['mountain_backend']['name']}"
-            f"{'' if m['mountain_backend']['is_pmge'] else ', PMGE not integrated'}]",
+            f"{'' if m['mountain_backend']['is_pmge'] else ', PMGE library not found'}]",
             f"volcanism       {m['volcanoes']} centres ({m['active_volcanoes']} active), "
             f"{m['hotspots']} hotspots",
             f"events          {m['events']}",

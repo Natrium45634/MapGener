@@ -17,7 +17,7 @@ CONTINENT_PROFILES = ("balanced", "supercontinent", "fragmented")
 SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
 CRUST_LAYOUTS = ("clustered", "uniform")
 HISTORY_PROFILES = ("calm", "earthlike", "active")
-MOUNTAIN_BACKENDS = ("reference", "pmge")
+MOUNTAIN_BACKENDS = ("auto", "reference", "pmge")
 MODES = ("regional", "world")
 
 
@@ -161,8 +161,9 @@ class HistoryParams:
 class MountainParams:
     """v3.0 stage ``mountains`` (RNG namespace ``mountains/v3``)."""
 
-    #: "reference" - built-in CPU reference backend; "pmge" - external PMGE library (C ABI).
-    backend: str = "reference"
+    #: "auto" - PMGE if its library is found, otherwise the built-in reference backend;
+    #: "reference" - always the built-in backend; "pmge" - the PMGE library or an error.
+    backend: str = "auto"
     #: 0 switches the structural mountain detail off; 1 is the default relief contrast.
     detail: float = 1.0
     #: Mean spacing of peaks along a ridge, km.
