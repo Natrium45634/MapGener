@@ -196,7 +196,11 @@ HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "channel_loss_m3_s": ("float32", "m3/s", "transmission loss of the channel in the hex"),
     "outflow_share": ("float32", "0..1", "share of the hex's water reaching sea or window edge"),
     "no_outflow_mask": ("bool", "bool", "less than 10 % of the water reaches an outlet"),
-    "river_mask": ("bool", "bool", "discharge >= hydrology.river_min_discharge_m3_s"),
+    "river_mask": (
+        "bool",
+        "bool",
+        "river: discharge, upstream area and system basin reach the hydrology thresholds",
+    ),
     "strahler_order": ("uint8", "order", "Strahler order of river hexes, 0 = no river"),
     "river_mouth": ("bool", "bool", "last hex of a river before sea, lake or window edge"),
     "coastal_discharge_m3_s": ("float32", "m3/s", "discharge delivered to the sea at mouths"),

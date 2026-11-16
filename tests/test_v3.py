@@ -693,7 +693,14 @@ def test_gui_v3_tabs(hist_project):
         assert window.view.view_state() == state and window.view.selected_hex == (40, 60)
         assert window.legend.text()
     text = window.info.toPlainText()
-    for key in ("снимок t = 16", "высота эпохи", "высота после эрозии", "порода", "горная система", "вулкан"):
+    for key in (
+        "снимок t = 16",
+        "высота эпохи",
+        "высота после эрозии",
+        "порода",
+        "горная система",
+        "вулкан",
+    ):
         assert key in text
     window._on_hover("строка 1\nстрока 2")
     assert window.hover.text().startswith("строка 1")

@@ -1,6 +1,6 @@
-# Формат проекта HexWorld (`hexworld-project-3`)
+# Формат проекта HexWorld (`hexworld-project-4`)
 
-Читаются три схемы: `hexworld-project-1` (только v1.0), `hexworld-project-2` и `hexworld-project-3`.
+Читаются четыре схемы: `hexworld-project-1` (только v1.0), `hexworld-project-2`, `hexworld-project-3` и `hexworld-project-4`.
 
 Проект — папка с файлами:
 
@@ -19,7 +19,10 @@
 | `events.json` | **v3.0:** журнал геологических событий |
 | `checkpoints.npz` | **v3.0:** состояние породы на каждом сохранённом снимке |
 | `mountain_plan.json` | **v3.0:** горные системы, хребты, вершины, перевалы, долины |
-| `config.v1.json`, `manifest.v1.json`, `*.v2.json` | копии исходных файлов, если проект старой схемы был дополнен |
+| `hydro_fields.npz` | **v4.0:** слои климата, гидрологии и эрозии |
+| `hydrology.json` | **v4.0:** версии, единицы, происхождение, сводка, баланс наносов, реки, озёра, бассейны, материки итоговой поверхности |
+| `rivers.geojson` | **v4.0:** сегменты рек как LineString в мировых км (дополнительное представление; источник — `hydrology.json`) |
+| `config.v1.json`, `manifest.v1.json`, `*.v2.json`, `*.v3.json` | копии исходных файлов, если проект старой схемы был дополнен |
 
 PNG — только изображение. Оно никогда не читается как данные.
 
@@ -198,6 +201,85 @@ PNG — только изображение. Оно никогда не чита
 истории. При несовпадении данные v3 **не загружаются**, в `warnings` пишется причина,
 исходная эпоха v1/v2 остаётся доступной.
 
+## Данные v4.0
+
+### `hydro_fields.npz`
+
+Слои гексов `[row, col]`. `elevation_m` проекта после v4 — это `post_erosion_elevation_m`;
+`pre_erosion_elevation_m` не хранится повторно: это `elevation_m` из `history_fields.npz`.
+
+| Слой | Тип | Единицы | Смысл |
+|---|---|---|---|
+| `post_erosion_elevation_m` | float32 | m | surface after climate-driven erosion |
+| `v4_delta_elevation_m` | float32 | m | post_erosion minus pre_erosion elevation |
+| `latitude_deg` | float32 | deg | conditional latitude, north positive |
+| `temperature_mean_c` | float32 | degC | annual mean air temperature |
+| `temperature_seasonal_c` | float32 | degC | half of the summer-winter range |
+| `wind_u_ms` | float32 | m/s | prevailing wind, +x east |
+| `wind_v_ms` | float32 | m/s | prevailing wind, +y south |
+| `precipitation_mm_yr` | float32 | mm/yr | annual precipitation |
+| `potential_evapotranspiration_mm_yr` | float32 | mm/yr | potential evapotranspiration |
+| `actual_evapotranspiration_mm_yr` | float32 | mm/yr | actual evapotranspiration (Budyko) |
+| `humidity_index` | float32 | P/PET | aridity index, capped at 5 |
+| `snow_fraction` | float32 | 0..1 | share of precipitation falling as snow |
+| `snow_storage_mm` | float32 | mm | peak winter snow water equivalent (approximate) |
+| `glacial_potential` | float32 | 0..1 | climatic potential for perennial ice |
+| `infiltration_loss_mm_yr` | float32 | mm/yr | water lost to deep groundwater |
+| `runoff_mm_yr` | float32 | mm/yr | surface runoff P - AET - deep infiltration |
+| `flow_receiver` | int64 | index | flat index of the downstream hex (itself = outlet) |
+| `flow_direction` | uint8 | enum | 0..5 hex direction to the receiver, 255 = outlet |
+| `flow_accumulation_area_km2` | float32 | km2 | upstream land area including the hex |
+| `discharge_m3_s` | float32 | m3/s | annual mean discharge leaving the hex |
+| `external_inflow_m3_s` | float32 | m3/s | water entering the window from outside |
+| `basin_id` | int32 | id | drainage basin, -1 = sea |
+| `lake_id` | int32 | id | lake, -1 = none |
+| `lake_level_m` | float32 | m | lake water level (NaN = no lake) |
+| `lake_depth_m` | float32 | m | lake depth (NaN = no lake) |
+| `endorheic_mask` | bool | bool | drains to a closed (terminal) lake |
+| `channel_loss_m3_s` | float32 | m3/s | transmission loss of the channel in the hex |
+| `outflow_share` | float32 | 0..1 | share of the hex's water reaching sea or window edge |
+| `no_outflow_mask` | bool | bool | less than 10 % of the water reaches an outlet |
+| `river_mask` | bool | bool | river: discharge, upstream area and system basin reach the hydrology thresholds |
+| `strahler_order` | uint8 | order | Strahler order of river hexes, 0 = no river |
+| `river_mouth` | bool | bool | last hex of a river before sea, lake or window edge |
+| `coastal_discharge_m3_s` | float32 | m3/s | discharge delivered to the sea at mouths |
+| `sediment_delivery_m3_yr` | float32 | m3/yr | sediment delivered to the sea at mouths |
+| `erosion_rate_m_ma` | float32 | m/Ma | mean v4 erosion rate |
+| `v4_erosion_m` | float32 | m | rock and sediment removed during v4 (>= 0) |
+| `v4_deposition_m` | float32 | m | material deposited during v4 (>= 0) |
+| `sediment_thickness_m` | float32 | m | loose sediment cover after v4 (>= 0) |
+| `sediment_flux_m3_yr` | float32 | m3/yr | sediment passing through the hex (last step) |
+| `slope_m_per_km` | float32 | m/km | steepest slope to a neighbouring hex |
+| `land_mask` | bool | bool | elevation_m > sea_level_m (final surface) |
+| `landmass_id` | int32 | id | connected land of the final surface |
+| `shelf_mask` | bool | bool | submerged continental crust shallower than the shelf limit |
+
+### `hydrology.json`
+
+- `algorithm_versions` (`climate-1`, `hydro-1`), `units`, `provenance` (какая поверхность
+  на входе и какая итоговая), `sea_level_m`, `epoch_time_ma`, `latitude` (широта центра,
+  км на градус, признак сжатия, «север — вверх»).
+- `summary` — средние по суше, доли аридности (UNEP), коэффициент стока, доли озёр,
+  бессточных областей, число рек, озёр и сухих котловин, средний размыв.
+- `sediment_budget_m3` — снято рекой, перемещено по склонам, отложено на суше, в озёрах,
+  в море, ушло в открытое море и за край окна, поднятие, невязка.
+- `evolution_steps` — по каждому шагу связки: время, объёмы, наибольший врез, число озёр.
+- `river_segments` — сегмент: `id`, `cells` (плоские индексы гексов), `x_km`/`y_km`
+  (полилиния), `strahler`, `length_km`, `discharge_m3_s`, `drainage_area_km2`,
+  `mean_slope_m_per_km`, `mouth` (`none` — впадает в следующий сегмент, `sea`, `lake`,
+  `endorheic`, `window_edge`), `next_segment`, `basin_id`.
+- `river_systems` — от устья к истоку по большему притоку: `mouth_segment`, `main_stem`,
+  длина главного русла, водосбор, расход, порядок.
+- `lakes` — `cells`, площадь, уровень, наибольшая глубина, `closed` (бессточное), приток,
+  сток, гекс перелива. `basins` — площадь и тип окончания (`sea`, `window_edge`,
+  `endorheic`).
+
+### Устаревшие данные v4
+
+Версии алгоритмов и ключ стадии климата сверяются при загрузке. Если они не совпадают
+(другая эпоха, уровень моря или параметры), данные v4 **не загружаются**, причина пишется в
+`warnings`; v1–v3 остаются.
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от
@@ -238,6 +320,15 @@ project = generate_history(load_project("old_v2_project"))  # исходная �
 project.layer("elevation_m")
 project.layer("base_macro_elevation_m")
 middle = select_epoch(project, 15.0)  # без повторной симуляции
+
+# v4.0
+from hexworld import generate_v4, generate_climate, build_hydrology, erode
+
+project = generate_v4(project)  # v1-v3 не пересчитываются
+project.layer("elevation_m")  # итоговая высота после эрозии
+project.stage_layer("v3", "elevation_m")  # поверхность эпохи до эрозии
+project.hydro.rivers  # сегменты рек
+world, hex_layers = generate_climate(project)  # климат поверхности эпохи v3
 history_events(project, time_range=(0, 10), kinds=["collision_start"])
 sample_points(project, x_km, y_km, fields=("elevation_m", "rock_type"))
 ```
