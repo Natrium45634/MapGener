@@ -1,0 +1,74 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    # Windows is the target platform: PMGE is built with MSVC and HexWorld loads pmge.dll.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build PMGE (MSVC)
+        run: |
+          cmake -S pmge -B pmge/build
+          cmake --build pmge/build --config Release --parallel
+      - name: PMGE tests
+        run: ctest --test-dir pmge/build -C Release --output-on-failure
+      - name: Install HexWorld
+        run: python -m pip install -e ".[gui,dev]" pytest-xdist
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: PMGE is found by HexWorld
+        run: python -c "from hexworld.mountains.pmge_binding import find_library; p = find_library(); print(p); assert p and p.endswith('pmge.dll')"
+      - name: Tests
+        run: python -m pytest -n auto -q
+      - name: Large maps (slow)
+        if: matrix.python == '3.13'
+        run: python -m pytest -m slow -n 2 -q
+      - name: Command line smoke test
+        run: |
+          hexworld generate --seed Win7 --width 120 --height 80 --hex-km 75 --mode world --duration-ma 10 -o out\win7 -q
+          hexworld render out\win7 --view all
+          hexworld export out\win7 -o out\win7_export
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.python == '3.13'
+        with:
+          name: windows-renders
+          path: out/win7/*.png
+
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1
+      - name: Build PMGE
+        run: |
+          cmake -S pmge -B pmge/build
+          cmake --build pmge/build --parallel
+          ctest --test-dir pmge/build --output-on-failure
+      - name: Install and test
+        run: |
+          python -m pip install -e ".[gui,dev]" pytest-xdist
+          ruff check .
+          python -m pytest -n auto -q
