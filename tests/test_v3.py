@@ -549,7 +549,10 @@ def test_pmge_backend_through_the_c_abi(hist_config, hist_project):
     assert pm.hist.stage_keys["mountain_plan"] != ref.hist.stage_keys["mountain_plan"]
     a, b = ref.hist.layers["elevation_m"], pm.hist.layers["elevation_m"]
     mountains = ref.hist.layers["mountain_system_id"] >= 0
-    assert np.abs(a - b)[~mountains].max() < 1.0  # only mountain relief comes from PMGE
+    # only mountain relief comes from PMGE: outside the systems the two backends agree but
+    # for the fringe of broad ranges, where their fine detail noise differs by metres
+    assert np.median(np.abs(a - b)[~mountains]) == 0.0
+    assert np.abs(a - b)[~mountains].max() < 5.0
     assert np.median(np.abs(a - b)[mountains]) < 50.0  # same structure, same heights
     # the structural plan stays HexWorld's; only the sampled summit heights differ
     assert pm.hist.plan["ridges"] == ref.hist.plan["ridges"]

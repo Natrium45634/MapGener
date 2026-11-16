@@ -3,7 +3,8 @@
 Дата: 16.11.2026. Версия 4.0.0, ветка `claude/laughing-goldberg-gu0z9w`.
 
 ```text
-Windows: NOT VERIFIED
+Windows: VERIFIED (с версии 4.1: GitHub Actions windows-latest, Python 3.12/3.13 — сборка
+         PMGE через MSVC, все тесты, большие карты, CLI; GUI там только offscreen)
 GUI real display: NOT VERIFIED (проверено на виртуальном X-сервере Xvfb, платформа Qt xcb,
                                  и в режиме offscreen; физический монитор не использовался)
 ```
@@ -143,7 +144,8 @@ GUI под Xvfb, Terra7 360×240:
 
 ## 6. Ограничения и что не сделано
 
-1. **Windows: NOT VERIFIED.** Windows-окружения не было.
+1. **Windows:** на момент 4.0 не проверялось; с 4.1 — CI на windows-latest (см.
+   `docs/REPORT_4.1.md`), кроме окна на физическом мониторе.
 2. **GUI real display: NOT VERIFIED.** Окно запускалось на настоящем X-сервере (Xvfb, Qt
    `xcb`) — это ближе к реальному запуску, чем offscreen, но физического монитора,
    масштабирования HiDPI и ввода мышью человеком не было.

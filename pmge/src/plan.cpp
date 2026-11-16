@@ -403,6 +403,29 @@ Plan make_plan(const pmge_request& req, const std::vector<Point>& line_in) {
     auto s_axis = arclength(base_axis);
     double total = s_axis.back();
     auto specs = style_specs(style, rng, width, cx);
+    {  // a plateau or a broad base is several overlapping lobes, not one band
+      std::vector<Spec> lobed;
+      for (const Spec& sp : specs) {
+        if (sp.role != ROLE_PLATEAU && sp.role != ROLE_BASE) {
+          lobed.push_back(sp);
+          continue;
+        }
+        double span = 1.0 - sp.trim_lo - sp.trim_hi;
+        int n = 2 + rng.below(3);
+        for (int k = 0; k < n; ++k) {
+          Spec l = sp;
+          l.f = sp.f + rng.range(-0.15, 0.15);
+          l.crest = sp.crest * rng.range(0.9, 1.1);
+          l.hw = sp.hw * rng.range(0.7, 1.3);
+          l.asym = rng.range(-0.3, 0.3);
+          l.trim_lo = std::max(0.0, sp.trim_lo + span * k / n - (k > 0 ? 0.12 * span / n : 0.0));
+          l.trim_hi = std::max(0.0, 1.0 - (sp.trim_lo + span * (k + 1) / n +
+                                           (k < n - 1 ? 0.12 * span / n : 0.0)));
+          lobed.push_back(l);
+        }
+      }
+      specs.swap(lobed);
+    }
     if (req.plateau > 0)  // the caller asked for a level top on the main range
       for (Spec& sp : specs)
         if (sp.role == ROLE_MAIN) sp.plateau = std::max(sp.plateau, req.plateau);

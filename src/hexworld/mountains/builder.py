@@ -592,6 +592,7 @@ def _build_system(
             sp.echelon = False
     if not plateau_ok:  # an Andean system without an altiplano
         specs = [sp for sp in specs if sp.role != "plateau"]
+    specs = _lobes(specs, stream.child("lobes"))
     specs += _filler_ranges(specs, style, width, maturity, variety, stream.child("filler"))
     built = []  # (spec, ridge ids)
     for k, spec in enumerate(specs):
@@ -684,6 +685,40 @@ def _build_system(
 
     # intermontane basins between neighbouring parallel ranges
     _basins(plan, built, axis, normals, s, left, right, front, params, m, step)
+
+
+def _lobes(specs, stream: Stream) -> list:
+    """A plateau or a broad base is several overlapping lobes of different width and offset
+    (Tibet, the Anatolian and Iranian plateaus), not one band of constant width."""
+    out = []
+    for sp in specs:
+        if sp.role not in ("plateau", "base"):
+            out.append(sp)
+            continue
+        lo, hi = sp.trim
+        span = 1.0 - lo - hi
+        n = 2 + int(stream.random() * 3)
+        for k in range(n):
+            u = stream.random(4)
+            a = lo + span * k / n - 0.12 * span / n * (k > 0)
+            b = lo + span * (k + 1) / n + 0.12 * span / n * (k < n - 1)
+            out.append(
+                RangeSpec(
+                    sp.f + (u[0] - 0.5) * 0.3,
+                    sp.crest * (0.9 + 0.2 * u[1]),
+                    sp.hw * (0.7 + 0.6 * u[2]),
+                    sp.sharp,
+                    sp.role,
+                    plateau=sp.plateau,
+                    asym=(u[3] - 0.5) * 0.6,
+                    trim=(max(a, 0.0), max(1.0 - b, 0.0)),
+                    absolute_hw=sp.absolute_hw,
+                    peaks=sp.peaks,
+                    spurs=sp.spurs,
+                    echelon=False,
+                )
+            )
+    return out
 
 
 def _filler_ranges(specs, style, width, maturity, variety, stream: Stream) -> list:

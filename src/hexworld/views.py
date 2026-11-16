@@ -766,6 +766,30 @@ _ROCK_TITLES = (
 )
 
 
+_STYLE_RGB = {
+    "volcanic_arc": (190, 60, 50),
+    "alpine": (120, 90, 200),
+    "himalayan": (240, 240, 250),
+    "andean": (220, 150, 60),
+    "fold_belt": (90, 160, 90),
+    "old_massif": (160, 130, 90),
+    "broad_upland": (200, 190, 120),
+    "mixed": (70, 150, 200),
+    "block": (180, 90, 150),
+}
+_STYLE_TITLES = {
+    "volcanic_arc": "вулканическая дуга",
+    "alpine": "альпийский: острый главный хребет, второстепенные, предгорья",
+    "himalayan": "гималайский: предгорья, хребты, высокое плато, тыловой хребет",
+    "andean": "андский: кордильеры и альтиплано",
+    "fold_belt": "складчатый: много параллельных гряд",
+    "old_massif": "древний массив: широкий, низкий, сглаженный",
+    "broad_upland": "широкое нагорье, пологие края",
+    "mixed": "смешанный: широкое пологое основание и острое ядро",
+    "block": "глыбовый: наклонённые блоки, крутые с одной стороны",
+}
+
+
 def _render_relief(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
     h = project.hist
     layout = project.layout
@@ -790,6 +814,19 @@ def _render_relief(project: Project, mode: str, overlays: frozenset) -> np.ndarr
         inside = ids >= 0
         rgb[inside] = colors[ids[inside]]
         rgb = (rgb * (0.55 + 0.6 * shade[..., None])).clip(0, 255).astype(np.uint8)
+    elif mode == "styles":
+        ids = L["mountain_system_id"]
+        shade = hillshade(elev, layout)
+        rgb = np.where(L["land_mask"][..., None], np.array([150, 150, 140]), np.array([24, 44, 84]))
+        rgb = rgb.astype(np.float64)
+        table = np.array(
+            [_STYLE_RGB.get(s.get("style", ""), (120, 120, 120)) for s in h.plan["systems"]]
+            or [(0, 0, 0)],
+            dtype=np.float64,
+        )
+        inside = ids >= 0
+        rgb[inside] = table[ids[inside]]
+        rgb = (rgb * (0.5 + 0.65 * shade[..., None])).clip(0, 255).astype(np.uint8)
     elif mode == "rock":
         rgb = _ROCK_COLORS[L["rock_type"]].copy()
     elif mode == "resistance":
@@ -836,6 +873,14 @@ def _legend_relief(project: Project, mode: str) -> list[LegendItem]:
         return head + [
             LegendItem(t, tuple(c)) for t, c in zip(_CLASS_TITLES, _CLASS_COLORS, strict=True)
         ]
+    if mode == "styles":
+        counts: dict[str, int] = {}
+        for s in h.plan["systems"]:
+            counts[s.get("style", "")] = counts.get(s.get("style", ""), 0) + 1
+        return head + [
+            LegendItem(f"{_STYLE_TITLES[k]} — {counts.get(k, 0)}", _STYLE_RGB[k])
+            for k in sorted(_STYLE_RGB, key=lambda k: -counts.get(k, 0))
+        ]
     if mode == "systems":
         items = [LegendItem(f"горных систем в плане: {len(h.plan['systems'])}")]
         names = {
@@ -872,13 +917,23 @@ def _legend_relief(project: Project, mode: str) -> list[LegendItem]:
     return head + [LegendItem("0 м", lo), LegendItem("снято 2500 м и больше", hi)]
 
 
-def _polylines(items, key="points_km"):
+def _polylines(items, key="points_km", bounds=None):
+    """Polylines of plan items; with ``bounds`` only their parts inside the window."""
     xs, ys = [], []
     for item in items:
         pts = np.asarray(item[key])
-        if len(pts) >= 2:
+        if len(pts) < 2:
+            continue
+        if bounds is None:
             xs.append(pts[:, 0])
             ys.append(pts[:, 1])
+            continue
+        inside = bounds.contains(pts[:, 0], pts[:, 1])
+        edges = np.diff(np.concatenate([[0], inside.astype(np.int8), [0]]))
+        for a, b in zip(np.nonzero(edges == 1)[0], np.nonzero(edges == -1)[0], strict=True):
+            if b - a >= 2:
+                xs.append(pts[a:b, 0])
+                ys.append(pts[a:b, 1])
     return xs, ys
 
 
@@ -886,7 +941,7 @@ def _vectors_relief(project: Project, mode: str, overlays: frozenset) -> list[Ve
     plan = project.hist.plan
     out: list[VectorLayer] = []
     if "valleys" in overlays and plan["valleys"]:
-        xs, ys = _polylines(plan["valleys"])
+        xs, ys = _polylines(plan["valleys"], bounds=project.geometry.viewport_bounds)
         out.append(VectorLayer("lines", xs, ys, (60, 150, 220), 1.2, True, "valleys"))
     if "ridges" in overlays:
         for rank, color, width in (
@@ -894,7 +949,10 @@ def _vectors_relief(project: Project, mode: str, overlays: frozenset) -> list[Ve
             ("branch", (70, 44, 30), 1.6),
             ("main", (30, 18, 12), 2.4),
         ):
-            xs, ys = _polylines([r for r in plan["ridges"] if r["rank"] == rank])
+            xs, ys = _polylines(
+                [r for r in plan["ridges"] if r["rank"] == rank],
+                bounds=project.geometry.viewport_bounds,
+            )
             if xs:
                 out.append(VectorLayer("lines", xs, ys, color, width, True, f"ridges_{rank}"))
     if "passes" in overlays and plan["passes"]:
@@ -928,6 +986,7 @@ register_view(
             Option("shaded", "Итоговая высота с отмывкой"),
             Option("classes", "Классы: гребни, перевалы, долины, предгорья"),
             Option("systems", "Горные системы"),
+            Option("styles", "Архитектура гор"),
             Option("slope", "Уклон"),
             Option("orogen_age", "Возраст горообразования"),
             Option("rock", "Породы"),
@@ -942,7 +1001,7 @@ register_view(
             Option("passes", "Перевалы"),
             Option("valleys", "Долины"),
         ),
-        note="Рельеф v3.0: структура гор + ограниченная эрозия; рек, ледников и климата нет",
+        note="Рельеф эпохи v3: системы гор разной архитектуры; климатическая эрозия — «Эрозия»",
         render=_render_relief,
         legend=_legend_relief,
         vectors=_vectors_relief,

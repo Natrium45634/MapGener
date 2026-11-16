@@ -21,6 +21,7 @@ from .config import (
     CLIMATE_PROFILES,
     CONTINENT_PROFILES,
     HISTORY_PROFILES,
+    MOUNTAIN_STYLES,
     PRESETS,
     ROUTING_MODES,
     Config,
@@ -153,6 +154,10 @@ def _apply_v2_args(args, data: dict) -> None:
         mnt["detail"] = args.mountain_detail
     if getattr(args, "mountain_backend", None) is not None:
         mnt["backend"] = args.mountain_backend
+    if getattr(args, "mountain_style", None) is not None:
+        mnt["style"] = args.mountain_style
+    if getattr(args, "mountain_complexity", None) is not None:
+        mnt["complexity"] = args.mountain_complexity
     if mnt:
         data["mountains"] = mnt
 
@@ -230,6 +235,16 @@ def _add_v3_options(parser) -> None:
     parser.add_argument("--hotspots", type=float, help="hotspot density multiplier, 0 = off")
     parser.add_argument("--mountain-detail", type=float, help="structural mountain relief, 0..2")
     parser.add_argument("--mountain-backend", choices=("auto", "reference", "pmge"))
+    parser.add_argument(
+        "--mountain-style",
+        choices=("auto", *MOUNTAIN_STYLES),
+        help="architecture of every mountain system; auto = from tectonics, age and seed",
+    )
+    parser.add_argument(
+        "--mountain-complexity",
+        type=float,
+        help="0 = one crest per system, 1 = parallel ranges and basins (default), 2 = more",
+    )
     parser.add_argument("--epoch", help='snapshot to show: "final", "initial" or a time in Ma')
 
 

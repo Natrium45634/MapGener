@@ -15,6 +15,12 @@
   бессточные бассейны, граф рек с порядком Стралера; речная и склоновая эрозия с балансом
   наносов в связке с климатом. Итоговые высоты, суша и море — после эрозии.
 
+- **4.1 — горы и берега:** пояса делятся на системы разной архитектуры (альпийская,
+  гималайская с плато, андская, складчатая, древний массив, нагорье, смешанная, глыбовая,
+  вулканическая дуга) с параллельными хребтами, котловинами и нерегулярным ветвлением;
+  17 типов берегов из причин (фьорды, шхеры, риасы, далматинские, клифы, дельты, эстуарии,
+  лиманы, мангры, рифы, себхи, ватты, барьеры, пляжи...). Отчёт — `docs/REPORT_4.1.md`.
+
 - **PMGE** — отдельная библиотека гор на C++20 (`pmge/`), HexWorld вызывает её через C ABI;
   своя документация — `pmge/README.md`.
 
@@ -30,13 +36,27 @@
 
 Нужен Python 3.12 или новее.
 
-### Windows (PowerShell)
+### Windows (PowerShell) — основная платформа
+
+Всё сразу (окружение, HexWorld с просмотрщиком, PMGE, если есть CMake и Visual Studio
+Build Tools):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\windows\install.ps1
+```
+
+Запуск просмотрщика: `scripts\windows\hexworld_gui.bat`. Вручную:
 
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[gui,dev]"
+cmake -S pmge -B pmge\build
+cmake --build pmge\build --config Release
 ```
+
+Каждый коммит проверяется на Windows (Python 3.12 и 3.13) и Linux в GitHub Actions
+(`.github/workflows/ci.yml`).
 
 ### Linux / macOS
 
@@ -184,6 +204,8 @@ python -m pytest -m slow
 | `--history-intensity` | `calm` / `earthlike` / `active` |
 | `--uplift-scale`, `--erosion`, `--hotspots` | множители поднятия, эрозии и числа горячих точек; 0 выключает |
 | `--mountain-detail` | контраст структурного рельефа гор, 0…2 |
+| `--mountain-style` | `auto` (по тектонике, ширине, возрасту и сиду) или одна архитектура для всех систем: `alpine`, `himalayan`, `andean`, `fold_belt`, `old_massif`, `broad_upland`, `mixed`, `block`, `volcanic_arc` |
+| `--mountain-complexity` | 0 — один гребень на систему (как в 3.x), 1 — параллельные хребты, котловины, нерегулярные отроги, до 2 — больше |
 | `--mountain-backend` | `auto` (по умолчанию: PMGE, если собран), `reference` или `pmge` |
 | `--epoch` | какой снимок показать: `final`, `initial` или время в млн лет |
 | `--climate-profile` | `earthlike` / `dry` / `wet` |
@@ -421,7 +443,8 @@ v3: снимок эпохи (elevation_m, породы, поднятие, уро
 Все четыре случая прошли проверку v4 (`validation.ok`).
 
 `python -m pytest`: 123 теста; `-m slow`: ещё 3. GUI проверен в режиме offscreen и на
-виртуальном X-сервере Xvfb. **Windows: NOT VERIFIED. GUI real display: NOT VERIFIED.**
+виртуальном X-сервере Xvfb. **Windows: VERIFIED** с версии 4.1 (CI на windows-latest:
+MSVC-сборка PMGE, все тесты, большие карты, CLI). **GUI real display: NOT VERIFIED.**
 
 ### v3.0
 

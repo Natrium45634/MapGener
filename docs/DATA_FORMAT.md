@@ -253,14 +253,23 @@ PNG — только изображение. Оно никогда не чита
 | `land_mask` | bool | bool | elevation_m > sea_level_m (final surface) |
 | `landmass_id` | int32 | id | connected land of the final surface |
 | `shelf_mask` | bool | bool | submerged continental crust shallower than the shelf limit |
+| `coast_type` | uint8 | enum | coast type of a land hex at the sea, 0 = not coast |
+| `wave_exposure` | float32 | 0..1 | open water and storms facing the coast (proxy) |
+| `tidal_range_m` | float32 | m | mean tidal range at the coast (proxy) |
+| `shelf_width_km` | float32 | km | distance from the coast to water deeper than 200 m |
+| `sea_surface_temperature_c` | float32 | degC | mean temperature of the adjacent sea |
+| `lgm_ice_mask` | bool | bool | under ice at the last glacial maximum (estimate) |
+
+`coast_type`: 0 none, 1 ice, 2 fjord, 3 skerry, 4 volcanic, 5 delta, 6 estuary, 7 liman, 8 coral_reef, 9 mangrove, 10 sabkha, 11 tidal_flat, 12 fault_scarp, 13 dalmatian, 14 ria, 15 cliff, 16 barrier_lagoon, 17 beach. Слои факторов берега — NaN вне берега (не ноль).
 
 ### `hydrology.json`
 
-- `algorithm_versions` (`climate-1`, `hydro-1`), `units`, `provenance` (какая поверхность
+- `algorithm_versions` (`climate-1`, `hydro-2`), `units`, `provenance` (какая поверхность
   на входе и какая итоговая), `sea_level_m`, `epoch_time_ma`, `latitude` (широта центра,
   км на градус, признак сжатия, «север — вверх»).
 - `summary` — средние по суше, доли аридности (UNEP), коэффициент стока, доли озёр,
-  бессточных областей, число рек, озёр и сухих котловин, средний размыв.
+  бессточных областей, число рек, озёр и сухих котловин, средний размыв; `coasts` — число
+  береговых гексов, доли типов, доли скалистых и песчаных берегов.
 - `sediment_budget_m3` — снято рекой, перемещено по склонам, отложено на суше, в озёрах,
   в море, ушло в открытое море и за край окна, поднятие, невязка.
 - `evolution_steps` — по каждому шагу связки: время, объёмы, наибольший врез, число озёр.

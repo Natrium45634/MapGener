@@ -1,6 +1,6 @@
 """Version identifiers written into every saved project."""
 
-GENERATOR_VERSION = "4.0.0"
+GENERATOR_VERSION = "4.1.0"
 #: Bumped whenever a change alters generated geology for the same seed + config.
 ALGORITHM_VERSION = "tectonics-1"
 #: Seed -> stream derivation and raw number generation scheme.
