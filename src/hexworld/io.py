@@ -95,7 +95,13 @@ class ProjectIntegrityError(RuntimeError):
 
 
 def _file_hash(path: Path) -> str:
+    """SHA-256 of a file. Text files (JSON) are hashed with LF line ends, so a project that
+    went through a tool converting to CRLF (git on Windows, some editors) still verifies;
+    for files written by HexWorld (always LF) the value is unchanged."""
     h = hashlib.sha256()
+    if path.suffix in (".json", ".geojson"):
+        h.update(path.read_bytes().replace(b"\r\n", b"\n"))
+        return h.hexdigest()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
             h.update(block)
@@ -565,7 +571,27 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
         crust_model = build_crust_model(config, geometry, ref.x[ref.in_sim], ref.y[ref.in_sim])
         saved_p = (plates_doc.get("plate_model") or {}).get("model_hash")
         saved_c = (plates_doc.get("crust_model") or {}).get("model_hash")
-        if plate_model.model_hash() == saved_p and crust_model.model_hash() == saved_c:
+        exact = plate_model.model_hash() == saved_p and crust_model.model_hash() == saved_c
+        agree = None
+        if not exact:
+            # another CPU / NumPy build can differ in the last bits of sin, cos, exp; the
+            # models are the same if they still give the stored plates and crust
+            hx, hy = geometry.layout.centers()
+            agree = min(
+                float(np.mean(plate_model.plate_at(hx, hy) == project.layers["plate_id"])),
+                float(
+                    np.mean(
+                        np.asarray(crust_model.crust_at(hx, hy)) == project.layers["crust_type"]
+                    )
+                ),
+            )
+        if exact or (agree is not None and agree >= 0.995):
+            if not exact:
+                project.warnings.append(
+                    f"World models were rebuilt with floating-point differences (another CPU or "
+                    f"NumPy build): they reproduce {100 * agree:.2f} % of the stored plates and "
+                    "crust; the stored layers are used as they are."
+                )
             ref.plate = plate_model.plate_at(ref.x, ref.y)
             ref.crust = crust_model.crust_at(ref.x, ref.y)
             project.plate_model = plate_model
