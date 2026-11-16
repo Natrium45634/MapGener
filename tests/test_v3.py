@@ -498,7 +498,12 @@ def test_sea_level_changes_only_the_masks_of_the_selected_surface(hist_project):
         if previous is not None:
             assert not np.any(land & ~previous)
         previous = land
-    assert hist_project.layer("land_mask") is hist_project.hist.layers["land_mask"]
+        # v4 is recomputed for the new sea level; its coast comes from the eroded surface
+        hydro_land = p.hydro.layers["land_mask"]
+        assert p.hydro.sea_level_m == level and p.hydro.validation["ok"]
+        assert np.array_equal(hydro_land, p.hydro.layers["elevation_m"] > level)
+    assert hist_project.layer("land_mask") is hist_project.hydro.layers["land_mask"]
+    assert hist_project.stage_layer("v3", "land_mask") is hist_project.hist.layers["land_mask"]
     assert hist_project.baseline_layer("land_mask") is hist_project.geo.layers["land_mask"]
 
 
@@ -568,19 +573,13 @@ def test_v3_views_show_computed_data(hist_project):
     now = views.view_rgb(hist_project, "heights", "hypsometric", frozenset())
     then = views.view_rgb(hist_project, "heights", "baseline", frozenset())
     assert not np.array_equal(now, then)
-    assert "v3" in views.VIEWS["heights"].legend(hist_project, "hypsometric")[0].label
+    assert "v4" in views.VIEWS["heights"].legend(hist_project, "hypsometric")[0].label
     assert "v2" in views.VIEWS["heights"].legend(hist_project, "baseline")[0].label
     compare = views.view_rgb(hist_project, "continents", "compare", frozenset())
     assert len(np.unique(compare.reshape(-1, 3), axis=0)) >= 3
     planned = {s.id for s in views.VIEWS.values() if s.status == "planned"}
-    assert {
-        "temperature",
-        "precipitation",
-        "hydrology",
-        "biomes",
-        "geosymbols",
-        "seismicity",
-    } <= planned
+    assert {"biomes", "geosymbols", "seismicity"} <= planned
+    assert not {"temperature", "precipitation", "hydrology", "erosion"} & planned
     assert all(views.VIEWS[i].render is None for i in planned)
 
 
@@ -694,7 +693,7 @@ def test_gui_v3_tabs(hist_project):
         assert window.view.view_state() == state and window.view.selected_hex == (40, 60)
         assert window.legend.text()
     text = window.info.toPlainText()
-    for key in ("снимок t = 16", "итоговая высота", "порода", "горная система", "вулкан"):
+    for key in ("снимок t = 16", "высота эпохи", "высота после эрозии", "порода", "горная система", "вулкан"):
         assert key in text
     window._on_hover("строка 1\nстрока 2")
     assert window.hover.text().startswith("строка 1")

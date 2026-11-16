@@ -30,9 +30,11 @@ from .pipeline_v3 import _state_from_arrays, v3_stage_keys
 from .project import (
     GEO_LAYER_SPECS,
     HIST_LAYER_SPECS,
+    HYDRO_LAYER_SPECS,
     LAYER_SPECS,
     GeoData,
     HistoryData,
+    HydroData,
     Project,
 )
 from .stages.boundaries import TYPE_NAMES, BoundaryEdges
@@ -40,13 +42,15 @@ from .stages.crust import CRUST_NAMES, build_crust_model
 from .stages.motion import PlateMotion
 from .stages.plates import build_plate_model
 from .stages.reference import build_reference_grid
-from .stages.validate import validate_geo, validate_history, validate_project
+from .stages.validate import validate_geo, validate_history, validate_hydro, validate_project
 from .version import (
     ALGORITHM_VERSION,
+    CLIMATE_ALGORITHM_VERSION,
     CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
     GENERATOR_VERSION,
     HISTORY_ALGORITHM_VERSION,
+    HYDRO_ALGORITHM_VERSION,
     MOUNTAINS_ALGORITHM_VERSION,
     PRNG_VERSION,
     SCHEMA_VERSION,
@@ -59,6 +63,7 @@ V1_DATA_FILES = ("plates.json", "fields.npz", "boundaries.npz", "boundaries.json
 #: v2.0 data lives in its own files.
 V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 #: v3.0 data: selected epoch, checkpoints, event log, mountain plan.
+V4_DATA_FILES = ("hydro_fields.npz", "hydrology.json", "rivers.geojson")
 V3_DATA_FILES = (
     "history_fields.npz",
     "history.json",
@@ -153,6 +158,91 @@ def _write_v2_data(project: Project, path: Path) -> None:
     )
 
 
+def _write_v4_data(project: Project, path: Path) -> None:
+    h = project.hydro
+    arrays = {
+        k: v for k, v in h.layers.items() if k not in ("elevation_m", "pre_erosion_elevation_m")
+    }  # stored once elsewhere
+    np.savez_compressed(path / "hydro_fields.npz", **arrays)
+    _write_json(
+        path / "hydrology.json",
+        {
+            "world_id": project.world_id,
+            "algorithm_versions": {
+                "climate": CLIMATE_ALGORITHM_VERSION,
+                "hydrology": HYDRO_ALGORITHM_VERSION,
+            },
+            "units": {
+                "precipitation": "mm/yr",
+                "discharge": "m3/s",
+                "elevation": "m",
+                "area": "km2",
+                "length": "km",
+                "sediment": "m3",
+                "erosion_rate": "m/Ma",
+            },
+            "provenance": {
+                "input_surface": f"v3 elevation_m of epoch t = {h.epoch_time_ma:g} Ma",
+                "elevation_m": "post_erosion_elevation_m (v4 final surface)",
+                "pre_erosion_elevation_m": "history_fields.npz -> elevation_m (reference)",
+            },
+            "sea_level_m": h.sea_level_m,
+            "epoch_time_ma": h.epoch_time_ma,
+            "latitude": h.latitude,
+            "summary": h.summary,
+            "stage_keys": h.stage_keys,
+            "sediment_budget_m3": h.budget,
+            "evolution_steps": h.steps,
+            "warnings": h.warnings,
+            "validation": h.validation,
+            "timings_s": h.timings,
+            "river_systems": h.river_systems,
+            "river_segments": h.rivers,
+            "lakes": h.lakes,
+            "basins": h.basins,
+            "landmasses": h.landmasses,
+        },
+    )
+    _write_json(path / "rivers.geojson", rivers_geojson(project))
+
+
+def rivers_geojson(project: Project) -> dict:
+    """River segments as a GeoJSON FeatureCollection in HexWorld world km (not lon/lat)."""
+    features = []
+    for seg in project.hydro.rivers:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [round(x, 3), round(y, 3)]
+                        for x, y in zip(seg["x_km"], seg["y_km"], strict=True)
+                    ],
+                },
+                "properties": {
+                    k: seg[k]
+                    for k in (
+                        "id",
+                        "strahler",
+                        "discharge_m3_s",
+                        "length_km",
+                        "drainage_area_km2",
+                        "mouth",
+                        "next_segment",
+                        "basin_id",
+                    )
+                },
+            }
+        )
+    return {
+        "type": "FeatureCollection",
+        "crs_note": "HexWorld world coordinates in km (+x east, +y south), not geographic",
+        "units": {"coordinates": "km", "discharge_m3_s": "m3/s", "length_km": "km"},
+        "features": features,
+    }
+
+
 def _write_v3_data(project: Project, path: Path) -> None:
     from .mountains.plan import MountainPlan  # noqa: F401  (documented dependency)
 
@@ -245,17 +335,23 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         raise FileExistsError(f"{path} already contains a different project")
     stored_geo = (existing.get("v2") or {}).get("geo_hash")
     stored_hist = (existing.get("v3") or {}).get("hist_hash")
+    stored_hydro = (existing.get("v4") or {}).get("hydro_hash")
+    hydro_same = project.hydro is not None and stored_hydro == project.hydro.hydro_hash()
     geo_same = project.geo is not None and stored_geo == project.geo.geo_hash()
     hist_same = project.hist is not None and stored_hist == project.hist.hist_hash()
     if same_geology:
-        nothing_new = (project.geo is None or geo_same) and (project.hist is None or hist_same)
+        nothing_new = (
+            (project.geo is None or geo_same)
+            and (project.hist is None or hist_same)
+            and (project.hydro is None or hydro_same)
+        )
         if nothing_new:
             stored_config = json.loads((path / "config.json").read_text(encoding="utf-8"))
             if stored_config == project.config.to_dict() or project.geo is None:
                 return path  # nothing new to store
         old_schema = existing.get("schema_version", "")
-        if old_schema in ("hexworld-project-1", "hexworld-project-2"):
-            tag = "v1" if old_schema.endswith("-1") else "v2"
+        if old_schema in ("hexworld-project-1", "hexworld-project-2", "hexworld-project-3"):
+            tag = "v" + old_schema.rsplit("-", 1)[1]
             for name in ("config.json", "manifest.json"):
                 backup = path / name.replace(".json", f".{tag}.json")
                 if not backup.exists():
@@ -264,12 +360,46 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
 
     if not same_geology:
         _write_v1_data(project, path)
-        for name in V2_DATA_FILES + V3_DATA_FILES:  # data of another world must not linger
+        for name in V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES:  # no stale data of another world
             (path / name).unlink(missing_ok=True)
     _write_json(path / "config.json", project.config.to_dict())
     files = list(DATA_FILES)
     v2_manifest = None
     v3_manifest = None
+    v4_manifest = None
+    if project.hydro is not None:
+        if not (same_geology and hydro_same and all((path / n).exists() for n in V4_DATA_FILES)):
+            _write_v4_data(project, path)
+        files += list(V4_DATA_FILES)
+        v4_manifest = {
+            "algorithm_versions": {
+                "climate": CLIMATE_ALGORITHM_VERSION,
+                "hydrology": HYDRO_ALGORITHM_VERSION,
+            },
+            "files": list(V4_DATA_FILES),
+            "epoch_time_ma": project.hydro.epoch_time_ma,
+            "sea_level_m": project.hydro.sea_level_m,
+            "hydro_hash": project.hydro.hydro_hash(),
+            "content_hashes": project.hydro.content_hashes(),
+            "layers": {
+                name: {
+                    "dtype": str(arr.dtype),
+                    "shape": list(arr.shape),
+                    "unit": HYDRO_LAYER_SPECS[name][1],
+                    "description": HYDRO_LAYER_SPECS[name][2],
+                }
+                for name, arr in project.hydro.layers.items()
+            },
+            "stage_keys": project.hydro.stage_keys,
+        }
+    else:
+        keep_v4 = same_geology and hist_same and all((path / n).exists() for n in V4_DATA_FILES)
+        if keep_v4:
+            files += list(V4_DATA_FILES)
+            v4_manifest = existing.get("v4")
+        else:
+            for name in V4_DATA_FILES:  # a v4 result of another v3 surface would be stale
+                (path / name).unlink(missing_ok=True)
     if project.hist is not None:
         if not (same_geology and hist_same and all((path / n).exists() for n in V3_DATA_FILES)):
             _write_v3_data(project, path)
@@ -361,6 +491,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "content_hashes": project.content_hashes(),
         "v2": v2_manifest,
         "v3": v3_manifest,
+        "v4": v4_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -512,6 +643,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
                 "tectonic_relief_m": arrays["tectonic_relief_m"],
             }
     _load_history(project, path, manifest, config, geometry, verify)
+    _load_hydro(project, path, manifest, config, verify)
     return project
 
 
@@ -602,4 +734,72 @@ def _load_history(project: Project, path: Path, manifest: dict, config, geometry
             "layers": {k: v for k, v in arrays.items() if k not in land_layers},
             "world": world,
             "rates": hist.summary.get("world_rates", {}),
+        }
+
+
+def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v4 data, or say why not. Never silently stale."""
+    from .pipeline_v4 import v4_stage_keys
+
+    v4 = manifest.get("v4")
+    if not v4 or project.hist is None:
+        return
+    if not all((path / name).exists() for name in V4_DATA_FILES):
+        project.warnings.append("The manifest lists v4.0 data, but its files are missing.")
+        return
+    doc = json.loads((path / "hydrology.json").read_text(encoding="utf-8"))
+    versions = doc.get("algorithm_versions", {})
+    current = {"climate": CLIMATE_ALGORITHM_VERSION, "hydrology": HYDRO_ALGORITHM_VERSION}
+    if versions != current:
+        project.warnings.append(
+            f"The stored climate / hydrology was produced by {versions}, this build uses "
+            f"{current}. It was NOT loaded; compute v4 again (v1-v3 are intact)."
+        )
+        return
+    keys = v4_stage_keys(config, project.hist.stage_keys, project.hist.sea_level_m)
+    if keys["v4_climate"] != doc["stage_keys"].get("v4_climate"):
+        project.warnings.append(
+            "The stored climate / hydrology does not match the stored geological epoch or "
+            "configuration. It was NOT loaded; compute v4 again."
+        )
+        return
+    with np.load(path / "hydro_fields.npz") as data:
+        layers = {name: data[name] for name in data.files}
+    layers["elevation_m"] = layers["post_erosion_elevation_m"]
+    layers["pre_erosion_elevation_m"] = project.hist.layers["elevation_m"]
+    hydro = HydroData(
+        layers=layers,
+        sea_level_m=float(doc["sea_level_m"]),
+        epoch_time_ma=float(doc["epoch_time_ma"]),
+        latitude=doc["latitude"],
+        rivers=doc["river_segments"],
+        river_systems=doc["river_systems"],
+        lakes=doc["lakes"],
+        basins=doc["basins"],
+        landmasses=doc["landmasses"],
+        budget=doc["sediment_budget_m3"],
+        summary=doc["summary"],
+        stage_keys=dict(doc["stage_keys"]),
+        steps=doc.get("evolution_steps", []),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = hydro.content_hashes()
+        for key, expected in v4["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.hydro = hydro
+    hydro.validation = validate_hydro(project)
+    # the evolved surface can be reused: a new river threshold re-runs only the network
+    if keys["v4_evolution"] == hydro.stage_keys.get("v4_evolution"):
+        project.cache["v4_evolution"] = {
+            "elevation": layers["post_erosion_elevation_m"].astype(np.float64).ravel(),
+            "erosion_total_m": layers["v4_erosion_m"].astype(np.float64).ravel(),
+            "deposition_total_m": layers["v4_deposition_m"].astype(np.float64).ravel(),
+            "sediment_thickness_m": layers["sediment_thickness_m"].astype(np.float64).ravel(),
+            "sediment_flux_m3_yr": layers["sediment_flux_m3_yr"].astype(np.float64).ravel(),
+            "sediment_delivery_m3_yr": layers["sediment_delivery_m3_yr"].astype(np.float64).ravel(),
+            "budget": hydro.budget,
+            "steps": hydro.steps,
         }

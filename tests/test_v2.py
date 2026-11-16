@@ -69,8 +69,11 @@ def test_v1_project_opens_and_is_not_changed(tmp_path):
     assert again.geo.sea_level_m == v2.geo.sea_level_m
     assert again.config == v2.config
     assert again.geo.landmasses == v2.geo.landmasses and again.geo.blocks == v2.geo.blocks
+    # adding v2 keeps the project a v2 project: later stages are not computed silently
+    assert again.hist is None and again.hydro is None
     for spec in views.VIEWS.values():
-        assert spec.availability(again)[0] == (spec.status == "ready")
+        expected = spec.status == "ready" and spec.stage in ("v1", "v2")
+        assert spec.availability(again)[0] == expected, spec.id
 
 
 # -- 3. repeatability ------------------------------------------------------------
@@ -421,7 +424,9 @@ def test_cli_v2_flow(tmp_path, capsys):
         "view_heights_hypsometric.png",
     ):
         assert (out / name).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-    assert main(["render", str(out), "--view", "hydrology"]) == 1  # planned, not drawable
+    # a v2 project stays a v2 project after a sea change: v4 views have no data to draw
+    assert load_project(out).hist is None and load_project(out).hydro is None
+    assert main(["render", str(out), "--view", "hydrology"]) == 1
     assert main(["export", str(out), "-o", str(tmp_path / "exp")]) == 0
     assert (tmp_path / "exp" / "landmasses.csv").exists()
     assert np.load(tmp_path / "exp" / "macro_elevation_m.npy").shape == (30, 40)
@@ -433,7 +438,7 @@ def test_cli_v2_flow(tmp_path, capsys):
 def test_hash_of_stored_v2_layers_matches_manifest(tmp_path, small_project):
     path = save_project(small_project, tmp_path / "p")
     manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["schema_version"] == "hexworld-project-3"
+    assert manifest["schema_version"] == "hexworld-project-4"
     with np.load(path / "continental_fields.npz") as data:
         for name in small_project.geo.layers:
             assert array_hash(data[name]) == manifest["v2"]["content_hashes"][f"continental/{name}"]

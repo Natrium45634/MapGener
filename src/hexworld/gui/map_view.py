@@ -346,6 +346,17 @@ class MapView(QWidget):
                     f"  |  кора (prior): {info['crust']}  |  граница: {info['boundary']}"
                     "\nматерики, высоты, геоистория: данных нет"
                 )
+            if "temperature_mean_c" in info:
+                text += (
+                    f"\nT {info['temperature_mean_c']:+.1f} °C  |  осадки "
+                    f"{info['precipitation_mm_yr']:,.0f} мм/год  |  сток "
+                    f"{info['runoff_mm_yr']:,.0f} мм/год  |  расход "
+                    f"{info['discharge_m3_s']:,.1f} м³/с"
+                )
+                if info.get("lake_id", -1) >= 0:
+                    text += f"  |  озеро {info['lake_id']}"
+                elif info.get("river_mask"):
+                    text += f"  |  река, порядок {info['strahler_order']}"
             self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):

@@ -258,3 +258,102 @@ def validate_history(project) -> dict:
         land_fraction_viewport=round(float(land.mean()), 5),
     )
     return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
+
+
+def validate_hydro(project) -> dict:
+    """Invariants of v4: one surface, acyclic routing, non-negative water and sediment."""
+    from .sea import label_mask
+
+    h = project.hydro
+    layout = project.layout
+    L = h.layers
+    errors: list[str] = []
+    checks: dict = {}
+    shape = (layout.height, layout.width)
+    nan_ok = {"lake_level_m", "lake_depth_m"}
+    for name, arr in L.items():
+        if arr.shape != shape:
+            errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")
+        elif (
+            np.issubdtype(arr.dtype, np.floating)
+            and name not in nan_ok
+            and not np.isfinite(arr).all()
+        ):
+            errors.append(f"layer {name} contains non-finite values")
+    if errors:
+        return {"ok": False, "errors": errors, "warnings": [], "checks": checks}
+    z = L["elevation_m"]
+    if L["post_erosion_elevation_m"] is not z:
+        errors.append("post_erosion_elevation_m and elevation_m are different arrays")
+    if not np.array_equal(L["land_mask"], z > np.float32(h.sea_level_m)):
+        errors.append("land_mask is not (final elevation_m > sea_level_m)")
+    if not np.array_equal(label_mask(L["land_mask"], layout)[0], L["landmass_id"]):
+        errors.append("landmass_id is not the set of edge-connected land components")
+    for name in (
+        "precipitation_mm_yr",
+        "runoff_mm_yr",
+        "discharge_m3_s",
+        "v4_erosion_m",
+        "v4_deposition_m",
+        "sediment_thickness_m",
+        "actual_evapotranspiration_mm_yr",
+        "potential_evapotranspiration_mm_yr",
+        "flow_accumulation_area_km2",
+    ):
+        if float(L[name].min()) < 0.0:
+            errors.append(f"{name} is negative")
+    dry_land = L["land_mask"] & (L["lake_id"] < 0)  # lakes may evaporate their inflow
+    if np.any(
+        L["actual_evapotranspiration_mm_yr"][dry_land] > L["precipitation_mm_yr"][dry_land] + 1e-3
+    ):
+        errors.append("actual evaporation exceeds precipitation on land")
+    rc = L["flow_receiver"].ravel()
+    n = rc.size
+    # acyclic: following receivers from every cell ends at an outlet within n steps
+    depth = 0
+    cur = np.arange(n)
+    while depth <= n:
+        nxt = rc[cur]
+        if np.array_equal(nxt, cur):
+            break
+        cur = nxt
+        depth += 1
+    if depth > n:
+        errors.append("the flow graph contains a cycle")
+    checks["longest_flow_path_hexes"] = depth
+    q = L["discharge_m3_s"].ravel()
+    lake = L["lake_id"].ravel() >= 0
+    land = L["land_mask"].ravel()
+    nz = (rc != np.arange(n)) & land & ~lake
+    losing = L["channel_loss_m3_s"].ravel() > 0  # dry-climate channels lose water
+    ups = (
+        nz
+        & ~lake[rc]
+        & land[rc]
+        & (q[rc] + 1e-6 < q * 0.999)
+        & ~L["endorheic_mask"].ravel()
+        & ~losing[rc]
+    )
+    checks["discharge_decreases_downstream"] = int(ups.sum())
+    if ups.sum() > 0:
+        errors.append(f"discharge decreases downstream at {int(ups.sum())} hexes outside lakes")
+    if L["river_mask"].any() and float(L["flow_accumulation_area_km2"][L["river_mask"]].min()) < (
+        project.config.hydrology.river_min_upstream_hexes * layout.hex_area_km2 - 1e-3
+    ):
+        errors.append("a river hex drains less than the minimum upstream area")
+    if L["river_mask"].any() and float(L["discharge_m3_s"][L["river_mask"]].min()) < (
+        project.config.hydrology.river_min_discharge_m3_s - 1e-6
+    ):
+        errors.append("a river hex has less than the river threshold discharge")
+    b = h.budget
+    if b:
+        closure = abs(b.get("closure_error_m3", 0.0))
+        checks["sediment_budget_closure_m3"] = closure
+        if closure > 1e-6 * max(b.get("fluvial_eroded_m3", 0.0), 1.0):
+            errors.append("the sediment budget does not close")
+    checks.update(
+        rivers=len(h.river_systems),
+        lakes=len(h.lakes),
+        land_fraction=round(float(L["land_mask"].mean()), 5),
+    )
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}

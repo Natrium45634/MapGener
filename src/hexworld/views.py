@@ -75,9 +75,11 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3") and project.geo is None:
+        if self.stage in ("v2", "v3", "v4") and project.geo is None:
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
-        if self.stage == "v3" and project.hist is None:
+        if self.stage == "v4" and project.hydro is None:
+            return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
+        if self.stage in ("v3", "v4") and project.hist is None:
             return False, f"«{self.title}»: геоистория ещё не сгенерирована для этого проекта"
         return True, ""
 
@@ -260,7 +262,15 @@ _SUBMERGED = np.array([62, 110, 160], dtype=np.uint8)
 
 
 def _land_of(project: Project, baseline: bool):
-    """(land, landmass_id, count, shelf) of the selected v3 epoch or of the v2 baseline."""
+    """(land, landmass_id, count, shelf) of the final surface or of the v2 baseline."""
+    if project.hydro is not None and not baseline:
+        h = project.hydro
+        return (
+            h.layers["land_mask"],
+            h.layers["landmass_id"],
+            len(h.landmasses),
+            h.layers["shelf_mask"],
+        )
     if project.hist is not None and not baseline:
         h = project.hist
         return (
@@ -402,7 +412,14 @@ register_view(
 
 # -- Heights (v2.0) -------------------------------------------------------------
 def _height_source(project: Project, mode: str):
-    """(elevation, land, label) for the heights view: v3 epoch or the v2 baseline."""
+    """(elevation, land, label) for the heights view: v4 final, v3 epoch or the v2 baseline."""
+    if project.hydro is not None and mode != "baseline":
+        h = project.hydro
+        label = (
+            f"итоговая высота v4 после эрозии (поверхность t = {h.epoch_time_ma:g} "
+            "млн лет + климатическая эрозия)"
+        )
+        return h.layers["elevation_m"], h.layers["land_mask"], label
     if project.hist is not None and mode != "baseline":
         h = project.hist
         label = f"итоговая высота v3, t = {h.epoch_time_ma:g} млн лет"
@@ -1094,11 +1111,522 @@ register_view(
     )
 )
 
+
 # -- reserved for future stages: registered, never drawn as ready ---------------
+# -- v4.0: climate, water, erosion ------------------------------------------------------
+def _v4_head(project: Project) -> list[LegendItem]:
+    h = project.hydro
+    lat = h.latitude
+    note = " (шкала широт сжата)" if lat.get("compressed") else ""
+    return [
+        LegendItem(
+            f"источник: v4, поверхность после эрозии (эпоха t = {h.epoch_time_ma:g} "
+            f"млн лет); центр области — {lat['center_deg']:g}° с. ш.{note}"
+        )
+    ]
+
+
+def _ramp_rgb(values, lo, hi, power=1.0):
+    t = np.clip((np.asarray(values, dtype=np.float64) - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+    return render.ramp(t**power).copy()
+
+
+_TEMP_STOPS = np.array([-40, -20, -10, 0, 10, 20, 30], dtype=np.float64)
+_TEMP_RGB = np.array(
+    [
+        [90, 40, 140],
+        [60, 90, 200],
+        [90, 170, 230],
+        [235, 245, 250],
+        [250, 220, 120],
+        [235, 120, 50],
+        [170, 20, 30],
+    ],
+    dtype=np.float64,
+)
+_PRECIP_STOPS = np.array([0, 100, 250, 500, 1000, 2000, 4000], dtype=np.float64)
+_PRECIP_RGB = np.array(
+    [
+        [150, 80, 30],
+        [215, 160, 80],
+        [240, 225, 150],
+        [190, 220, 140],
+        [90, 180, 120],
+        [40, 120, 170],
+        [30, 50, 140],
+    ],
+    dtype=np.float64,
+)
+_ARIDITY_RGB = np.array(
+    [[180, 70, 40], [230, 150, 70], [240, 215, 120], [190, 215, 130], [80, 160, 110]],
+    dtype=np.uint8,
+)
+_ARIDITY_TITLES = (
+    "гипераридная (P/PET < 0,05)",
+    "аридная (0,05–0,2)",
+    "полуаридная (0,2–0,5)",
+    "сухая субгумидная (0,5–0,65)",
+    "гумидная (> 0,65)",
+)
+
+
+def _stops(values, stops, colors):
+    v = np.asarray(values, dtype=np.float64)
+    out = np.empty(v.shape + (3,), dtype=np.uint8)
+    for c in range(3):
+        out[..., c] = np.interp(v, stops, colors[:, c]).astype(np.uint8)
+    return out
+
+
+def _sea_tint(project, rgb, land, strength=0.65):
+    sea = ~land
+    rgb[sea] = (rgb[sea] * (1 - strength) + np.array([24, 44, 84]) * strength).astype(np.uint8)
+
+
+def _render_temperature(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.hydro.layers
+    land = L["land_mask"]
+    if mode == "mean":
+        rgb = _stops(L["temperature_mean_c"], _TEMP_STOPS, _TEMP_RGB)
+    elif mode == "seasonal":
+        rgb = _ramp_rgb(2.0 * L["temperature_seasonal_c"], 0.0, 50.0)
+    elif mode == "snow":
+        rgb = _ramp_rgb(L["snow_fraction"], 0.0, 1.0)
+    elif mode == "glacial":
+        rgb = _ramp_rgb(L["glacial_potential"], 0.0, 1.0)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'temperature'")
+    if mode != "mean":
+        _sea_tint(project, rgb, land)
+    if "isotherms" in overlays:
+        band = np.floor(L["temperature_mean_c"] / 10.0).astype(np.int32)
+        _shade(rgb, id_rim(band, project.layout), 0.55)
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.35)
+    return rgb
+
+
+def _legend_temperature(project: Project, mode: str) -> list[LegendItem]:
+    head = _v4_head(project)
+    s = project.hydro.summary
+    if mode == "mean":
+        return (
+            head
+            + [
+                LegendItem(f"{int(t):+d} °C", tuple(int(c) for c in rgb))
+                for t, rgb in zip(_TEMP_STOPS, _TEMP_RGB, strict=True)
+            ]
+            + [
+                LegendItem(
+                    f"средняя по суше {_num(s['land_mean_temperature_c'], '+.1f')} °C; градиент "
+                    f"{project.config.climate.lapse_rate_c_per_km:g} °C/км"
+                )
+            ]
+        )
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "seasonal":
+        return head + [
+            LegendItem("годовой размах 0 °C", lo),
+            LegendItem("годовой размах 50 °C и больше", hi),
+            LegendItem("размах растёт с широтой и удалённостью от моря"),
+        ]
+    if mode == "snow":
+        return head + [LegendItem("снега нет", lo), LegendItem("все осадки — снег", hi)]
+    return head + [
+        LegendItem("льду не удержаться", lo),
+        LegendItem("условия для многолетнего льда", hi),
+        LegendItem("потенциал по климату; ледники не моделируются"),
+    ]
+
+
+def _num(value, spec: str) -> str:
+    """A summary number, or a dash where it does not exist (e.g. no land in the window)."""
+    return "—" if value is None else format(value, spec)
+
+
+def _wind_vectors(project: Project, step_hex: int = 9) -> VectorLayer:
+    L = project.hydro.layers
+    layout = project.layout
+    hx, hy = layout.centers()
+    sl = (slice(step_hex // 2, None, step_hex), slice(step_hex // 2, None, step_hex))
+    u, v = L["wind_u_ms"][sl], L["wind_v_ms"][sl]
+    scale = 0.55 * step_hex * layout.spacing_km / 8.0  # 8 m/s -> half the arrow spacing
+    xs, ys = [], []
+    for x, y, a, b in zip(hx[sl].ravel(), hy[sl].ravel(), u.ravel(), v.ravel(), strict=True):
+        ex, ey = x + a * scale, y + b * scale
+        sp = max(np.hypot(a, b), 1e-6)
+        dx, dy = a / sp, b / sp
+        head = 0.3 * scale * min(sp, 8.0) / 8.0 + 1e-6
+        xs.append(np.array([x, ex, ex - head * (dx - 0.5 * dy), ex, ex - head * (dx + 0.5 * dy)]))
+        ys.append(np.array([y, ey, ey - head * (dy + 0.5 * dx), ey, ey - head * (dy - 0.5 * dx)]))
+    return VectorLayer("lines", xs, ys, (255, 255, 255), 1.2, True, "wind")
+
+
+def _render_precipitation(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.hydro.layers
+    land = L["land_mask"]
+    if mode == "precipitation":
+        rgb = _stops(L["precipitation_mm_yr"], _PRECIP_STOPS, _PRECIP_RGB)
+    elif mode == "aridity":
+        from .stages.climate import aridity_class
+
+        rgb = _ARIDITY_RGB[aridity_class(L["humidity_index"])].copy()
+        _sea_tint(project, rgb, land, 0.85)
+    elif mode == "runoff":
+        rgb = _stops(L["runoff_mm_yr"], _PRECIP_STOPS, _PRECIP_RGB)
+        _sea_tint(project, rgb, land, 0.85)
+    elif mode == "pet":
+        rgb = _ramp_rgb(L["potential_evapotranspiration_mm_yr"], 0.0, 2000.0)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'precipitation'")
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.35)
+    return rgb
+
+
+def _legend_precipitation(project: Project, mode: str) -> list[LegendItem]:
+    head = _v4_head(project)
+    s = project.hydro.summary
+    if mode in ("precipitation", "runoff"):
+        what = "осадки" if mode == "precipitation" else "сток (осадки − испарение − потери)"
+        items = [LegendItem(f"{what}, мм/год")] + [
+            LegendItem(f"{int(v)}", tuple(int(c) for c in rgb))
+            for v, rgb in zip(_PRECIP_STOPS, _PRECIP_RGB, strict=True)
+        ]
+        extra = (
+            f"средние по суше {_num(s['land_mean_precipitation_mm_yr'], '.0f')} мм/год"
+            if mode == "precipitation"
+            else f"доля стока от осадков {s['runoff_ratio']:.2f}"
+        )
+        return (
+            head
+            + items
+            + [LegendItem(extra), LegendItem("стрелки — преобладающий ветер, длина ~ скорость")]
+        )
+    if mode == "aridity":
+        sh = s["aridity_shares"]
+        values = (sh["hyper_arid"], sh["arid"], sh["semi_arid"], sh["dry_subhumid"], sh["humid"])
+        return head + [
+            LegendItem(f"{t}: {100 * v:.0f} % суши", tuple(c))
+            for t, v, c in zip(_ARIDITY_TITLES, values, _ARIDITY_RGB, strict=True)
+        ]
+    return head + [
+        LegendItem("0 мм/год", tuple(render.ramp(np.array(0.0)))),
+        LegendItem("2000 мм/год и больше", tuple(render.ramp(np.array(1.0)))),
+        LegendItem("потенциальное испарение (не фактическое)"),
+    ]
+
+
+def _vectors_precipitation(project, mode, overlays):
+    return [_wind_vectors(project)] if "wind" in overlays else []
+
+
+_LAKE_RGB = np.array([70, 140, 215], dtype=np.uint8)
+_CLOSED_LAKE_RGB = np.array([150, 190, 170], dtype=np.uint8)
+
+
+def _render_hydrology(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    h = project.hydro
+    L = h.layers
+    layout = project.layout
+    land = L["land_mask"]
+    if mode == "rivers":
+        shade = hillshade(L["elevation_m"].astype(np.float64), layout)
+        base = np.where(land[..., None], np.array([200, 196, 178]), np.array([30, 52, 92])).astype(
+            np.float64
+        )
+        rgb = (base * (0.55 + 0.55 * shade[..., None])).clip(0, 255).astype(np.uint8)
+        dry = L["no_outflow_mask"] & land
+        rgb[dry] = (rgb[dry] * 0.75 + np.array([230, 190, 120]) * 0.25).astype(np.uint8)
+    elif mode == "discharge":
+        q = L["discharge_m3_s"].astype(np.float64)
+        rgb = _ramp_rgb(np.log10(np.maximum(q, 0.01)), -1.0, 4.5)
+        _sea_tint(project, rgb, land, 0.9)
+    elif mode == "basins":
+        ids = L["basin_id"]
+        colors = id_colors(max(1, int(ids.max()) + 1), 0.61, sat=(0.3, 0.55), val=(0.7, 0.92))
+        rgb = np.empty(ids.shape + (3,), dtype=np.uint8)
+        rgb[:] = (30, 52, 92)
+        inside = ids >= 0
+        rgb[inside] = colors[ids[inside]]
+        endo = L["endorheic_mask"]
+        rgb[endo] = (rgb[endo] * 0.5 + np.array([200, 120, 60]) * 0.5).astype(np.uint8)
+    elif mode == "accumulation":
+        rgb = _ramp_rgb(np.log10(np.maximum(L["flow_accumulation_area_km2"], 1.0)), 3.0, 7.0)
+        _sea_tint(project, rgb, land, 0.9)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'hydrology'")
+    if "lakes" in overlays:
+        lake = L["lake_id"] >= 0
+        closed = lake & L["endorheic_mask"] & (L["outflow_share"] < 0.5)
+        rgb[lake] = _LAKE_RGB
+        rgb[closed] = _CLOSED_LAKE_RGB
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, layout), 0.35)
+    return rgb
+
+
+def _river_vectors(project: Project, min_discharge: float = 0.0) -> list[VectorLayer]:
+    out = []
+    tiers = (
+        (0.0, 1.0, (120, 175, 230)),
+        (300.0, 1.8, (70, 140, 215)),
+        (3000.0, 2.8, (35, 100, 200)),
+        (20000.0, 4.0, (20, 60, 170)),
+    )
+    for i, (lo, width, color) in enumerate(tiers):
+        hi = tiers[i + 1][0] if i + 1 < len(tiers) else np.inf
+        xs, ys = [], []
+        for seg in project.hydro.rivers:
+            q = seg["discharge_m3_s"]
+            if lo <= q < hi and q >= min_discharge and len(seg["x_km"]) >= 2:
+                xs.append(np.asarray(seg["x_km"]))
+                ys.append(np.asarray(seg["y_km"]))
+        if xs:
+            out.append(VectorLayer("lines", xs, ys, color, width, True, f"rivers_{int(lo)}"))
+    return out
+
+
+def _vectors_hydrology(project, mode, overlays):
+    if "rivers" not in overlays:
+        return []
+    minimum = 0.0 if "small_rivers" in overlays else 200.0
+    return _river_vectors(project, minimum)
+
+
+def _legend_hydrology(project: Project, mode: str) -> list[LegendItem]:
+    s = project.hydro.summary
+    thr = project.config.hydrology.river_min_discharge_m3_s
+    head = _v4_head(project) + [
+        LegendItem(
+            f"рек (систем) {s['rivers']}, наибольший порядок Стралера {s['max_strahler']}, "
+            f"наибольший расход {s['max_discharge_m3_s']:,.0f} м³/с"
+        ),
+        LegendItem(
+            f"река — расход от {thr:g} м³/с; толщина линии по расходу: "
+            "< 300, < 3000, < 20 000, больше",
+            (35, 100, 200),
+        ),
+        LegendItem(
+            f"озёра: {s['lakes']} (бессточных {s['closed_lakes']}; ещё сухих котловин "
+            f"{s.get('dry_closed_basins', 0)}), "
+            f"{100 * s['lake_share_of_land']:.1f} % суши",
+            tuple(_LAKE_RGB),
+        ),
+        LegendItem("бессточное (концевое) озеро", tuple(_CLOSED_LAKE_RGB)),
+    ]
+    if mode == "rivers":
+        return head + [
+            LegendItem(
+                f"вода не доходит до моря: {100 * s['no_outflow_share_of_land']:.0f} % суши "
+                f"(замкнутые бассейны {100 * s['endorheic_share_of_land']:.0f} %)",
+                (230, 190, 120),
+            )
+        ]
+    if mode == "discharge":
+        return head + [
+            LegendItem("0,1 м³/с", tuple(render.ramp(np.array(0.0)))),
+            LegendItem("30 000 м³/с и больше", tuple(render.ramp(np.array(1.0)))),
+        ]
+    if mode == "basins":
+        return head + [
+            LegendItem("цвет = водосборный бассейн"),
+            LegendItem("бассейн замкнутого озера", (200, 120, 60)),
+        ]
+    return head + [
+        LegendItem("1000 км²", tuple(render.ramp(np.array(0.0)))),
+        LegendItem("10 млн км²", tuple(render.ramp(np.array(1.0)))),
+    ]
+
+
+def _render_erosion(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    h = project.hydro
+    L = h.layers
+    layout = project.layout
+    land = L["land_mask"]
+    sea = h.sea_level_m
+    if mode in ("after", "before"):
+        z = L["elevation_m" if mode == "after" else "pre_erosion_elevation_m"].astype(np.float64)
+        shade = hillshade(z, layout)
+        rgb = (hypsometric(z - sea) * (0.45 + 0.75 * shade[..., None])).clip(0, 255)
+        rgb = rgb.astype(np.uint8)
+        if mode == "before":
+            land = z > sea
+    elif mode == "delta":
+        rgb = diverging(L["v4_delta_elevation_m"].astype(np.float64), 800.0)
+    elif mode == "erosion":
+        rgb = _ramp_rgb(L["v4_erosion_m"], 0.0, 1500.0, 0.5)
+    elif mode == "deposition":
+        rgb = _ramp_rgb(L["v4_deposition_m"], 0.0, 500.0, 0.5)
+    elif mode == "sediment":
+        rgb = _ramp_rgb(L["sediment_thickness_m"], 0.0, 1500.0, 0.5)
+    elif mode == "slope":
+        rgb = _ramp_rgb(L["slope_m_per_km"], 0.0, 40.0, 0.6)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'erosion'")
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, layout), 0.4)
+    return rgb
+
+
+def _legend_erosion(project: Project, mode: str) -> list[LegendItem]:
+    h = project.hydro
+    s = h.summary
+    b = h.budget
+    head = _v4_head(project) + [
+        LegendItem(
+            f"эрозия {s['erosion_duration_ma']:g} млн лет за {s['erosion_steps']} шагов; средний "
+            f"размыв суши {s['mean_denudation_m_ma']:.0f} м/млн лет "
+            f"({s['mean_denudation_m_ma'] / 1000:.3f} мм/год)"
+        )
+    ]
+    if b:
+        total = max(b.get("fluvial_eroded_m3", 0.0), 1.0)
+        sea = 100 * (b["deposited_sea_m3"] + b["offshore_m3"]) / total
+        land = 100 * (b["deposited_land_m3"] + b["deposited_lakes_m3"]) / total
+        out = 100 * b["left_window_m3"] / total
+        head.append(
+            LegendItem(
+                f"баланс наносов: в море {sea:.0f} %, на суше и в озёрах {land:.0f} %, "
+                f"за край окна {out:.0f} %, невязка {b['closure_error_m3']:.0f} м³"
+            )
+        )
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "after":
+        return head + [LegendItem("высота после эрозии (итоговая поверхность)")]
+    if mode == "before":
+        return head + [LegendItem("высота до эрозии (поверхность эпохи v3)")]
+    if mode == "delta":
+        return head + [
+            LegendItem("выше на 800 м и больше", (150, 30, 30)),
+            LegendItem("без изменений", (236, 236, 236)),
+            LegendItem("ниже на 800 м и больше", (25, 60, 150)),
+            LegendItem("с учётом продолжающегося поднятия"),
+        ]
+    scales = {
+        "erosion": "снято до 1500 м",
+        "deposition": "отложено до 500 м",
+        "sediment": "рыхлые осадки до 1500 м",
+        "slope": "уклон до 40 м/км",
+    }
+    return head + [LegendItem("0", lo), LegendItem(scales[mode], hi)]
+
+
+def _vectors_erosion(project, mode, overlays):
+    return _river_vectors(project, 1000.0) if "rivers" in overlays else []
+
+
+register_view(
+    ViewSpec(
+        id="temperature",
+        title="Температура",
+        stage="v4",
+        layers=(
+            "temperature_mean_c",
+            "temperature_seasonal_c",
+            "snow_fraction",
+            "glacial_potential",
+        ),
+        modes=(
+            Option("mean", "Среднегодовая температура"),
+            Option("seasonal", "Годовой размах"),
+            Option("snow", "Доля снега в осадках"),
+            Option("glacial", "Условия для льда"),
+        ),
+        overlays=(Option("coast", "Берег", True), Option("isotherms", "Изотермы через 10 °C")),
+        note="Климат v4.0: параметрическая модель, не модель общей циркуляции",
+        render=_render_temperature,
+        legend=_legend_temperature,
+    )
+)
+register_view(
+    ViewSpec(
+        id="precipitation",
+        title="Осадки и влажность",
+        stage="v4",
+        layers=(
+            "precipitation_mm_yr",
+            "humidity_index",
+            "runoff_mm_yr",
+            "potential_evapotranspiration_mm_yr",
+            "wind_u_ms",
+            "wind_v_ms",
+        ),
+        modes=(
+            Option("precipitation", "Осадки"),
+            Option("aridity", "Увлажнение (индекс аридности P/PET)"),
+            Option("runoff", "Сток"),
+            Option("pet", "Потенциальное испарение"),
+        ),
+        overlays=(Option("coast", "Берег", True), Option("wind", "Ветер", True)),
+        note="Перенос влаги ветром: наветренные склоны влажные, за горами — дождевая тень",
+        render=_render_precipitation,
+        legend=_legend_precipitation,
+        vectors=_vectors_precipitation,
+    )
+)
+register_view(
+    ViewSpec(
+        id="hydrology",
+        title="Реки и озёра",
+        stage="v4",
+        layers=(
+            "river_mask",
+            "discharge_m3_s",
+            "lake_id",
+            "basin_id",
+            "flow_accumulation_area_km2",
+        ),
+        modes=(
+            Option("rivers", "Реки и озёра"),
+            Option("discharge", "Расход"),
+            Option("basins", "Водосборные бассейны"),
+            Option("accumulation", "Площадь водосбора"),
+        ),
+        overlays=(
+            Option("rivers", "Реки", True),
+            Option("small_rivers", "Малые реки"),
+            Option("lakes", "Озёра", True),
+            Option("coast", "Берег", True),
+        ),
+        note="Сток по шести соседям гекса; озёра по водному балансу; реки — линии в мировых км",
+        render=_render_hydrology,
+        legend=_legend_hydrology,
+        vectors=_vectors_hydrology,
+    )
+)
+register_view(
+    ViewSpec(
+        id="erosion",
+        title="Эрозия",
+        stage="v4",
+        layers=(
+            "elevation_m",
+            "pre_erosion_elevation_m",
+            "v4_delta_elevation_m",
+            "v4_erosion_m",
+            "v4_deposition_m",
+            "sediment_thickness_m",
+            "slope_m_per_km",
+        ),
+        modes=(
+            Option("after", "Высота после эрозии"),
+            Option("before", "Высота до эрозии"),
+            Option("delta", "Разность"),
+            Option("erosion", "Снято"),
+            Option("deposition", "Отложено"),
+            Option("sediment", "Толщина осадков"),
+            Option("slope", "Уклон"),
+        ),
+        overlays=(Option("coast", "Берег", True), Option("rivers", "Крупные реки")),
+        note="Речная (stream power) и склоновая эрозия, перенос и отложение наносов",
+        render=_render_erosion,
+        legend=_legend_erosion,
+        vectors=_vectors_erosion,
+    )
+)
+
 for _id, _title in (
-    ("temperature", "Температура"),
-    ("precipitation", "Осадки и влажность"),
-    ("hydrology", "Гидрология и реки"),
     ("biomes", "Биомы"),
     ("geosymbols", "Геосимволы"),
     ("seismicity", "Сейсмичность"),

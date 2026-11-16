@@ -9,9 +9,24 @@ import time
 from pathlib import Path
 
 from . import render, views
-from .api import derive_landmasses, generate_history, generate_v2, history_events, select_epoch
-from .config import CONTINENT_PROFILES, HISTORY_PROFILES, PRESETS, Config, ConfigError
-from .io import ProjectIntegrityError, load_project, save_project
+from .api import (
+    derive_landmasses,
+    generate_history,
+    generate_v2,
+    generate_v4,
+    history_events,
+    select_epoch,
+)
+from .config import (
+    CLIMATE_PROFILES,
+    CONTINENT_PROFILES,
+    HISTORY_PROFILES,
+    PRESETS,
+    ROUTING_MODES,
+    Config,
+    ConfigError,
+)
+from .io import ProjectIntegrityError, load_project, rivers_geojson, save_project
 from .pipeline import generate
 from .version import GENERATOR_VERSION
 
@@ -81,6 +96,7 @@ def _config_from_args(args) -> Config:
     if plates:
         data["plates"] = plates
     _apply_v2_args(args, data)
+    _apply_v4_args(args, data)
     if args.origin is not None:
         data["viewport_origin_km"] = args.origin
     if args.sim_bounds is not None:
@@ -139,6 +155,65 @@ def _apply_v2_args(args, data: dict) -> None:
         mnt["backend"] = args.mountain_backend
     if mnt:
         data["mountains"] = mnt
+
+
+def _apply_v4_args(args, data: dict) -> None:
+    """Copy v4.0 command line options (climate, hydrology, erosion) into a config dict."""
+    sections = {
+        "climate": (
+            ("climate_profile", "profile"),
+            ("latitude", "latitude_center_deg"),
+            ("km_per_degree", "km_per_degree"),
+            ("temperature_offset", "temperature_offset_c"),
+            ("lapse_rate", "lapse_rate_c_per_km"),
+            ("wind_strength", "wind_strength"),
+            ("precipitation_scale", "precipitation_scale"),
+        ),
+        "hydrology": (
+            ("river_threshold", "river_min_discharge_m3_s"),
+            ("river_min_hexes", "river_min_upstream_hexes"),
+            ("river_system_hexes", "river_min_system_hexes"),
+            ("routing", "routing"),
+        ),
+        "erosion": (
+            ("erosion_ma", "duration_ma"),
+            ("erosion_steps", "steps"),
+            ("stream_power_k", "k_stream"),
+        ),
+    }
+    for section, pairs in sections.items():
+        values = dict(data.get(section, {}))
+        for arg, key in pairs:
+            if getattr(args, arg, None) is not None:
+                values[key] = getattr(args, arg)
+        if section == "erosion" and getattr(args, "no_erosion", False):
+            values["enabled"] = False
+        if values:
+            data[section] = values
+
+
+def _add_v4_options(parser) -> None:
+    parser.add_argument("--climate-profile", choices=CLIMATE_PROFILES)
+    parser.add_argument(
+        "--latitude", type=float, help="conditional latitude of the map centre, deg (N > 0)"
+    )
+    parser.add_argument(
+        "--km-per-degree", type=float, help="km per degree of latitude; 0 = auto (111.2)"
+    )
+    parser.add_argument("--temperature-offset", type=float, help="added to all temperatures, C")
+    parser.add_argument("--lapse-rate", type=float, help="temperature lapse rate, C per km")
+    parser.add_argument("--wind-strength", type=float, help="multiplier of the wind belts")
+    parser.add_argument("--precipitation-scale", type=float, help="multiplier of precipitation")
+    parser.add_argument("--river-threshold", type=float, help="river from this discharge, m3/s")
+    parser.add_argument("--river-min-hexes", type=int, help="river from this upstream area")
+    parser.add_argument(
+        "--river-system-hexes", type=int, help="draw river systems with a basin >= N hexes"
+    )
+    parser.add_argument("--routing", choices=ROUTING_MODES, help="flow receiver choice")
+    parser.add_argument("--erosion-ma", type=float, help="duration of v4 landscape evolution, Ma")
+    parser.add_argument("--erosion-steps", type=int, help="coupled climate-erosion steps")
+    parser.add_argument("--stream-power-k", type=float, help="stream-power coefficient K")
+    parser.add_argument("--no-erosion", action="store_true", help="v4 without landscape change")
 
 
 def _parse_epoch(text):
@@ -240,11 +315,48 @@ def _summary(project) -> str:
         ]
         for err in h.validation.get("errors", []):
             lines.append(f"  ERROR   {err}")
+    lines += _summary_v4(project)
     for err in v.get("errors", []):
         lines.append(f"  ERROR   {err}")
     for warn in project.warnings:
         lines.append(f"  warning {warn}")
     return "\n".join(lines)
+
+
+def _summary_v4(project) -> list[str]:
+    if project.hydro is None:
+        return ["v4.0            not generated (no climate, rivers, erosion)"]
+    h = project.hydro
+    s = h.summary
+    lat = h.latitude
+    a = s["aridity_shares"]
+    lines = [
+        f"climate         {s['climate_profile']}; latitude {lat['center_deg']:+.1f} deg at the "
+        f"centre, {lat['km_per_degree']:.1f} km/deg"
+        f"{' (compressed)' if lat.get('compressed') else ''}",
+        "land climate    no land in the window"
+        if s["land_mean_temperature_c"] is None
+        else f"land climate    mean {s['land_mean_temperature_c']:+.1f} C, "
+        f"{s['land_mean_precipitation_mm_yr']:.0f} mm/yr, runoff ratio {s['runoff_ratio']:.2f}",
+        f"aridity         hyper-arid {100 * a['hyper_arid']:.0f} %, arid {100 * a['arid']:.0f} %,"
+        f" semi-arid {100 * a['semi_arid']:.0f} %, dry sub-humid "
+        f"{100 * a['dry_subhumid']:.0f} %, humid {100 * a['humid']:.0f} % of land",
+        f"rivers          {s['rivers']} systems, {s['river_segments']} segments, Strahler "
+        f"<= {s['max_strahler']}, max discharge {s['max_discharge_m3_s']:,.0f} m3/s",
+        f"lakes           {s['lakes']} ({s['closed_lakes']} closed, plus "
+        f"{s.get('dry_closed_basins', 0)} dry pans), "
+        f"{100 * s['lake_share_of_land']:.2f} % of land; no outflow to the sea "
+        f"{100 * s['no_outflow_share_of_land']:.1f} % (closed basins "
+        f"{100 * s['endorheic_share_of_land']:.1f} %)",
+        f"erosion         {s['erosion_duration_ma']:g} Ma in {s['erosion_steps']} steps, mean "
+        f"denudation {s['mean_denudation_m_ma']:.0f} m/Ma; land "
+        f"{100 * s['land_fraction_viewport']:.1f} % (v3 {100 * s['v3_land_fraction_viewport']:.1f}"
+        " %)",
+        f"v4 hash         {h.hydro_hash()}",
+        f"v4 validation   {'OK' if h.validation.get('ok') else 'FAILED'}",
+    ]
+    lines += [f"  ERROR   {err}" for err in h.validation.get("errors", [])]
+    return lines
 
 
 def cmd_generate(args) -> int:
@@ -257,7 +369,7 @@ def cmd_generate(args) -> int:
             print(f"[{100 * fraction:5.1f}%] {stage}", file=sys.stderr)
 
     t0 = time.perf_counter()
-    through = "v1" if args.v1_only else ("v2" if args.no_history else "v3")
+    through = "v1" if args.v1_only else "v2" if args.no_history else "v3" if args.no_v4 else "v4"
     project = generate(config, progress=progress, through=through)
     elapsed = time.perf_counter() - t0
     print(_summary(project))
@@ -278,7 +390,9 @@ def cmd_generate(args) -> int:
 
 def _all_ok(project) -> bool:
     return bool(
-        project.validation["ok"] and (project.geo is None or project.geo.validation.get("ok"))
+        project.validation["ok"]
+        and (project.geo is None or project.geo.validation.get("ok"))
+        and (project.hydro is None or project.hydro.validation.get("ok"))
     )
 
 
@@ -289,7 +403,10 @@ def _render_all_views(project, out_dir: Path, px_per_hex: float | None = None) -
         if not spec.availability(project)[0]:
             continue
         for mode in spec.modes:
-            img = views.render_view_image(project, spec.id, mode.id, px_per_hex=px_per_hex)
+            try:
+                img = views.render_view_image(project, spec.id, mode.id, px_per_hex=px_per_hex)
+            except LookupError:
+                continue  # a mode that needs a later stage (e.g. epoch comparison without v3)
             written.append(render.write_png(out_dir / f"view_{spec.id}_{mode.id}.png", img))
     return written
 
@@ -305,10 +422,6 @@ def cmd_continents(args) -> int:
     _apply_v2_args(args, data)
     t0 = time.perf_counter()
     result = generate_v2(project, Config.from_dict(data))
-    if result.hist is None and project.hist is None:
-        from .pipeline import generate as _generate
-
-        result = _generate(result.config, reuse=result, through="v2")
     print(_summary(result))
     print(f"time            {time.perf_counter() - t0:.2f} s (v1.0 data reused unchanged)")
     print(f"saved           {save_project(result, _save_target(args))}")
@@ -344,6 +457,29 @@ def cmd_history(args) -> int:
     result = generate_history(project, Config.from_dict(data))
     print(_summary(result))
     print(f"time            {time.perf_counter() - t0:.2f} s (v1/v2 baseline reused unchanged)")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if _all_ok(result) else 2
+
+
+def cmd_climate(args) -> int:
+    """Add or update the v4.0 climate, hydrology and erosion of a saved project."""
+    project = load_project(args.project)
+    if project.hist is None:
+        print(
+            "error: v4 needs the v3.0 epoch surface; run `hexworld history` first",
+            file=sys.stderr,
+        )
+        return 1
+    data = project.config.to_dict()
+    _apply_v4_args(args, data)
+    t0 = time.perf_counter()
+    result = generate_v4(project, Config.from_dict(data))
+    print(_summary(result))
+    reused = [s for s in result.stats.get("reused_stages", []) if s.startswith("v4")]
+    print(
+        f"time            {time.perf_counter() - t0:.2f} s (v1-v3 reused unchanged"
+        f"{'; reused ' + ', '.join(reused) if reused else ''})"
+    )
     print(f"saved           {save_project(result, _save_target(args))}")
     return 0 if _all_ok(result) else 2
 
@@ -429,6 +565,24 @@ def cmd_export(args) -> int:
         for name, arr in h.layers.items():
             np.save(out / f"epoch_{name}.npy", arr)
         print(f"{out}/epoch_*.npy ({len(h.layers)} layers of t = {h.epoch_time_ma:g} Ma)")
+    if project.hydro is not None:
+        hy = project.hydro
+        table("river_systems.csv", hy.river_systems)
+        table("river_segments.csv", hy.rivers)
+        table("lakes.csv", hy.lakes)
+        table("basins.csv", hy.basins)
+        table("landmasses_v4.csv", hy.landmasses)
+        geojson = out / "rivers.geojson"
+        geojson.write_text(
+            json.dumps(rivers_geojson(project), ensure_ascii=False), encoding="utf-8"
+        )
+        print(geojson)
+        for name, arr in hy.layers.items():
+            np.save(out / f"v4_{name}.npy", arr)
+        print(
+            f"{out}/v4_*.npy ({len(hy.layers)} layers after {hy.summary['erosion_duration_ma']:g}"
+            " Ma of climate-driven erosion)"
+        )
     if project.geo is not None:
         table("continental_blocks.csv", project.geo.blocks)
         table("landmasses.csv", project.geo.landmasses)
@@ -562,7 +716,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument(
         "--png-views",
         action="store_true",
-        help="also write one PNG per view/mode (Plates, Continents, Heights)",
+        help="also write one PNG per view/mode of every tab that has data",
     )
     g.add_argument(
         "--v1-only",
@@ -574,8 +728,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="stop after v2.0 (no geological history, mountains, volcanism)",
     )
+    g.add_argument(
+        "--no-v4",
+        action="store_true",
+        help="stop after v3.0 (no climate, hydrology, climate-driven erosion)",
+    )
     _add_v2_options(g)
     _add_v3_options(g)
+    _add_v4_options(g)
     g.add_argument("--quiet", "-q", action="store_true")
     g.set_defaults(func=cmd_generate)
 
@@ -594,6 +754,15 @@ def build_parser() -> argparse.ArgumentParser:
     hi.add_argument("--out", "-o", help="save to another directory instead of updating in place")
     _add_v3_options(hi)
     hi.set_defaults(func=cmd_history)
+
+    cl = sub.add_parser(
+        "climate",
+        help="add or update v4.0 data (climate, rivers, lakes, erosion) of a saved project",
+    )
+    cl.add_argument("project")
+    cl.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    _add_v4_options(cl)
+    cl.set_defaults(func=cmd_climate)
 
     ep = sub.add_parser("epoch", help="show another stored snapshot (initial / final / time)")
     ep.add_argument("project")

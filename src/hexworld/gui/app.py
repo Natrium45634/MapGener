@@ -36,13 +36,17 @@ from PySide6.QtWidgets import (
 )
 
 from .. import render, views
+from ..api import stage_depth
 from ..config import (
+    CLIMATE_PROFILES,
     CONTINENT_PROFILES,
     HISTORY_PROFILES,
     MODES,
     PRESETS,
     PROFILES,
+    ROUTING_MODES,
     SEA_MODES,
+    ClimateParams,
     Config,
     ContinentParams,
     SeaParams,
@@ -70,6 +74,10 @@ STAGE_TITLES = {
     "mountain_plan": "план горных систем",
     "v3_raster": "итоговый рельеф на гексах",
     "v3_sea": "суша итоговой эпохи",
+    "v4_climate": "климат мира и приток извне",
+    "v4_evolution": "климат ↔ сток ↔ эрозия",
+    "v4_network": "реки, озёра, бассейны",
+    "v4_assemble": "слои v4",
     "validate": "проверка",
     "done": "готово",
 }
@@ -170,6 +178,7 @@ class MainWindow(QMainWindow):
         col.addWidget(self._build_world_box())
         col.addWidget(self._build_v2_box())
         col.addWidget(self._build_v3_box())
+        col.addWidget(self._build_v4_box())
         buttons = QHBoxLayout()
         self.generate_btn = QPushButton("Сгенерировать")
         self.generate_btn.clicked.connect(self.start_generation)
@@ -367,6 +376,57 @@ class MainWindow(QMainWindow):
         form.addRow(self.epoch_btn)
         return box
 
+    def _build_v4_box(self) -> QGroupBox:
+        box = QGroupBox("Климат, реки, эрозия (v4.0)")
+        form = QFormLayout(box)
+        c = ClimateParams()
+        self.v4_on = QCheckBox("считать климат, гидрологию и эрозию")
+        self.v4_on.setChecked(True)
+        self.climate_profile = QComboBox()
+        self.climate_profile.addItems(CLIMATE_PROFILES)
+        self.latitude = self._double(-90.0, 90.0, c.latitude_center_deg, 1, "°", 5.0)
+        self.latitude.setToolTip(
+            "Условная широта центра области симуляции (север - вверх карты). "
+            "Экватор и полюса могут лежать вне карты."
+        )
+        self.km_per_degree = self._double(0.0, 2000.0, 0.0, 1, " км/°", 10.0)
+        self.km_per_degree.setToolTip(
+            "Масштаб широты. 0 - реальный (111,2 км/°); если область тогда перешла бы "
+            "через полюс, шкала сжимается, о чём пишется предупреждение."
+        )
+        self.temperature_offset = self._double(-30.0, 30.0, 0.0, 1, " °C", 1.0)
+        self.precipitation_scale = self._double(0.1, 5.0, 1.0, 2, "", 0.1)
+        self.wind_strength = self._double(0.0, 3.0, 1.0, 2, "", 0.1)
+        self.erosion_ma = self._double(0.0, 50.0, 2.0, 2, " млн лет", 0.5)
+        self.erosion_ma.setToolTip("0 - климат и реки без изменения рельефа")
+        self.erosion_steps = self._spin(1, 100, 8)
+        self.river_threshold = self._double(0.1, 100000.0, 25.0, 1, " м³/с", 5.0)
+        self.river_threshold.setToolTip(
+            "Порог показа реки. Меняет только сеть рек: расход и эрозия не пересчитываются."
+        )
+        self.routing = QComboBox()
+        self.routing.addItems(ROUTING_MODES)
+        self.routing.setToolTip(
+            "stochastic - выбор среди нижних соседей пропорционально перепаду (Rho8): "
+            "сходящаяся древовидная сеть; steepest - классический D6"
+        )
+        self.v4_btn = QPushButton("Пересчитать только v4 (климат, реки, эрозию)")
+        self.v4_btn.setToolTip("Плиты, материки и геоистория берутся из текущего проекта.")
+        self.v4_btn.clicked.connect(self.apply_v4)
+        form.addRow(self.v4_on)
+        form.addRow("Профиль климата", self.climate_profile)
+        form.addRow("Широта центра", self.latitude)
+        form.addRow("Масштаб широты", self.km_per_degree)
+        form.addRow("Сдвиг температуры", self.temperature_offset)
+        form.addRow("Осадки ×", self.precipitation_scale)
+        form.addRow("Сила ветра ×", self.wind_strength)
+        form.addRow("Эрозия v4", self.erosion_ma)
+        form.addRow("Шагов связки", self.erosion_steps)
+        form.addRow("Река от", self.river_threshold)
+        form.addRow("Направление стока", self.routing)
+        form.addRow(self.v4_btn)
+        return box
+
     def _apply_ui_scale(self, percent: int):
         font = QApplication.instance().font()
         font.setPointSizeF(self._base_font_pt * percent / 100.0)
@@ -534,6 +594,7 @@ class MainWindow(QMainWindow):
             ),
             mountains=replace(base.mountains, detail=self.mountain_detail.value()),
         )
+        config = self._v4_params(config)
         if self.pin_world.isChecked() and self.project is not None:
             g = self.project.geometry
             config = replace(
@@ -543,6 +604,35 @@ class MainWindow(QMainWindow):
                 plates=replace(self.project.config.plates, count=g.plate_count),
             )
         return config
+
+    def _v4_params(self, config: Config) -> Config:
+        erosion_on = self.erosion_ma.value() > 0.0
+        return replace(
+            config,
+            climate=replace(
+                config.climate,
+                profile=self.climate_profile.currentText(),
+                latitude_center_deg=self.latitude.value(),
+                km_per_degree=self.km_per_degree.value(),
+                temperature_offset_c=self.temperature_offset.value(),
+                precipitation_scale=self.precipitation_scale.value(),
+                wind_strength=self.wind_strength.value(),
+            ),
+            hydrology=replace(
+                config.hydrology,
+                river_min_discharge_m3_s=self.river_threshold.value(),
+                routing=self.routing.currentText(),
+            ),
+            erosion=replace(
+                config.erosion,
+                enabled=erosion_on,
+                duration_ma=self.erosion_ma.value() if erosion_on else config.erosion.duration_ma,
+                steps=self.erosion_steps.value(),
+            ),
+        )
+
+    def _through(self) -> str:
+        return "v4" if self.v4_on.isChecked() else "v3"
 
     def _sea_params(self, base: SeaParams) -> SeaParams:
         return replace(
@@ -559,6 +649,8 @@ class MainWindow(QMainWindow):
     def _set_busy(self, busy: bool):
         for w in (self.generate_btn, self.open_btn, self.v2_button):
             w.setEnabled(not busy)
+        has_v3 = self.project is not None and self.project.hist is not None
+        self.v4_btn.setEnabled(not busy and has_v3)
         has = self.project is not None
         self.save_btn.setEnabled(not busy and has)
         self.png_all_btn.setEnabled(not busy and has)
@@ -608,9 +700,25 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Параметры", str(exc))
             return
         previous = self.project
+        through = self._through()
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda progress: generate(config, progress=progress, reuse=previous, through=through),
             lambda project: self._show_project(project, "Сгенерировано"),
+        )
+
+    def apply_v4(self):
+        """Recompute climate, hydrology and erosion only; v1-v3 are reused as they are."""
+        if self.project is None or self.project.hist is None:
+            return
+        try:
+            config = self._v4_params(self.project.config)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Параметры", str(exc))
+            return
+        previous = self.project
+        self._run(
+            lambda progress: generate(config, progress=progress, reuse=previous, through="v4"),
+            lambda project: self._show_project(project, "Климат, реки и эрозия пересчитаны"),
         )
 
     def apply_sea_level(self):
@@ -624,7 +732,9 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda progress: generate(
+                config, progress=progress, reuse=previous, through=stage_depth(previous)
+            ),
             lambda project: self._show_project(project, "Уровень моря применён"),
         )
 
@@ -640,7 +750,9 @@ class MainWindow(QMainWindow):
         )
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous),
+            lambda progress: generate(
+                config, progress=progress, reuse=previous, through=stage_depth(previous)
+            ),
             lambda project: self._show_project(project, f"Снимок t = {when:g} млн лет"),
         )
 
@@ -712,12 +824,15 @@ class MainWindow(QMainWindow):
             project.validation.get("ok")
             and (project.geo is None or project.geo.validation.get("ok"))
             and (project.hist is None or project.hist.validation.get("ok"))
+            and (project.hydro is None or project.hydro.validation.get("ok"))
         )
         state = "проверка пройдена" if ok else "ПРОВЕРКА НЕ ПРОЙДЕНА"
         timing = f", {total:.1f} с" if total else ""
         extra = "" if project.geo is not None else "; материки и высоты ещё не сгенерированы"
         if project.geo is not None and project.hist is None:
             extra = "; геоистория ещё не сгенерирована"
+        elif project.hist is not None and project.hydro is None:
+            extra = "; климат и реки (v4) ещё не рассчитаны"
         self.statusBar().showMessage(f"{message}: {state}{timing}{extra}")
         if not ok:
             errors = list(project.validation.get("errors", []))
@@ -725,6 +840,8 @@ class MainWindow(QMainWindow):
                 errors += project.geo.validation.get("errors", [])
             if project.hist is not None:
                 errors += project.hist.validation.get("errors", [])
+            if project.hydro is not None:
+                errors += project.hydro.validation.get("errors", [])
             QMessageBox.warning(self, "Проверка", "\n".join(errors))
 
     def _sync_form(self, c: Config):
@@ -758,6 +875,17 @@ class MainWindow(QMainWindow):
         self.erosion.setValue(c.history.erosion_intensity)
         self.hotspots.setValue(c.history.hotspot_density)
         self.mountain_detail.setValue(c.mountains.detail)
+        self.climate_profile.setCurrentText(c.climate.profile)
+        self.latitude.setValue(c.climate.latitude_center_deg)
+        self.km_per_degree.setValue(c.climate.km_per_degree)
+        self.temperature_offset.setValue(c.climate.temperature_offset_c)
+        self.precipitation_scale.setValue(c.climate.precipitation_scale)
+        self.wind_strength.setValue(c.climate.wind_strength)
+        self.erosion_ma.setValue(c.erosion.duration_ma if c.erosion.enabled else 0.0)
+        self.erosion_steps.setValue(c.erosion.steps)
+        self.river_threshold.setValue(c.hydrology.river_min_discharge_m3_s)
+        self.routing.setCurrentText(c.hydrology.routing)
+        self.v4_on.setChecked(self.project is not None and self.project.hydro is not None)
 
     # -- property panel ----------------------------------------------------
     def _project_text(self) -> str:
@@ -808,6 +936,11 @@ class MainWindow(QMainWindow):
                 "горный модуль: "
                 + ("PMGE" if backend["is_pmge"] else "встроенный (библиотека PMGE не найдена)"),
             ]
+        if p.hydro is None:
+            if p.hist is not None:
+                lines.append("Климат, реки и эрозия (v4) ещё не рассчитаны.")
+        else:
+            lines += self._v4_project_lines(p)
         if p.stats.get("reused_stages"):
             lines.append("без пересчёта: " + ", ".join(p.stats["reused_stages"]))
         for w in p.warnings:
@@ -884,10 +1017,12 @@ class MainWindow(QMainWindow):
                 return "нет данных" if value is None else f"{value:,.{digits}f}{unit}"
 
             system = info["mountain_system_id"]
+            v3_elevation = info.get("v3_elevation_m", info["elevation_m"])
+            v3_sediment = info.get("v3_sediment_thickness_m", info["sediment_thickness_m"])
             lines += [
                 "",
                 f"— снимок t = {info['epoch_time_ma']:g} млн лет —",
-                f"итоговая высота: {info['elevation_m']:+,.0f} м (исходная "
+                f"высота эпохи: {v3_elevation:+,.0f} м (исходная "
                 f"{info['macro_elevation_m']:+,.0f} м, изменение "
                 f"{info['delta_elevation_m']:+,.0f} м)",
                 f"плита в эту эпоху: {info['plate_id_epoch']} "
@@ -897,8 +1032,7 @@ class MainWindow(QMainWindow):
                 f"{info['rock_resistance']:.2f}; возраст коры {shown('crust_age_ma', ' млн лет')}",
                 f"скорость поднятия: {info['uplift_rate_mm_yr']:+.3f} мм/год; поднято всего "
                 f"{info['uplift_total_m']:+,.0f} м",
-                f"снято эрозией {info['erosion_total_m']:,.0f} м; осадков "
-                f"{info['sediment_thickness_m']:,.0f} м",
+                f"снято эрозией {info['erosion_total_m']:,.0f} м; осадков {v3_sediment:,.0f} м",
                 f"горная система: {system if system >= 0 else 'нет'}; возраст горообразования: "
                 f"{shown('orogen_age_ma', ' млн лет')}",
                 f"вулкан: {info['volcano_id'] if info['volcano_id'] >= 0 else 'нет'}; возраст "
@@ -907,8 +1041,75 @@ class MainWindow(QMainWindow):
                 f"уклон {info['slope_m_per_km']:.1f} м/км; перепад внутри гекса "
                 f"{info['local_relief_m']:,.0f} м",
             ]
+        if p.hydro is not None:
+            lines += ["", *self._v4_hex_lines(info)]
         lines += ["", "— проект —", self._project_text()]
         self.info.setPlainText("\n".join(lines))
+
+    @staticmethod
+    def _v4_project_lines(p: Project) -> list[str]:
+        s = p.hydro.summary
+        lat = p.hydro.latitude
+        a = s["aridity_shares"]
+        dry = a["hyper_arid"] + a["arid"] + a["semi_arid"] + a["dry_subhumid"]
+        squeeze = " (сжато)" if lat.get("compressed") else ""
+        return [
+            f"климат: {s['climate_profile']}, широта центра {lat['center_deg']:+.1f}°, "
+            f"{lat['km_per_degree']:.0f} км/°{squeeze}",
+            "суши в окне нет"
+            if s["land_mean_temperature_c"] is None
+            else f"суша: {s['land_mean_temperature_c']:+.1f} °C, "
+            f"{s['land_mean_precipitation_mm_yr']:.0f} мм/год, коэффициент стока "
+            f"{s['runoff_ratio']:.2f}",
+            f"аридные земли (P/PET < 0,2): {100 * (a['hyper_arid'] + a['arid']):.0f} %; "
+            f"все засушливые (< 0,65): {100 * dry:.0f} %",
+            f"рек {s['rivers']}, порядок Стралера до {s['max_strahler']}; озёр {s['lakes']} "
+            f"({100 * s['lake_share_of_land']:.1f} % суши)",
+            f"не доходит до моря: {100 * s['no_outflow_share_of_land']:.0f} % суши",
+            f"эрозия v4: {s['erosion_duration_ma']:g} млн лет, средний размыв "
+            f"{s['mean_denudation_m_ma']:.0f} м/млн лет",
+        ]
+
+    @staticmethod
+    def _v4_hex_lines(info: dict) -> list[str]:
+        def num(key, digits=0):
+            value = info.get(key)
+            return "нет данных" if value is None else f"{value:,.{digits}f}"
+
+        lines = [
+            "— климат, реки, эрозия (v4) —",
+            f"высота после эрозии: {info['elevation_m']:+,.0f} м (до "
+            f"{info['pre_erosion_elevation_m']:+,.0f} м, изменение "
+            f"{info['v4_delta_elevation_m']:+,.1f} м)",
+            f"широта {info['latitude_deg']:+.1f}°; температура "
+            f"{info['temperature_mean_c']:+.1f} °C (годовой размах "
+            f"{num('temperature_seasonal_c', 1)} °C); снег {100 * info['snow_fraction']:.0f} %"
+            " осадков",
+            f"ветер u {info['wind_u_ms']:+.1f}, v {info['wind_v_ms']:+.1f} м/с "
+            "(+u на восток, +v на юг)",
+            f"осадки {num('precipitation_mm_yr')} мм/год; PET "
+            f"{num('potential_evapotranspiration_mm_yr')}, AET "
+            f"{num('actual_evapotranspiration_mm_yr')} мм/год; сток {num('runoff_mm_yr')} мм/год",
+            f"индекс увлажнения P/PET {num('humidity_index', 2)}",
+            f"площадь водосбора {num('flow_accumulation_area_km2')} км²; расход "
+            f"{num('discharge_m3_s', 1)} м³/с; приток извне {num('external_inflow_m3_s', 1)} м³/с",
+        ]
+        if info.get("river_mask"):
+            lines.append(f"река, порядок Стралера {info['strahler_order']}")
+        if info.get("lake_id", -1) >= 0:
+            lines.append(
+                f"озеро {info['lake_id']}: уровень {num('lake_level_m', 1)} м, глубина "
+                f"{num('lake_depth_m', 1)} м"
+            )
+        basin = info.get("basin_id", -1)
+        tail = " (бессточный)" if info.get("endorheic_mask") else ""
+        lines += [
+            f"бассейн {basin}{tail}; доля стока, доходящая до моря "
+            f"{100 * info.get('outflow_share', 0.0):.0f} %",
+            f"размыв {num('v4_erosion_m', 1)} м, отложено {num('v4_deposition_m', 1)} м, "
+            f"осадков {num('sediment_thickness_m')} м; темп {num('erosion_rate_m_ma')} м/млн лет",
+        ]
+        return lines
 
     def _on_hex_clicked(self, _col: int, _row: int):
         self._show_info()

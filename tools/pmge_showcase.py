@@ -34,7 +34,8 @@ def overlay(img, stem, cell):
     for r in plan["ridges"]:
         pts = np.array(r["points_m"]) / cell - 0.5
         for a, b in zip(pts[:-1], pts[1:], strict=True):
-            _draw_line(img, a[0], a[1], b[0], b[1], colors[r["rank"]], 2 if r["rank"] == "main" else 1)
+            width = 2 if r["rank"] == "main" else 1
+            _draw_line(img, a[0], a[1], b[0], b[1], colors[r["rank"]], width)
     for v in plan["valleys"]:
         pts = np.array(v["points_m"]) / cell - 0.5
         for a, b in zip(pts[:-1], pts[1:], strict=True):
@@ -67,8 +68,10 @@ def main():
     sheet = np.full((rows * (th + gap) + gap, cols * (tw + gap) + gap, 3), 255, np.uint8)
     for k, t in enumerate(tiles):
         r, c = divmod(k, cols)
-        sheet[gap + r * (th + gap) : gap + r * (th + gap) + th,
-              gap + c * (tw + gap) : gap + c * (tw + gap) + tw] = t
+        sheet[
+            gap + r * (th + gap) : gap + r * (th + gap) + th,
+            gap + c * (tw + gap) : gap + c * (tw + gap) + tw,
+        ] = t
     write_png(out, sheet)
 
 

@@ -87,7 +87,12 @@ def generate_macro_relief(
 
 def generate_v2(v1_world: Project, config: Config | None = None, progress=None) -> Project:
     """Add (or update) the v2.0 data of a project; its v1.0 arrays are left as they are."""
-    return generate(_v2_config(v1_world, config), progress=progress, reuse=v1_world)
+    return generate(
+        _v2_config(v1_world, config),
+        progress=progress,
+        reuse=v1_world,
+        through=max(stage_depth(v1_world), "v2"),
+    )
 
 
 def generate_history(project: Project, config: Config | None = None, progress=None) -> Project:
@@ -104,7 +109,7 @@ def generate_history(project: Project, config: Config | None = None, progress=No
             mountains=config.mountains,
         )
     )
-    return generate(cfg, progress=progress, reuse=project)
+    return generate(cfg, progress=progress, reuse=project, through=max(stage_depth(project), "v3"))
 
 
 def select_epoch(project: Project, epoch, progress=None) -> Project:
@@ -113,7 +118,12 @@ def select_epoch(project: Project, epoch, progress=None) -> Project:
     The history is not simulated again; only the hex layers of that epoch are built.
     """
     history = replace(project.config.history, epoch=epoch)
-    return generate(replace(project.config, history=history), progress=progress, reuse=project)
+    return generate(
+        replace(project.config, history=history),
+        progress=progress,
+        reuse=project,
+        through=max(stage_depth(project), "v3"),
+    )
 
 
 def history_events(project: Project, time_range=None, region=None, kinds=None) -> list[dict]:
@@ -174,7 +184,18 @@ def derive_landmasses(
         sea = replace(
             sea, sea_mode="target_land_fraction", target_land_fraction=float(target_land_fraction)
         )
-    return generate(replace(project.config, sea=sea), reuse=project)
+    # a sea level needs the v2 relief; deeper projects keep their depth (v3, v4 recomputed)
+    through = max(stage_depth(project), "v2")
+    return generate(replace(project.config, sea=sea), reuse=project, through=through)
+
+
+def stage_depth(project: Project) -> str:
+    """The last stage a project holds ("v1".."v4"): re-derivations keep that depth."""
+    if project.hydro is not None:
+        return "v4"
+    if project.hist is not None:
+        return "v3"
+    return "v2" if project.geo is not None else "v1"
 
 
 def _relief_model(project: Project) -> ReliefModel:
@@ -245,4 +266,94 @@ def get_layer(
         return layout, ~land & (fraction >= 0.5) & (depth <= limit)
     raise KeyError(
         f"Layer {layer_id!r} cannot be resampled; available hex layers: {project.layer_names}"
+    )
+
+
+# -- v4.0: climate, hydrology, erosion ------------------------------------------------------
+def generate_v4(project: Project, config: Config | None = None, progress=None) -> Project:
+    """Add (or update) climate, hydrology and erosion; v1-v3 are reused as they are."""
+    cfg = (
+        project.config
+        if config is None
+        else replace(
+            project.config,
+            climate=config.climate,
+            hydrology=config.hydrology,
+            erosion=config.erosion,
+        )
+    )
+    return generate(cfg, progress=progress, reuse=project, through="v4")
+
+
+def generate_climate(project: Project, config: Config | None = None):
+    """Climate of the selected v3 epoch surface (before v4 erosion).
+
+    Returns ``(world_climate, hex_layers)``: the coarse world solution and the hex fields.
+    """
+    from .stages.climate import hex_climate, resolve_latitude, world_climate
+
+    if project.hist is None:
+        raise LookupError("the climate needs the v3.0 epoch surface; run the history first")
+    cfg = project.config if config is None else config
+    hist = project.hist
+    latitude = resolve_latitude(cfg.climate, project.geometry.simulation_bounds)
+    wc = world_climate(
+        cfg.climate, hist.world["grid"], hist.world["elevation_m"], hist.sea_level_m, latitude
+    )
+    return wc, hex_climate(
+        cfg.climate, wc, project.layout, hist.layers["elevation_m"], hist.sea_level_m
+    )
+
+
+def build_hydrology(
+    project: Project, elevation_m=None, climate_layers=None, config: Config | None = None
+) -> dict:
+    """Routing, lakes and discharge for a surface (default: the final v4 or v3 surface)."""
+    from .stages.hydrology import hex_graph, hydrology, routing_choice
+
+    cfg = project.config if config is None else config
+    z = np.asarray(
+        project.layer("elevation_m") if elevation_m is None else elevation_m, dtype=np.float64
+    )
+    sea_level = project.current_sea_level_m
+    if climate_layers is None:
+        climate_layers = generate_climate(project, cfg)[1]
+    layout = project.layout
+    return hydrology(
+        z.ravel(),
+        (z <= sea_level).ravel(),
+        hex_graph(layout),
+        layout.hex_area_km2 * 1e6,
+        climate_layers["runoff_mm_yr"].ravel(),
+        climate_layers["precipitation_mm_yr"].ravel(),
+        climate_layers["potential_evapotranspiration_mm_yr"].ravel() * 1.1,
+        None,
+        cfg.hydrology.min_lake_depth_m,
+        cfg.hydrology.channel_loss,
+        routing_choice(cfg.seed, z.size, cfg.hydrology.routing),
+    )
+
+
+def erode(project: Project, config: Config | None = None, progress=None) -> dict:
+    """Run only the landscape evolution on the v3 epoch surface; returns the raw result."""
+    from .stages.hydrology import hex_graph
+    from .stages.landscape import evolve
+
+    cfg = project.config if config is None else config
+    hist = project.hist
+    if hist is None:
+        raise LookupError("erosion needs the v3.0 epoch surface")
+    wc, _ = generate_climate(project, cfg)
+    return evolve(
+        cfg,
+        project.layout,
+        hex_graph(project.layout),
+        hist.layers["elevation_m"],
+        hist.sea_level_m,
+        hist.layers["rock_resistance"],
+        hist.layers["sediment_thickness_m"],
+        hist.layers["uplift_rate_mm_yr"],
+        wc,
+        None,
+        report=progress,
     )

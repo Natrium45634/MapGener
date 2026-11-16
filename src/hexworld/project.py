@@ -162,6 +162,94 @@ class HistoryData:
         return h.hexdigest()
 
 
+#: v4.0 layers (stored in hydro_fields.npz). Names shared with older stages override them
+#: in ``Project.layer``; the older values stay reachable through ``baseline_layer``.
+HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
+    "elevation_m": ("float32", "m", "final surface after v4 erosion (= post_erosion_elevation_m)"),
+    "post_erosion_elevation_m": ("float32", "m", "surface after climate-driven erosion"),
+    "pre_erosion_elevation_m": ("float32", "m", "v3 surface of the selected epoch (input)"),
+    "v4_delta_elevation_m": ("float32", "m", "post_erosion minus pre_erosion elevation"),
+    "latitude_deg": ("float32", "deg", "conditional latitude, north positive"),
+    "temperature_mean_c": ("float32", "degC", "annual mean air temperature"),
+    "temperature_seasonal_c": ("float32", "degC", "half of the summer-winter range"),
+    "wind_u_ms": ("float32", "m/s", "prevailing wind, +x east"),
+    "wind_v_ms": ("float32", "m/s", "prevailing wind, +y south"),
+    "precipitation_mm_yr": ("float32", "mm/yr", "annual precipitation"),
+    "potential_evapotranspiration_mm_yr": ("float32", "mm/yr", "potential evapotranspiration"),
+    "actual_evapotranspiration_mm_yr": ("float32", "mm/yr", "actual evapotranspiration (Budyko)"),
+    "humidity_index": ("float32", "P/PET", "aridity index, capped at 5"),
+    "snow_fraction": ("float32", "0..1", "share of precipitation falling as snow"),
+    "snow_storage_mm": ("float32", "mm", "peak winter snow water equivalent (approximate)"),
+    "glacial_potential": ("float32", "0..1", "climatic potential for perennial ice"),
+    "infiltration_loss_mm_yr": ("float32", "mm/yr", "water lost to deep groundwater"),
+    "runoff_mm_yr": ("float32", "mm/yr", "surface runoff P - AET - deep infiltration"),
+    "flow_receiver": ("int64", "index", "flat index of the downstream hex (itself = outlet)"),
+    "flow_direction": ("uint8", "enum", "0..5 hex direction to the receiver, 255 = outlet"),
+    "flow_accumulation_area_km2": ("float32", "km2", "upstream land area including the hex"),
+    "discharge_m3_s": ("float32", "m3/s", "annual mean discharge leaving the hex"),
+    "external_inflow_m3_s": ("float32", "m3/s", "water entering the window from outside"),
+    "basin_id": ("int32", "id", "drainage basin, -1 = sea"),
+    "lake_id": ("int32", "id", "lake, -1 = none"),
+    "lake_level_m": ("float32", "m", "lake water level (NaN = no lake)"),
+    "lake_depth_m": ("float32", "m", "lake depth (NaN = no lake)"),
+    "endorheic_mask": ("bool", "bool", "drains to a closed (terminal) lake"),
+    "channel_loss_m3_s": ("float32", "m3/s", "transmission loss of the channel in the hex"),
+    "outflow_share": ("float32", "0..1", "share of the hex's water reaching sea or window edge"),
+    "no_outflow_mask": ("bool", "bool", "less than 10 % of the water reaches an outlet"),
+    "river_mask": ("bool", "bool", "discharge >= hydrology.river_min_discharge_m3_s"),
+    "strahler_order": ("uint8", "order", "Strahler order of river hexes, 0 = no river"),
+    "river_mouth": ("bool", "bool", "last hex of a river before sea, lake or window edge"),
+    "coastal_discharge_m3_s": ("float32", "m3/s", "discharge delivered to the sea at mouths"),
+    "sediment_delivery_m3_yr": ("float32", "m3/yr", "sediment delivered to the sea at mouths"),
+    "erosion_rate_m_ma": ("float32", "m/Ma", "mean v4 erosion rate"),
+    "v4_erosion_m": ("float32", "m", "rock and sediment removed during v4 (>= 0)"),
+    "v4_deposition_m": ("float32", "m", "material deposited during v4 (>= 0)"),
+    "sediment_thickness_m": ("float32", "m", "loose sediment cover after v4 (>= 0)"),
+    "sediment_flux_m3_yr": ("float32", "m3/yr", "sediment passing through the hex (last step)"),
+    "slope_m_per_km": ("float32", "m/km", "steepest slope to a neighbouring hex"),
+    "land_mask": ("bool", "bool", "elevation_m > sea_level_m (final surface)"),
+    "landmass_id": ("int32", "id", "connected land of the final surface"),
+    "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
+}
+
+
+@dataclass
+class HydroData:
+    """Results of v4.0: climate, water balance, rivers, lakes, landscape evolution."""
+
+    layers: dict[str, np.ndarray]
+    sea_level_m: float
+    epoch_time_ma: float
+    latitude: dict
+    rivers: list[dict]  # segments
+    river_systems: list[dict]
+    lakes: list[dict]
+    basins: list[dict]
+    landmasses: list[dict]
+    budget: dict
+    summary: dict
+    stage_keys: dict[str, str]
+    steps: list[dict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    def content_hashes(self) -> dict[str, str]:
+        return {
+            f"hydro/{k}": array_hash(v)
+            for k, v in self.layers.items()
+            if k not in ("pre_erosion_elevation_m", "elevation_m")
+        }
+
+    def hydro_hash(self) -> str:
+        h = hashlib.sha256()
+        h.update(repr(float(self.sea_level_m)).encode())
+        for key, value in sorted(self.content_hashes().items()):
+            h.update(f"{key}={value};".encode())
+        h.update(repr([(r["id"], r["discharge_m3_s"]) for r in self.rivers]).encode())
+        return h.hexdigest()
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -193,6 +281,8 @@ class Project:
     geo: GeoData | None = None
     #: v3.0 data (geological history, mountains, volcanism); ``None`` if not generated.
     hist: HistoryData | None = None
+    #: v4.0 data (climate, hydrology, erosion); ``None`` if not generated.
+    hydro: HydroData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -206,11 +296,25 @@ class Project:
         names = list(self.layers) + (list(self.geo.layers) if self.geo else [])
         if self.hist is not None:
             names += [n for n in self.hist.layers if n not in names]
+        if self.hydro is not None:
+            names += [n for n in self.hydro.layers if n not in names]
         return names
 
     @property
     def has_history(self) -> bool:
         return self.hist is not None
+
+    def stage_layer(self, stage: str, name: str) -> np.ndarray:
+        """A layer of one stage ("v1", "v2", "v3", "v4") regardless of overrides."""
+        source = {
+            "v1": self.layers,
+            "v2": self.geo.layers if self.geo else {},
+            "v3": self.hist.layers if self.hist else {},
+            "v4": self.hydro.layers if self.hydro else {},
+        }[stage]
+        if name not in source:
+            raise KeyError(f"No layer {name!r} in stage {stage}")
+        return source[name]
 
     def baseline_layer(self, name: str) -> np.ndarray:
         """A v1/v2 layer of the baseline epoch, never the v3 version of the same name."""
@@ -234,12 +338,23 @@ class Project:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
         if name == "base_macro_elevation_m" and self.geo is not None:
             return self.geo.layers["macro_elevation_m"]  # a reference, not a copy
+        if self.hydro is not None and name in self.hydro.layers:
+            return self.hydro.layers[name]  # v4 (after erosion) wins over everything older
         if self.hist is not None and name in self.hist.layers:
             return self.hist.layers[name]  # the selected v3 epoch wins over the baseline
         if name in self.layers:
             return self.layers[name]
         if self.geo is not None and name in self.geo.layers:
             return self.geo.layers[name]
+        if (
+            name in HYDRO_LAYER_SPECS
+            and name not in HIST_LAYER_SPECS
+            and name not in GEO_LAYER_SPECS
+        ):
+            raise KeyError(
+                f"Layer {name!r} belongs to the v4.0 stage (climate, hydrology, erosion), "
+                "which has not been computed for this project yet"
+            )
         if name in HIST_LAYER_SPECS and name not in GEO_LAYER_SPECS:
             raise KeyError(
                 f"Layer {name!r} belongs to the v3.0 stage, which has not been generated "
@@ -302,6 +417,26 @@ class Project:
             info["height_above_sea_m"] = max(0.0, info["elevation_m"] - sea)
             info["depth_m"] = max(0.0, sea - info["elevation_m"])
             info["rock"] = ROCK_TYPES[info["rock_type"]]
+        if self.hydro is not None:
+            for name in ("land_mask", "landmass_id", "shelf_mask", "sediment_thickness_m"):
+                if name in info:
+                    info[f"v3_{name}"] = info[name]
+            info["v3_elevation_m"] = info.get("elevation_m")
+            for name, arr in self.hydro.layers.items():
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[name] = bool(v)
+                elif np.issubdtype(arr.dtype, np.integer):
+                    info[name] = int(v)
+                else:
+                    info[name] = None if np.isnan(v) else float(v)
+            sea = self.hydro.sea_level_m
+            info["sea_level_m"] = sea
+            info["height_above_sea_m"] = max(0.0, info["elevation_m"] - sea)
+            info["depth_m"] = max(0.0, sea - info["elevation_m"])
+            info["v4_source"] = (
+                f"v4 after erosion of the t = {self.hydro.epoch_time_ma:g} Ma surface"
+            )
         return info
 
     # -- world-space queries (resolution independent) -----------------------

@@ -3,6 +3,7 @@
 v1.0: tectonic foundation (plates, crust prior, plate motion, boundary graph,
 diagnostic fields). v2.0: continental blocks, macro relief, sea level and
 landmasses. v3.0: geological history, mountains, volcanism, limited erosion.
+v4.0: climate, water balance, rivers, lakes, erosion and sediment.
 Public API::
 
     from hexworld import Config, generate, save_project, load_project
@@ -10,11 +11,15 @@ Public API::
 """
 
 from .api import (
+    build_hydrology,
     derive_landmasses,
+    erode,
+    generate_climate,
     generate_continents,
     generate_history,
     generate_macro_relief,
     generate_v2,
+    generate_v4,
     get_layer,
     history_events,
     sample_points,
@@ -27,6 +32,10 @@ from .project import Project
 from .version import GENERATOR_VERSION as __version__
 
 __all__ = [
+    "build_hydrology",
+    "erode",
+    "generate_climate",
+    "generate_v4",
     "PRESETS",
     "Config",
     "ConfigError",

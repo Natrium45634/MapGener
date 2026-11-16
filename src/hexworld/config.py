@@ -18,6 +18,8 @@ SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
 CRUST_LAYOUTS = ("clustered", "uniform")
 HISTORY_PROFILES = ("calm", "earthlike", "active")
 MOUNTAIN_BACKENDS = ("auto", "reference", "pmge")
+ROUTING_MODES = ("stochastic", "steepest")
+CLIMATE_PROFILES = ("earthlike", "dry", "wet")
 MODES = ("regional", "world")
 
 
@@ -178,6 +180,78 @@ class MountainParams:
 
 
 @dataclass(frozen=True)
+class ClimateParams:
+    """v4.0 stage ``climate`` (RNG namespace ``climate/v4``; the model is deterministic)."""
+
+    enabled: bool = True
+    profile: str = "earthlike"
+    #: Conditional latitude at the centre of the simulation area, deg (north positive).
+    latitude_center_deg: float = 30.0
+    #: km per degree of latitude; 0 = real scale (111.2), compressed if the area would
+    #: otherwise cross a pole. North is map up (-y).
+    km_per_degree: float = 0.0
+    temperature_offset_c: float = 0.0
+    lapse_rate_c_per_km: float = 6.5
+    wind_strength: float = 1.0
+    #: Multiplier of large-scale rain-out; < 1 lets moisture travel further inland.
+    moisture_transport_damping: float = 1.0
+    #: Multiplier of the calibrated precipitation total.
+    precipitation_scale: float = 1.0
+    seasonality: float = 1.0
+    #: Share of the water surplus lost to deep groundwater (does not reach rivers).
+    deep_infiltration: float = 0.05
+
+
+@dataclass(frozen=True)
+class HydrologyParams:
+    """v4.0 stage ``hydrology``."""
+
+    #: A channel becomes a river where the mean discharge reaches this, m^3/s.
+    river_min_discharge_m3_s: float = 25.0
+    #: ...and where it collects water from at least this many hexes: a stream draining a
+    #: single hex cannot be drawn as a river at the map's resolution.
+    river_min_upstream_hexes: int = 4
+    #: Cartographic generalisation: a whole river system is drawn only if its basin at the
+    #: mouth covers at least this many hexes. Short unbranched coastal streams (each hex
+    #: column draining straight into the sea) are real but below the map's scale; the
+    #: tributaries of large rivers are kept whatever their own size.
+    river_min_system_hexes: int = 8
+    #: Receiver of a cell outside depressions: "stochastic" draws among the lower
+    #: neighbours with probability proportional to the drop (Rho8; converging dendritic
+    #: networks on smooth slopes), "steepest" is classic D6 steepest descent (straight
+    #: parallel lines on planes). The draw is fixed by the seed.
+    routing: str = "stochastic"
+    #: Depressions shallower than this are routed through, not counted as lakes, m.
+    min_lake_depth_m: float = 2.0
+    #: Estimate inflow from outside the window with the coarse world drainage model.
+    external_inflow: bool = True
+    #: Transmission losses of channels in dry climates (0 = off); see stages/hydrology.py.
+    channel_loss: float = 20.0
+
+
+@dataclass(frozen=True)
+class ErosionParams:
+    """v4.0 stage ``landscape_evolution`` (stream power + hillslope + sediment)."""
+
+    enabled: bool = True
+    duration_ma: float = 2.0
+    steps: int = 8
+    #: Stream-power coefficient for E = K * A_eff^m * S^n, n = 1 (A_eff in m^2, E in m/yr).
+    k_stream: float = 1.0e-7
+    m_exponent: float = 0.5
+    #: Discharge-equivalent area uses this reference runoff, mm/yr (arid land erodes less).
+    reference_runoff_mm_yr: float = 300.0
+    #: Effective large-scale hillslope diffusivity, m^2/yr (scale-dependent, see docs).
+    diffusivity_m2_yr: float = 800.0
+    #: Sediment transport capacity coefficient, m/yr (Qc = k_transport * A_eff * S, m^3/yr).
+    k_transport: float = 0.02
+    #: Keep tectonic uplift of the selected epoch acting during the erosion period.
+    continue_uplift: bool = True
+    #: Recompute the hex-scale climate after every step (lapse rate, orographic rain).
+    update_climate: bool = True
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -201,6 +275,9 @@ class Config:
     sea: SeaParams = field(default_factory=SeaParams)
     history: HistoryParams = field(default_factory=HistoryParams)
     mountains: MountainParams = field(default_factory=MountainParams)
+    climate: ClimateParams = field(default_factory=ClimateParams)
+    hydrology: HydrologyParams = field(default_factory=HydrologyParams)
+    erosion: ErosionParams = field(default_factory=ErosionParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -268,6 +345,53 @@ class Config:
             raise ConfigError("mountains.detail must be within [0, 2]")
         if not 2000.0 <= self.mountains.max_elevation_m <= 12000.0:
             raise ConfigError("mountains.max_elevation_m must be within [2000, 12000] m")
+        c = self.climate
+        if c.profile not in CLIMATE_PROFILES:
+            raise ConfigError(f"climate.profile must be one of {CLIMATE_PROFILES}")
+        if not -80.0 <= c.latitude_center_deg <= 80.0:
+            raise ConfigError("climate.latitude_center_deg must be within [-80, 80]")
+        if c.km_per_degree < 0:
+            raise ConfigError("climate.km_per_degree must not be negative (0 = automatic)")
+        if not 3.0 <= c.lapse_rate_c_per_km <= 10.0:
+            raise ConfigError("climate.lapse_rate_c_per_km must be within [3, 10]")
+        if not -15.0 <= c.temperature_offset_c <= 15.0:
+            raise ConfigError("climate.temperature_offset_c must be within [-15, 15]")
+        for name in (
+            "wind_strength",
+            "moisture_transport_damping",
+            "precipitation_scale",
+            "seasonality",
+        ):
+            if not 0.1 <= getattr(c, name) <= 4.0:
+                raise ConfigError(f"climate.{name} must be within [0.1, 4]")
+        if not 0.0 <= c.deep_infiltration <= 0.5:
+            raise ConfigError("climate.deep_infiltration must be within [0, 0.5]")
+        hy = self.hydrology
+        if not 0.01 <= hy.river_min_discharge_m3_s <= 1e5:
+            raise ConfigError("hydrology.river_min_discharge_m3_s must be within [0.01, 1e5]")
+        if not 0.0 <= hy.channel_loss <= 200.0:
+            raise ConfigError("hydrology.channel_loss must be within [0, 200]")
+        if not isinstance(hy.river_min_upstream_hexes, int) or hy.river_min_upstream_hexes < 1:
+            raise ConfigError("hydrology.river_min_upstream_hexes must be a positive integer")
+        if hy.routing not in ROUTING_MODES:
+            raise ConfigError(f"hydrology.routing must be one of {ROUTING_MODES}")
+        if not isinstance(hy.river_min_system_hexes, int) or hy.river_min_system_hexes < 1:
+            raise ConfigError("hydrology.river_min_system_hexes must be a positive integer")
+        if not 0.0 <= hy.min_lake_depth_m <= 500.0:
+            raise ConfigError("hydrology.min_lake_depth_m must be within [0, 500]")
+        er = self.erosion
+        if not 0.0 <= er.duration_ma <= 50.0:
+            raise ConfigError("erosion.duration_ma must be within [0, 50]")
+        if not isinstance(er.steps, int) or not 1 <= er.steps <= 200:
+            raise ConfigError("erosion.steps must be an integer within [1, 200]")
+        if not 0.0 <= er.k_stream <= 1e-3 or not 0.0 <= er.k_transport <= 10.0:
+            raise ConfigError("erosion coefficients out of range")
+        if not 0.2 <= er.m_exponent <= 0.8:
+            raise ConfigError("erosion.m_exponent must be within [0.2, 0.8]")
+        if not 0.0 <= er.diffusivity_m2_yr <= 1e6:
+            raise ConfigError("erosion.diffusivity_m2_yr must be within [0, 1e6]")
+        if not 10.0 <= er.reference_runoff_mm_yr <= 5000.0:
+            raise ConfigError("erosion.reference_runoff_mm_yr must be within [10, 5000]")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -296,6 +420,9 @@ class Config:
             "sea": SeaParams,
             "history": HistoryParams,
             "mountains": MountainParams,
+            "climate": ClimateParams,
+            "hydrology": HydrologyParams,
+            "erosion": ErosionParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
