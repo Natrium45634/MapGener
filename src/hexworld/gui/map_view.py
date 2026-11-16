@@ -357,6 +357,10 @@ class MapView(QWidget):
                     text += f"  |  озеро {info['lake_id']}"
                 elif info.get("river_mask"):
                     text += f"  |  река, порядок {info['strahler_order']}"
+                if info.get("coast_type", 0):
+                    from ..stages.coasts import COAST_TITLES, COAST_TYPES
+
+                    text += f"\nберег: {COAST_TITLES[COAST_TYPES[info['coast_type']]]}"
             self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):

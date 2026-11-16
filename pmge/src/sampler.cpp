@@ -296,11 +296,13 @@ Sample Plan::sample(double x, double y) const {
       axis_crest = wsum > 0 ? csum / wsum : 0.0;
     }
     if (std::isfinite(d_axis)) {
-      double t = d_axis / body_half_;
+      // the margin of a mountain body is lobed and dissected, not a band of constant width
+      double lobe = 0.7 + 0.6 * ridged_detail(x, y, 1.6 * body_half_, r.seed + 77);
+      double t = d_axis / (body_half_ * lobe);
       double hump = 0.85 + 0.15 * ridged_detail(x, y, 2.2 * body_half_, r.seed + 31);
       body = (1.0 - smoothstep(t)) * (0.55 + 0.45 * axis_crest) * hump;
       if (r.foothill_width_m > 0 && r.foothill_profile != PMGE_FOOTHILL_ABRUPT) {
-        double beyond = std::max(0.0, d_axis - 0.75 * body_half_);
+        double beyond = std::max(0.0, d_axis - 0.75 * body_half_ * lobe);
         // a smooth fade at the start of the foothills avoids a crease where they meet the body
         foot = 0.16 * std::exp(-beyond / r.foothill_width_m) * smoothstep(1.4 - 0.5 * t);
         if (r.foothill_profile == PMGE_FOOTHILL_ROLLING)

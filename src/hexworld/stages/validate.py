@@ -270,7 +270,15 @@ def validate_hydro(project) -> dict:
     errors: list[str] = []
     checks: dict = {}
     shape = (layout.height, layout.width)
-    nan_ok = {"lake_level_m", "lake_depth_m"}
+    nan_ok = {
+        "lake_level_m",
+        "lake_depth_m",
+        # coast drivers exist only at the coast (NaN = not a coast hex, not zero)
+        "wave_exposure",
+        "tidal_range_m",
+        "shelf_width_km",
+        "sea_surface_temperature_c",
+    }
     for name, arr in L.items():
         if arr.shape != shape:
             errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")

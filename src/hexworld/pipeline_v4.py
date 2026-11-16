@@ -32,6 +32,7 @@ from .stages.climate import (
     resolve_latitude,
     world_climate,
 )
+from .stages.coasts import coast_fields
 from .stages.hydrology import (
     accumulate,
     grid_graph,
@@ -311,6 +312,11 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "landmass_id": landmass_id,
         "shelf_mask": shelf.astype(np.bool_),
     }
+    # coast types from the final surface, climate, rivers, rock and tectonics
+    coast_layers, coast_summary = coast_fields(
+        layout, layers, hist.layers, hist.plan.get("ridges", []), sea_level, 0
+    )
+    layers.update(coast_layers)
     # river segments: keep the geometry, drop the cell lists from the public table
     rivers = [
         {k: v for k, v in seg.items() if k != "cells"} | {"hexes": len(seg["cells"])}
@@ -360,6 +366,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "world_climate": wc.balance,
         "erosion_duration_ma": config.erosion.duration_ma if config.erosion.enabled else 0.0,
         "erosion_steps": len(evo["steps"]),
+        "coasts": coast_summary,
         "units": {
             "precipitation": "mm/yr",
             "discharge": "m3/s",

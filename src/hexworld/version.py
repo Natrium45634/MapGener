@@ -24,4 +24,4 @@ HISTORY_ALGORITHM_VERSION = "geohistory-2"
 MOUNTAINS_ALGORITHM_VERSION = "mountains-2"
 #: v4.0 climate, hydrology and landscape evolution.
 CLIMATE_ALGORITHM_VERSION = "climate-1"
-HYDRO_ALGORITHM_VERSION = "hydro-1"
+HYDRO_ALGORITHM_VERSION = "hydro-2"

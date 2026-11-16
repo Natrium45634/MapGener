@@ -105,6 +105,12 @@ HIST_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "land_mask": ("bool", "bool", "elevation_m > sea_level_m"),
     "landmass_id": ("int32", "id", "connected land of the epoch, -1 = under water"),
     "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
+    "coast_type": ("uint8", "enum", "coast type of a land hex at the sea, 0 = not coast"),
+    "wave_exposure": ("float32", "0..1", "open water and storms facing the coast (proxy)"),
+    "tidal_range_m": ("float32", "m", "mean tidal range at the coast (proxy)"),
+    "shelf_width_km": ("float32", "km", "distance from the coast to water deeper than 200 m"),
+    "sea_surface_temperature_c": ("float32", "degC", "mean temperature of the adjacent sea"),
+    "lgm_ice_mask": ("bool", "bool", "under ice at the last glacial maximum (estimate)"),
 }
 ROCK_TYPES = (
     "oceanic_basalt",
@@ -214,6 +220,12 @@ HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "land_mask": ("bool", "bool", "elevation_m > sea_level_m (final surface)"),
     "landmass_id": ("int32", "id", "connected land of the final surface"),
     "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
+    "coast_type": ("uint8", "enum", "coast type of a land hex at the sea, 0 = not coast"),
+    "wave_exposure": ("float32", "0..1", "open water and storms facing the coast (proxy)"),
+    "tidal_range_m": ("float32", "m", "mean tidal range at the coast (proxy)"),
+    "shelf_width_km": ("float32", "km", "distance from the coast to water deeper than 200 m"),
+    "sea_surface_temperature_c": ("float32", "degC", "mean temperature of the adjacent sea"),
+    "lgm_ice_mask": ("bool", "bool", "under ice at the last glacial maximum (estimate)"),
 }
 
 

@@ -1101,6 +1101,14 @@ class MainWindow(QMainWindow):
                 f"озеро {info['lake_id']}: уровень {num('lake_level_m', 1)} м, глубина "
                 f"{num('lake_depth_m', 1)} м"
             )
+        if info.get("coast_type", 0):
+            from ..stages.coasts import COAST_TITLES, COAST_TYPES
+
+            lines.append(
+                f"берег: {COAST_TITLES[COAST_TYPES[info['coast_type']]]}; волнение "
+                f"{num('wave_exposure', 2)}, прилив {num('tidal_range_m', 1)} м, шельф "
+                f"{num('shelf_width_km')} км, вода {num('sea_surface_temperature_c', 1)} °C"
+            )
         basin = info.get("basin_id", -1)
         tail = " (бессточный)" if info.get("endorheic_mask") else ""
         lines += [

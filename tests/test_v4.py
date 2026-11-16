@@ -273,9 +273,19 @@ def test_v4_project_layers_are_consistent(hist_project):
     h = p.hydro
     assert h is not None and h.validation["ok"], h.validation
     L = h.layers
+    defined_where = {  # NaN means "not here", never "zero"
+        "lake_level_m": L["lake_id"] >= 0,
+        "lake_depth_m": L["lake_id"] >= 0,
+        "wave_exposure": L["coast_type"] > 0,
+        "tidal_range_m": L["coast_type"] > 0,
+        "shelf_width_km": L["coast_type"] > 0,
+        "sea_surface_temperature_c": L["coast_type"] > 0,
+    }
     for name, arr in L.items():
-        if np.issubdtype(arr.dtype, np.floating) and name not in ("lake_level_m", "lake_depth_m"):
-            assert np.isfinite(arr).all(), name
+        if not np.issubdtype(arr.dtype, np.floating):
+            continue
+        where = defined_where.get(name, np.ones(arr.shape, dtype=bool))
+        assert np.isfinite(arr[where]).all(), name
     assert L["elevation_m"] is L["post_erosion_elevation_m"]
     assert L["pre_erosion_elevation_m"] is p.hist.layers["elevation_m"]  # v3 is untouched
     assert np.array_equal(L["land_mask"], L["elevation_m"] > h.sea_level_m)

@@ -323,6 +323,16 @@ def _summary(project) -> str:
     return "\n".join(lines)
 
 
+def _coast_line(c) -> str:
+    if not c:
+        return "coasts          not classified"
+    top = sorted(c["shares"].items(), key=lambda kv: -kv[1])[:4]
+    return (
+        f"coasts          {c['coast_hexes']} hexes; rocky {100 * c['rocky_share']:.0f} %, sandy "
+        f"{100 * c['sandy_share']:.0f} %; " + ", ".join(f"{k} {100 * v:.0f} %" for k, v in top)
+    )
+
+
 def _summary_v4(project) -> list[str]:
     if project.hydro is None:
         return ["v4.0            not generated (no climate, rivers, erosion)"]
@@ -352,6 +362,7 @@ def _summary_v4(project) -> list[str]:
         f"denudation {s['mean_denudation_m_ma']:.0f} m/Ma; land "
         f"{100 * s['land_fraction_viewport']:.1f} % (v3 {100 * s['v3_land_fraction_viewport']:.1f}"
         " %)",
+        _coast_line(s.get("coasts")),
         f"v4 hash         {h.hydro_hash()}",
         f"v4 validation   {'OK' if h.validation.get('ok') else 'FAILED'}",
     ]

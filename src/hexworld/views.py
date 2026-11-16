@@ -1626,6 +1626,189 @@ register_view(
     )
 )
 
+# -- coasts (v4) ----------------------------------------------------------------------------
+_COAST_RGB = {
+    "ice": (235, 245, 255),
+    "fjord": (70, 90, 170),
+    "skerry": (120, 140, 200),
+    "volcanic": (150, 40, 40),
+    "delta": (60, 150, 60),
+    "estuary": (40, 170, 170),
+    "liman": (110, 200, 190),
+    "coral_reef": (255, 120, 170),
+    "mangrove": (20, 110, 50),
+    "sabkha": (240, 220, 150),
+    "tidal_flat": (170, 140, 100),
+    "fault_scarp": (110, 50, 120),
+    "dalmatian": (200, 120, 40),
+    "ria": (230, 160, 60),
+    "cliff": (90, 80, 70),
+    "barrier_lagoon": (250, 200, 80),
+    "beach": (250, 235, 170),
+}
+
+
+def _coast_table():
+    from .stages.coasts import COAST_TYPES
+
+    table = np.zeros((len(COAST_TYPES), 3), dtype=np.uint8)
+    for i, name in enumerate(COAST_TYPES):
+        if name in _COAST_RGB:
+            table[i] = _COAST_RGB[name]
+    return table
+
+
+def _render_coasts(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.hydro.layers
+    layout = project.layout
+    land = L["land_mask"]
+    shade = hillshade(L["elevation_m"].astype(np.float64), layout)
+    base = np.where(land[..., None], np.array([168, 172, 160]), np.array([34, 56, 96]))
+    rgb = (base * (0.6 + 0.45 * shade[..., None])).clip(0, 255).astype(np.uint8)
+    coast = L["coast_type"] > 0
+    if mode == "types":
+        rgb[coast] = _coast_table()[L["coast_type"][coast]]
+    else:
+        field, lo, hi = {
+            "exposure": ("wave_exposure", 0.0, 0.8),
+            "tides": ("tidal_range_m", 0.0, 5.0),
+            "shelf": ("shelf_width_km", 0.0, 500.0),
+            "sst": ("sea_surface_temperature_c", -2.0, 30.0),
+        }[mode]
+        values = np.nan_to_num(L[field][coast].astype(np.float64), nan=lo)
+        rgb[coast] = _ramp_rgb(values, lo, hi)
+    if "lgm" in overlays:
+        ice = L["lgm_ice_mask"] & land
+        rgb[ice] = (rgb[ice] * 0.6 + np.array([255, 255, 255]) * 0.4).astype(np.uint8)
+    return rgb
+
+
+def _sea_direction(project: Project):
+    """Unit vector from each coast hex towards its sea neighbours (world km)."""
+    from .stages import raster as raster_stage
+
+    L = project.hydro.layers
+    layout = project.layout
+    hx, hy = layout.centers()
+    sea = ~L["land_mask"] & (L["lake_id"] < 0)
+    dx = np.zeros(hx.shape)
+    dy = np.zeros(hx.shape)
+    for d in range(6):
+        nb, valid = raster_stage.neighbor_index(layout, d)
+        wet = valid & sea.ravel()[nb.ravel()].reshape(hx.shape)
+        dx += np.where(wet, hx.ravel()[nb.ravel()].reshape(hx.shape) - hx, 0.0)
+        dy += np.where(wet, hy.ravel()[nb.ravel()].reshape(hx.shape) - hy, 0.0)
+    norm = np.maximum(np.hypot(dx, dy), 1e-9)
+    return hx, hy, dx / norm, dy / norm
+
+
+def _vectors_coasts(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    """Coast symbols: barrier islands, reefs, fjord inlets, delta fans (not to scale)."""
+    if "symbols" not in overlays:
+        return []
+    from .stages.coasts import COAST_TYPES
+
+    L = project.hydro.layers
+    s = project.layout.spacing_km
+    hx, hy, sx, sy = _sea_direction(project)
+    ct = L["coast_type"]
+    out = []
+
+    def where(name):
+        return np.nonzero(ct == COAST_TYPES.index(name))
+
+    def lines(name, make, color, width):
+        xs, ys = [], []
+        for r, c in zip(*where(name), strict=True):
+            for x, y in make(hx[r, c], hy[r, c], sx[r, c], sy[r, c]):
+                xs.append(np.asarray(x))
+                ys.append(np.asarray(y))
+        if xs:
+            out.append(VectorLayer("lines", xs, ys, color, width, True, name))
+
+    def barrier(x, y, ux, uy):  # an island chain parallel to the shore, offshore
+        px, py = -uy, ux
+        ox, oy = x + ux * 0.62 * s, y + uy * 0.62 * s
+        yield [ox - px * 0.45 * s, ox + px * 0.45 * s], [oy - py * 0.45 * s, oy + py * 0.45 * s]
+
+    def reef(x, y, ux, uy):  # a reef line a little further out, broken into dashes
+        px, py = -uy, ux
+        ox, oy = x + ux * 0.8 * s, y + uy * 0.8 * s
+        for a in (-0.45, -0.1, 0.25):
+            b = a + 0.2
+            yield [ox + px * a * s, ox + px * b * s], [oy + py * a * s, oy + py * b * s]
+
+    def fjord(x, y, ux, uy):  # narrow inlets cutting into the land
+        px, py = -uy, ux
+        for a in (-0.3, 0.05, 0.35):
+            x0, y0 = x + ux * 0.5 * s + px * a * s, y + uy * 0.5 * s + py * a * s
+            yield [x0, x0 - ux * 0.75 * s], [y0, y0 - uy * 0.75 * s]
+
+    def delta(x, y, ux, uy):  # distributaries fanning out into the sea
+        for a in (-0.5, 0.0, 0.5):
+            ca, sa = np.cos(a), np.sin(a)
+            vx, vy = ux * ca - uy * sa, ux * sa + uy * ca
+            yield [x, x + vx * 0.85 * s], [y, y + vy * 0.85 * s]
+
+    lines("barrier_lagoon", barrier, (250, 215, 110), 2.0)
+    lines("coral_reef", reef, (255, 120, 170), 2.0)
+    lines("fjord", fjord, (30, 50, 120), 1.5)
+    lines("delta", delta, (40, 120, 200), 1.5)
+    return out
+
+
+def _legend_coasts(project: Project, mode: str) -> list[LegendItem]:
+    from .stages.coasts import COAST_TITLES
+
+    c = project.hydro.summary.get("coasts", {})
+    head = _v4_head(project) + [
+        LegendItem(
+            f"берег: {c.get('coast_hexes', 0)} гексов (~{c.get('coast_length_km', 0):,.0f} км "
+            f"по сетке); скалистых {100 * c.get('rocky_share', 0):.0f} %, песчаных "
+            f"{100 * c.get('sandy_share', 0):.0f} %"
+        )
+    ]
+    if mode == "types":
+        shares = c.get("shares", {})
+        items = sorted(_COAST_RGB, key=lambda k: -shares.get(k, 0.0))
+        return head + [
+            LegendItem(f"{COAST_TITLES[k]} — {100 * shares.get(k, 0.0):.1f} %", _COAST_RGB[k])
+            for k in items
+        ]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    labels = {
+        "exposure": ("защищённый берег", "открытый штормовым волнам (оценка)"),
+        "tides": ("прилив 0 м", "прилив 5 м и больше (оценка)"),
+        "shelf": ("шельф 0 км", "шельф 500 км и шире"),
+        "sst": ("вода −2 °C", "вода 30 °C"),
+    }[mode]
+    return head + [LegendItem(labels[0], lo), LegendItem(labels[1], hi)]
+
+
+register_view(
+    ViewSpec(
+        id="coasts",
+        title="Берега",
+        stage="v4",
+        layers=("coast_type", "wave_exposure", "tidal_range_m", "shelf_width_km"),
+        modes=(
+            Option("types", "Типы берегов"),
+            Option("exposure", "Открытость волнам"),
+            Option("tides", "Приливы"),
+            Option("shelf", "Ширина шельфа"),
+            Option("sst", "Температура воды"),
+        ),
+        overlays=(
+            Option("symbols", "Знаки: барьеры, рифы, фьорды, дельты", True),
+            Option("lgm", "Оледенение последнего максимума"),
+        ),
+        note="Тип берега из причин: рельеф, порода, оледенение, волны, приливы, реки, климат",
+        render=_render_coasts,
+        legend=_legend_coasts,
+        vectors=_vectors_coasts,
+    )
+)
+
 for _id, _title in (
     ("biomes", "Биомы"),
     ("geosymbols", "Геосимволы"),
