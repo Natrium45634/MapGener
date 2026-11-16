@@ -32,6 +32,42 @@ from .hydrology import Graph, hydrology, routing_choice
 _SHELF_FILL_DEPTH_M = 30.0
 
 
+def stream_power_rate(k, flow_ratio, m, slope, n=1.0, threshold=0.0):
+    """Detachment-limited incision ``E = max(0, K (Q/Q0)^m S^n - E_c)`` (manual 7.1), m/yr.
+
+    The normalised form: ``flow_ratio`` is dimensionless, so ``k`` and ``threshold`` are in
+    m/yr. ``evolve`` uses the same law with ``A_eff = Q / q_ref`` (m^2) and ``n = 1``.
+    """
+    flow = np.maximum(np.asarray(flow_ratio, dtype=np.float64), 0.0)
+    s = np.maximum(np.asarray(slope, dtype=np.float64), 0.0)
+    return np.maximum(k * flow**m * s**n - threshold, 0.0)
+
+
+def implicit_incision(z_up, receiver, order, f, threshold_m, skip):
+    """One implicit step of ``dz/dt = -(K A^m (z - z_r) / L - E_c)`` from the outlets up.
+
+    ``f = K A^m dt / L`` per cell, ``threshold_m = E_c dt``. Solving with the receiver's new
+    height (Braun & Willett 2013) is stable for any step and never cuts below the receiver;
+    a cell erodes only where ``f (z - z_r) > E_c dt``, giving
+    ``z_new = (z + f z_r + E_c dt) / (1 + f)``. Cells in ``skip`` (outlets, lakes) keep
+    their height. ``order``: cells downstream first.
+    """
+    zl = np.asarray(z_up, dtype=np.float64).tolist()
+    zu = list(zl)
+    fl = np.asarray(f, dtype=np.float64).tolist()
+    rcl = np.asarray(receiver).tolist()
+    skip_l = np.asarray(skip).tolist()
+    ec = float(threshold_m)
+    for c in np.asarray(order).tolist():
+        if skip_l[c]:
+            continue
+        zr = zl[rcl[c]]
+        drop = zu[c] - zr
+        if drop > 0.0 and fl[c] * drop > ec:
+            zl[c] = (zu[c] + fl[c] * zr + ec) / (1.0 + fl[c])
+    return np.asarray(zl)
+
+
 def _laplacian(z, graph: Graph):
     valid = graph.nbr >= 0
     zn = np.where(valid, z[np.maximum(graph.nbr, 0)], z[:, None])
@@ -51,6 +87,7 @@ def evolve(
     world_climate,
     external_inflow_m3_s,
     report=None,
+    edge_outlet=None,
 ):
     params = config.erosion
     cp = config.climate
@@ -69,6 +106,7 @@ def evolve(
         else np.zeros(n)
     )
     q_ref = params.reference_runoff_mm_yr / 1000.0  # m/yr
+    threshold = params.incision_threshold_m_ma * 1e-6  # E_c, m/yr
     erosion_total = np.zeros(n)
     deposition_total = np.zeros(n)
     flux_last = np.zeros(n)
@@ -86,7 +124,7 @@ def evolve(
     }
     steps_log = []
     climate = None
-    choice = routing_choice(config.seed, n, config.hydrology.routing)
+    choice = routing_choice(config.seed, n, config.hydrology.routing, layout)
     for step in range(steps):
         if report:
             report(step / max(steps, 1))
@@ -106,6 +144,7 @@ def evolve(
             config.hydrology.min_lake_depth_m,
             config.hydrology.channel_loss,
             choice,
+            edge_outlet,
         )
         routing = hyd["routing"]
         rc = hyd["receiver"]
@@ -119,21 +158,10 @@ def evolve(
         # -- uplift, then implicit stream power from the outlets upwards --------------------
         z_up = z + uplift * dt
         budget["uplift_m3"] += float((uplift * dt * area)[~sea].sum())
-        z_new = z_up.copy()
         f = k * dt * np.power(np.maximum(a_eff, 0.0), params.m_exponent) / length
-        zl = z_new.tolist()
-        zu = z_up.tolist()
-        fl = f.tolist()
+        z_new = implicit_incision(z_up, rc, order, f, threshold * dt, routing.outlet | in_lake)
         rcl = rc.tolist()
         lake_l = in_lake.tolist()
-        out_l = routing.outlet.tolist()
-        for c in order.tolist():
-            if out_l[c] or lake_l[c]:
-                continue
-            zr = zl[rcl[c]]
-            if zu[c] > zr:
-                zl[c] = (zu[c] + fl[c] * zr) / (1.0 + fl[c])
-        z_new = np.asarray(zl)
 
         # -- hillslope diffusion on land ------------------------------------------------------
         land = ~sea

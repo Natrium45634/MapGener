@@ -16,7 +16,12 @@ from hexworld.realism import earth_comparison, report_markdown
 
 SHOTS = (
     ("temperature", "mean", ("coast", "isotherms")),
+    ("temperature", "djf", ("coast", "isotherms")),
+    ("temperature", "jja", ("coast", "isotherms")),
     ("precipitation", "precipitation", ("coast", "wind")),
+    ("precipitation", "djf", ("coast",)),
+    ("precipitation", "jja", ("coast",)),
+    ("precipitation", "regime", ("coast",)),
     ("precipitation", "aridity", ("coast",)),
     ("hydrology", "rivers", ("rivers", "lakes", "coast")),
     ("hydrology", "basins", ("rivers", "coast")),

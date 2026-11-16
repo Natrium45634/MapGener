@@ -20,6 +20,7 @@ from .api import (
 from .config import (
     CLIMATE_PROFILES,
     CONTINENT_PROFILES,
+    EDGE_OUTLET_MODES,
     HISTORY_PROFILES,
     MOUNTAIN_STYLES,
     PRESETS,
@@ -179,11 +180,13 @@ def _apply_v4_args(args, data: dict) -> None:
             ("river_min_hexes", "river_min_upstream_hexes"),
             ("river_system_hexes", "river_min_system_hexes"),
             ("routing", "routing"),
+            ("edge_outlets", "edge_outlets"),
         ),
         "erosion": (
             ("erosion_ma", "duration_ma"),
             ("erosion_steps", "steps"),
             ("stream_power_k", "k_stream"),
+            ("incision_threshold", "incision_threshold_m_ma"),
         ),
     }
     for section, pairs in sections.items():
@@ -215,9 +218,15 @@ def _add_v4_options(parser) -> None:
         "--river-system-hexes", type=int, help="draw river systems with a basin >= N hexes"
     )
     parser.add_argument("--routing", choices=ROUTING_MODES, help="flow receiver choice")
+    parser.add_argument(
+        "--edge-outlets",
+        choices=EDGE_OUTLET_MODES,
+        help="window edges drain out only where the world drainage leaves (world) or all",
+    )
     parser.add_argument("--erosion-ma", type=float, help="duration of v4 landscape evolution, Ma")
     parser.add_argument("--erosion-steps", type=int, help="coupled climate-erosion steps")
     parser.add_argument("--stream-power-k", type=float, help="stream-power coefficient K")
+    parser.add_argument("--incision-threshold", type=float, help="stream-power threshold E_c, m/Ma")
     parser.add_argument("--no-erosion", action="store_true", help="v4 without landscape change")
 
 

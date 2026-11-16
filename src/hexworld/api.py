@@ -330,7 +330,7 @@ def build_hydrology(
         None,
         cfg.hydrology.min_lake_depth_m,
         cfg.hydrology.channel_loss,
-        routing_choice(cfg.seed, z.size, cfg.hydrology.routing),
+        routing_choice(cfg.seed, z.size, cfg.hydrology.routing, layout),
     )
 
 

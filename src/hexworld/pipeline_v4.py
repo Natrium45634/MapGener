@@ -37,6 +37,7 @@ from .stages.hydrology import (
     accumulate,
     grid_graph,
     hex_graph,
+    hydraulic_geometry,
     hydrology,
     river_network,
     river_systems,
@@ -69,6 +70,9 @@ def v4_stage_keys(config, hist_keys: dict, sea_level_m: float) -> dict:
         hist_keys["v3_raster"],
         round(float(sea_level_m), 6),
         asdict(config.climate),
+        # the climate entry also carries the inflow and the edge outlets of the window
+        config.hydrology.external_inflow,
+        config.hydrology.edge_outlets,
     )
     hydro = asdict(config.hydrology)
     threshold = tuple(
@@ -86,8 +90,8 @@ def v4_stage_keys(config, hist_keys: dict, sea_level_m: float) -> dict:
     return {"v4_climate": climate, "v4_evolution": evolution, "v4_network": network}
 
 
-def external_inflow(config, wc, world_elev, sea_level_m, layout, viewport):
-    """Water entering the window from outside, from a coarse 8-neighbour world routing."""
+def _world_drainage(config, wc, world_elev, sea_level_m, viewport):
+    """Coarse 8-neighbour routing of the whole model area with the world climate's runoff."""
     grid = wc.grid
     ny, nx = world_elev.shape
     cell_m = grid["cell_km"] * 1000.0
@@ -104,8 +108,16 @@ def external_inflow(config, wc, world_elev, sea_level_m, layout, viewport):
     gx, gy = np.meshgrid(xs, ys)
     gx, gy = gx.ravel(), gy.ravel()
     inside = viewport.contains(gx, gy)
+    return routing, acc, sea.ravel(), gx, gy, inside
+
+
+def external_inflow(config, wc, world_elev, sea_level_m, layout, viewport, drainage=None):
+    """Water entering the window from outside, from a coarse 8-neighbour world routing."""
+    routing, acc, sea, gx, gy, inside = drainage or _world_drainage(
+        config, wc, world_elev, sea_level_m, viewport
+    )
     rc = routing.receiver
-    entering = ~inside & inside[rc] & (rc != np.arange(rc.size)) & ~sea.ravel()
+    entering = ~inside & inside[rc] & (rc != np.arange(rc.size)) & ~sea
     inflow = np.zeros(layout.width * layout.height)
     cells = np.nonzero(entering)[0]
     if cells.size:
@@ -113,6 +125,61 @@ def external_inflow(config, wc, world_elev, sea_level_m, layout, viewport):
         ok = layout.inside(col, row)
         np.add.at(inflow, (row[ok] * layout.width + col[ok]), acc[cells[ok]] / SECONDS_PER_YEAR)
     return inflow, {"entry_points": int(cells.size), "total_m3_s": round(float(inflow.sum()), 3)}
+
+
+def edge_outlets(wc, layout, viewport, drainage, graph=None, simulation_bounds=None):
+    """Border hexes through which water may leave the window (manual 6.2, item 4).
+
+    A cut-out window is not surrounded by sinks: water leaves it only where the drainage of
+    the whole model area crosses the window edge outward. Each such crossing of the coarse
+    world routing marks the border hexes within ~one world cell of it; every other border
+    hex drains into the window like an interior hex (its water flows on to the sea, a lake
+    or one of the real exits). Where the window edge is the edge of the model area itself,
+    the world ends there and every border hex of that side stays an outlet.
+    """
+    routing, _acc, sea, gx, gy, inside = drainage
+    rc = routing.receiver
+    leaving = inside & ~inside[rc] & (rc != np.arange(rc.size)) & ~sea
+    n = layout.width * layout.height
+    allowed = np.zeros(n, dtype=bool)
+    b = layout.bounds
+    hx, hy = layout.centers()
+    hx, hy = hx.ravel(), hy.ravel()
+    border = np.nonzero(graph.border if graph is not None else hex_graph(layout).border)[0]
+    if simulation_bounds is not None:
+        sb, tol, near = simulation_bounds, float(wc.grid["cell_km"]), layout.spacing_km
+        for edge_w, edge_s, coord in (
+            (b.xmin, sb.xmin, hx),
+            (b.xmax, sb.xmax, hx),
+            (b.ymin, sb.ymin, hy),
+            (b.ymax, sb.ymax, hy),
+        ):
+            if abs(edge_w - edge_s) <= tol:
+                allowed[border[np.abs(coord[border] - edge_w) <= near]] = True
+    cells = np.nonzero(leaving)[0]
+    if not cells.size:
+        return allowed, {"exits": 0, "edge_outlet_hexes": int(allowed.sum())}
+    # where the step from the inside cell to its outside receiver crosses the edge
+    x0, y0, x1, y1 = gx[cells], gy[cells], gx[rc[cells]], gy[rc[cells]]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tx = np.where(
+            x1 > b.xmax,
+            (b.xmax - x0) / (x1 - x0),
+            np.where(x1 < b.xmin, (b.xmin - x0) / (x1 - x0), 1.0),
+        )
+        ty = np.where(
+            y1 > b.ymax,
+            (b.ymax - y0) / (y1 - y0),
+            np.where(y1 < b.ymin, (b.ymin - y0) / (y1 - y0), 1.0),
+        )
+    tc = np.clip(np.nan_to_num(np.minimum(tx, ty), nan=0.0), 0.0, 1.0)
+    cx = np.clip(x0 + tc * (x1 - x0), b.xmin, b.xmax)
+    cy = np.clip(y0 + tc * (y1 - y0), b.ymin, b.ymax)
+    reach = 0.75 * max(float(wc.grid["cell_km"]), layout.spacing_km)
+    for x, y in zip(cx.tolist(), cy.tolist(), strict=True):
+        near = (hx[border] - x) ** 2 + (hy[border] - y) ** 2 <= reach * reach
+        allowed[border[near]] = True
+    return allowed, {"exits": int(cells.size), "edge_outlet_hexes": int(allowed.sum())}
 
 
 def _slope(z, layout):
@@ -150,18 +217,39 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         wc = world_climate(
             config.climate, hist.world["grid"], hist.world["elevation_m"], sea_level, latitude
         )
+        drainage = _world_drainage(
+            config, wc, hist.world["elevation_m"], sea_level, geometry.viewport_bounds
+        )
         inflow, inflow_info = (
             external_inflow(
-                config, wc, hist.world["elevation_m"], sea_level, layout, geometry.viewport_bounds
+                config,
+                wc,
+                hist.world["elevation_m"],
+                sea_level,
+                layout,
+                geometry.viewport_bounds,
+                drainage,
             )
             if config.hydrology.external_inflow
             else (np.zeros(layout.width * layout.height), {})
         )
+        if config.hydrology.edge_outlets == "world":
+            edge, edge_info = edge_outlets(
+                wc,
+                layout,
+                geometry.viewport_bounds,
+                drainage,
+                simulation_bounds=geometry.simulation_bounds,
+            )
+        else:
+            edge, edge_info = None, {"exits": None, "edge_outlet_hexes": "all border hexes"}
+        inflow_info = {**inflow_info, **edge_info}
         climate_entry = {
             "world": wc,
             "latitude": latitude,
             "inflow": inflow,
             "inflow_info": inflow_info,
+            "edge_outlet": edge,
         }
     cache["v4_climate"] = climate_entry
     wc = climate_entry["world"]
@@ -186,6 +274,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
             wc,
             climate_entry["inflow"],
             report=lambda f: report("v4_evolution", 0.988 + 0.008 * f),
+            edge_outlet=climate_entry.get("edge_outlet"),
         )
         # the stored layers are float32: round the fresh result the same way, so a project
         # loaded from disk and one generated now feed the identical surface to the network
@@ -214,7 +303,8 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
             climate_entry["inflow"],
             config.hydrology.min_lake_depth_m,
             config.hydrology.channel_loss,
-            routing_choice(config.seed, z.size, config.hydrology.routing),
+            routing_choice(config.seed, z.size, config.hydrology.routing, layout),
+            climate_entry.get("edge_outlet"),
         )
         # open water: recompute the climate fields of lake hexes with lakes as water
         lakes_mask = (hyd["lake_id"] >= 0).reshape(shape)
@@ -264,6 +354,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         return np.ascontiguousarray(np.asarray(a).reshape(shape).astype(dtype))
 
     land = ~sea
+    width_m, depth_m, _velocity = hydraulic_geometry(q)
     landmass_id, sizes = label_mask(land, layout)
     hx, hy = layout.centers()
     lands = _component_table(landmass_id, sizes, layout, hist.layers["plate_id_epoch"], hx, hy)
@@ -283,7 +374,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "post_erosion_elevation_m": z32,
         "pre_erosion_elevation_m": hist.layers["elevation_m"],
         "v4_delta_elevation_m": g(z - z0),
-        **{k: g(v) for k, v in clim.items()},
+        **{k: g(v, np.asarray(v).dtype) for k, v in clim.items()},
         "flow_receiver": g(rc, np.int64),
         "flow_direction": g(direction, np.uint8),
         "flow_accumulation_area_km2": g(hyd["area_km2"]),
@@ -298,6 +389,8 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "outflow_share": g(np.where(sea.ravel(), 1.0, hyd["outflow_share"])),
         "no_outflow_mask": g(~sea.ravel() & (hyd["outflow_share"] < 0.1), np.bool_),
         "river_mask": g(net["river"], np.bool_),
+        "river_width_m": g(np.where(net["river"], width_m, 0.0)),
+        "river_depth_m": g(np.where(net["river"], depth_m, 0.0)),
         "strahler_order": g(net["strahler"], np.uint8),
         "river_mouth": g(mouths, np.bool_),
         "coastal_discharge_m3_s": g(coastal),
@@ -364,6 +457,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "land_fraction_viewport": float(land.mean()),
         "v3_land_fraction_viewport": float(hist.layers["land_mask"].mean()),
         "world_climate": wc.balance,
+        "water_balance": getattr(clim, "balance", {}),
         "erosion_duration_ma": config.erosion.duration_ma if config.erosion.enabled else 0.0,
         "erosion_steps": len(evo["steps"]),
         "coasts": coast_summary,

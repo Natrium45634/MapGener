@@ -30,6 +30,7 @@ MOUNTAIN_STYLES = (
     "block",
 )
 ROUTING_MODES = ("stochastic", "steepest")
+EDGE_OUTLET_MODES = ("world", "all")
 CLIMATE_PROFILES = ("earthlike", "dry", "wet")
 MODES = ("regional", "world")
 
@@ -238,6 +239,10 @@ class HydrologyParams:
     #: networks on smooth slopes), "steepest" is classic D6 steepest descent (straight
     #: parallel lines on planes). The draw is fixed by the seed.
     routing: str = "stochastic"
+    #: Border hexes of the window that drain out of it: "world" = only where the drainage
+    #: of the whole model area crosses the edge outward (manual 6.2/4), "all" = every
+    #: border hex (the v4.0 behaviour).
+    edge_outlets: str = "world"
     #: Depressions shallower than this are routed through, not counted as lakes, m.
     min_lake_depth_m: float = 2.0
     #: Estimate inflow from outside the window with the coarse world drainage model.
@@ -256,6 +261,9 @@ class ErosionParams:
     #: Stream-power coefficient for E = K * A_eff^m * S^n, n = 1 (A_eff in m^2, E in m/yr).
     k_stream: float = 1.0e-7
     m_exponent: float = 0.5
+    #: Incision threshold E_c of the stream-power law, m/Ma (0 = none): weak flows on gentle
+    #: slopes cannot detach bedrock.
+    incision_threshold_m_ma: float = 0.0
     #: Discharge-equivalent area uses this reference runoff, mm/yr (arid land erodes less).
     reference_runoff_mm_yr: float = 300.0
     #: Effective large-scale hillslope diffusivity, m^2/yr (scale-dependent, see docs).
@@ -396,6 +404,8 @@ class Config:
             raise ConfigError("hydrology.river_min_upstream_hexes must be a positive integer")
         if hy.routing not in ROUTING_MODES:
             raise ConfigError(f"hydrology.routing must be one of {ROUTING_MODES}")
+        if hy.edge_outlets not in EDGE_OUTLET_MODES:
+            raise ConfigError(f"hydrology.edge_outlets must be one of {EDGE_OUTLET_MODES}")
         if not isinstance(hy.river_min_system_hexes, int) or hy.river_min_system_hexes < 1:
             raise ConfigError("hydrology.river_min_system_hexes must be a positive integer")
         if not 0.0 <= hy.min_lake_depth_m <= 500.0:
@@ -409,6 +419,8 @@ class Config:
             raise ConfigError("erosion coefficients out of range")
         if not 0.2 <= er.m_exponent <= 0.8:
             raise ConfigError("erosion.m_exponent must be within [0.2, 0.8]")
+        if not 0.0 <= er.incision_threshold_m_ma <= 1000.0:
+            raise ConfigError("erosion.incision_threshold_m_ma must be within [0, 1000]")
         if not 0.0 <= er.diffusivity_m2_yr <= 1e6:
             raise ConfigError("erosion.diffusivity_m2_yr must be within [0, 1e6]")
         if not 10.0 <= er.reference_runoff_mm_yr <= 5000.0:

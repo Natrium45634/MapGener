@@ -115,6 +115,14 @@ class Worker(QThread):
             self.failed.emit(f"{exc}\n\n{traceback.format_exc()}")
 
 
+def _season_name(code) -> str:
+    names = ("декабрь–февраль", "март–май", "июнь–август", "сентябрь–ноябрь")
+    try:
+        return names[int(code)]
+    except (TypeError, ValueError, IndexError):
+        return "нет стока"
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1091,11 +1099,21 @@ class MainWindow(QMainWindow):
             f"{num('potential_evapotranspiration_mm_yr')}, AET "
             f"{num('actual_evapotranspiration_mm_yr')} мм/год; сток {num('runoff_mm_yr')} мм/год",
             f"индекс увлажнения P/PET {num('humidity_index', 2)}",
+            f"зима/лето: декабрь–февраль {num('temperature_djf_c', 1)} °C, "
+            f"{num('precipitation_djf_mm')} мм; июнь–август {num('temperature_jja_c', 1)} °C, "
+            f"{num('precipitation_jja_mm')} мм",
+            f"половодье: {_season_name(info.get('runoff_peak_season'))}; талые воды "
+            f"{100 * float(info.get('snowmelt_share', 0.0)):.0f} %, подземное питание "
+            f"{100 * float(info.get('baseflow_index', 0.0)):.0f} % стока",
             f"площадь водосбора {num('flow_accumulation_area_km2')} км²; расход "
             f"{num('discharge_m3_s', 1)} м³/с; приток извне {num('external_inflow_m3_s', 1)} м³/с",
         ]
         if info.get("river_mask"):
-            lines.append(f"река, порядок Стралера {info['strahler_order']}")
+            lines.append(
+                f"река, порядок Стралера {info['strahler_order']}; русло ~"
+                f"{info.get('river_width_m', 0):.0f} м шириной, "
+                f"~{info.get('river_depth_m', 0):.1f} м глубиной"
+            )
         if info.get("lake_id", -1) >= 0:
             lines.append(
                 f"озеро {info['lake_id']}: уровень {num('lake_level_m', 1)} м, глубина "

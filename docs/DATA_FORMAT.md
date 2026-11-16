@@ -215,17 +215,24 @@ PNG — только изображение. Оно никогда не чита
 | `latitude_deg` | float32 | deg | conditional latitude, north positive |
 | `temperature_mean_c` | float32 | degC | annual mean air temperature |
 | `temperature_seasonal_c` | float32 | degC | half of the summer-winter range |
+| `temperature_djf_c` | float32 | degC | mean air temperature, December-February |
+| `temperature_jja_c` | float32 | degC | mean air temperature, June-August |
 | `wind_u_ms` | float32 | m/s | prevailing wind, +x east |
 | `wind_v_ms` | float32 | m/s | prevailing wind, +y south |
-| `precipitation_mm_yr` | float32 | mm/yr | annual precipitation |
+| `precipitation_mm_yr` | float32 | mm/yr | annual precipitation (sum of the seasons) |
+| `precipitation_djf_mm` | float32 | mm | precipitation of December-February |
+| `precipitation_jja_mm` | float32 | mm | precipitation of June-August |
 | `potential_evapotranspiration_mm_yr` | float32 | mm/yr | potential evapotranspiration |
-| `actual_evapotranspiration_mm_yr` | float32 | mm/yr | actual evapotranspiration (Budyko) |
+| `actual_evapotranspiration_mm_yr` | float32 | mm/yr | actual evapotranspiration (seasonal soil bucket; open water = PET) |
 | `humidity_index` | float32 | P/PET | aridity index, capped at 5 |
 | `snow_fraction` | float32 | 0..1 | share of precipitation falling as snow |
-| `snow_storage_mm` | float32 | mm | peak winter snow water equivalent (approximate) |
+| `snow_storage_mm` | float32 | mm | seasonal range of the snowpack, water equivalent |
+| `snowmelt_share` | float32 | 0..1 | share of the water supply that comes as melt / ice |
 | `glacial_potential` | float32 | 0..1 | climatic potential for perennial ice |
 | `infiltration_loss_mm_yr` | float32 | mm/yr | water lost to deep groundwater |
-| `runoff_mm_yr` | float32 | mm/yr | surface runoff P - AET - deep infiltration |
+| `runoff_mm_yr` | float32 | mm/yr | runoff to rivers: quick flow + baseflow + glacier discharge (P - AET - deep - dS) |
+| `baseflow_index` | float32 | 0..1 | share of the runoff that comes from groundwater |
+| `runoff_peak_season` | uint8 | enum | peak runoff season 0 DJF 1 MAM 2 JJA 3 SON, 255 none |
 | `flow_receiver` | int64 | index | flat index of the downstream hex (itself = outlet) |
 | `flow_direction` | uint8 | enum | 0..5 hex direction to the receiver, 255 = outlet |
 | `flow_accumulation_area_km2` | float32 | km2 | upstream land area including the hex |
@@ -240,6 +247,8 @@ PNG — только изображение. Оно никогда не чита
 | `outflow_share` | float32 | 0..1 | share of the hex's water reaching sea or window edge |
 | `no_outflow_mask` | bool | bool | less than 10 % of the water reaches an outlet |
 | `river_mask` | bool | bool | river: discharge, upstream area and system basin reach the hydrology thresholds |
+| `river_width_m` | float32 | m | channel width W = 5 Q^0.5 on river hexes, 0 elsewhere |
+| `river_depth_m` | float32 | m | channel depth D = 0.3 Q^0.4 on river hexes, 0 elsewhere |
 | `strahler_order` | uint8 | order | Strahler order of river hexes, 0 = no river |
 | `river_mouth` | bool | bool | last hex of a river before sea, lake or window edge |
 | `coastal_discharge_m3_s` | float32 | m3/s | discharge delivered to the sea at mouths |
@@ -260,13 +269,23 @@ PNG — только изображение. Оно никогда не чита
 | `sea_surface_temperature_c` | float32 | degC | mean temperature of the adjacent sea |
 | `lgm_ice_mask` | bool | bool | under ice at the last glacial maximum (estimate) |
 
+Сезоны: DJF — декабрь–февраль, JJA — июнь–август (лето северного полушария — JJA,
+южного — DJF). Сезонные осадки — в мм за сезон; годовые слои — суммы четырёх сезонов.
+`runoff_peak_season`: 0 DJF, 1 MAM, 2 JJA, 3 SON, 255 — стока нет.
+
 `coast_type`: 0 none, 1 ice, 2 fjord, 3 skerry, 4 volcanic, 5 delta, 6 estuary, 7 liman, 8 coral_reef, 9 mangrove, 10 sabkha, 11 tidal_flat, 12 fault_scarp, 13 dalmatian, 14 ria, 15 cliff, 16 barrier_lagoon, 17 beach. Слои факторов берега — NaN вне берега (не ноль).
 
 ### `hydrology.json`
 
-- `algorithm_versions` (`climate-1`, `hydro-2`), `units`, `provenance` (какая поверхность
+- `algorithm_versions` (`climate-2`, `hydro-3`), `units`, `provenance` (какая поверхность
   на входе и какая итоговая), `sea_level_m`, `epoch_time_ma`, `latitude` (широта центра,
   км на градус, признак сжатия, «север — вверх»).
+- `summary.world_climate` — бюджет влаги мира за год (мм/год среднего по миру):
+  испарение, осадки, приток и отток через границу области, изменение запаса, невязка
+  (`relative_residual` ~1e-15), осадки суши по сезонам. `summary.water_balance` — баланс
+  суши окна: P, ET, сток, сток ледников, глубокие потери, изменение запасов, наибольшая
+  невязка по гексу. `summary.external_inflow` — точки притока извне и выходы воды из окна
+  (`exits`, `edge_outlet_hexes`).
 - `summary` — средние по суше, доли аридности (UNEP), коэффициент стока, доли озёр,
   бессточных областей, число рек, озёр и сухих котловин, средний размыв; `coasts` — число
   береговых гексов, доли типов, доли скалистых и песчаных берегов.
@@ -275,7 +294,8 @@ PNG — только изображение. Оно никогда не чита
 - `evolution_steps` — по каждому шагу связки: время, объёмы, наибольший врез, число озёр.
 - `river_segments` — сегмент: `id`, `cells` (плоские индексы гексов), `x_km`/`y_km`
   (полилиния), `strahler`, `length_km`, `discharge_m3_s`, `drainage_area_km2`,
-  `mean_slope_m_per_km`, `mouth` (`none` — впадает в следующий сегмент, `sea`, `lake`,
+  `mean_slope_m_per_km`, `width_m`, `depth_m`, `velocity_m_s` (гидравлическая геометрия
+  в последнем гексе), `mouth` (`none` — впадает в следующий сегмент, `sea`, `lake`,
   `endorheic`, `window_edge`), `next_segment`, `basin_id`.
 - `river_systems` — от устья к истоку по большему притоку: `mouth_segment`, `main_stem`,
   длина главного русла, водосбор, расход, порядок.

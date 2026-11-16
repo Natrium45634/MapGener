@@ -1,6 +1,6 @@
 """Version identifiers written into every saved project."""
 
-GENERATOR_VERSION = "4.1.0"
+GENERATOR_VERSION = "4.2.0"
 #: Bumped whenever a change alters generated geology for the same seed + config.
 ALGORITHM_VERSION = "tectonics-1"
 #: Seed -> stream derivation and raw number generation scheme.
@@ -23,5 +23,5 @@ HISTORY_ALGORITHM_VERSION = "geohistory-2"
 #: Bumped whenever the mountain plan or the reference height backend change.
 MOUNTAINS_ALGORITHM_VERSION = "mountains-2"
 #: v4.0 climate, hydrology and landscape evolution.
-CLIMATE_ALGORITHM_VERSION = "climate-1"
-HYDRO_ALGORITHM_VERSION = "hydro-2"
+CLIMATE_ALGORITHM_VERSION = "climate-2"
+HYDRO_ALGORITHM_VERSION = "hydro-3"

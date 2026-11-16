@@ -193,6 +193,7 @@ def hydrology(
     min_lake_depth_m=2.0,
     channel_loss=0.0,
     choice=None,
+    edge_outlet=None,
 ):
     """Routing, discharge with lake balances, basins. Returns a dict of arrays + tables.
 
@@ -201,11 +202,17 @@ def hydrology(
 
     ``channel_loss`` (dimensionless, 0 = off) adds transmission losses of channels where
     evaporation exceeds rain: ``loss = channel_loss * (E - P) * width * length`` with the
-    hydraulic-geometry width ``5 * sqrt(Q)`` m - open-water evaporation plus infiltration
-    into a dry bed. Small desert streams dry up; large rivers survive (Nile-like).
+    hydraulic-geometry width (:data:`HYDRAULIC_WIDTH`, ``5 * sqrt(Q)`` m) - open-water
+    evaporation plus infiltration into a dry bed. Small desert streams dry up; large rivers
+    survive (Nile-like).
+
+    ``edge_outlet`` (bool per cell): border cells that may drain out of the domain; ``None``
+    makes every border cell an outlet (a closed raster). The pipeline passes the crossings of
+    the world drainage, so a cut-out window does not leak water through every edge.
     """
     n = z.size
-    outlet = sea | (graph.border & ~sea)
+    border = graph.border if edge_outlet is None else graph.border & np.asarray(edge_outlet)
+    outlet = sea | (border & ~sea)
     routing = route(z, outlet, graph, choice)
     rc = routing.receiver
     depth_flood = routing.routing_m - z
@@ -265,12 +272,12 @@ def hydrology(
     deficit = np.maximum(np.asarray(open_water_evap_mm_yr) - np.asarray(precip_mm_yr), 0.0) / 1000.0
     length = float(graph.dist[0, 0])
     lossy = (channel_loss > 0) & ~sea & ~lake_cells & (deficit > 0)
-    loss_coef = np.where(lossy, channel_loss * deficit * length * 5.0, 0.0).tolist()
+    loss_coef = np.where(lossy, channel_loss * deficit * length * HYDRAULIC_WIDTH[0], 0.0).tolist()
     lost = np.zeros(n)
     passed = np.ones(n)
     for cc in routing.order[::-1].tolist():
         if loss_coef[cc] > 0.0 and acc[cc] > 0.0:
-            loss = min(acc[cc], loss_coef[cc] * (acc[cc] / SECONDS_PER_YEAR) ** 0.5)
+            loss = min(acc[cc], loss_coef[cc] * (acc[cc] / SECONDS_PER_YEAR) ** HYDRAULIC_WIDTH[1])
             passed[cc] = 1.0 - loss / acc[cc]
             lost[cc] = loss
             acc[cc] -= loss
@@ -425,11 +432,51 @@ def hydrology(
     }
 
 
-def routing_choice(seed: str, n: int, mode: str):
-    """Per-cell numbers for :func:`route`: fixed by the seed, the same in every step."""
+def _splitmix64(x):
+    x = x + np.uint64(0x9E3779B97F4A7C15)
+    x = (x ^ (x >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    x = (x ^ (x >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    return x ^ (x >> np.uint64(31))
+
+
+def routing_choice(seed: str, n: int, mode: str, layout=None):
+    """Per-cell numbers for :func:`route`: fixed by the seed, the same in every step.
+
+    With ``layout`` the number of a hex is a hash of the seed and the hex's **world**
+    position, so two windows of one world draw the same number for the same hex and route
+    their common area the same way (manual 6.4: routes stable when the window moves).
+    Without it (synthetic graphs) the numbers follow the cell index.
+    """
     if mode == "steepest":
         return None
-    return Stream(seed, "v4/routing").random(n)
+    if layout is None:
+        return Stream(seed, "v4/routing").random(n)
+    hx, hy = layout.centers()
+    r = layout.radius
+    # hex centres sit on a lattice of 1.5 r by spacing / 2: integer keys on half of it
+    kx = np.rint(hx.ravel() / (0.75 * r)).astype(np.int64).astype(np.uint64)
+    ky = np.rint(hy.ravel() / (0.25 * layout.spacing_km)).astype(np.int64).astype(np.uint64)
+    base = np.uint64(int(Stream(seed, "v4/routing").integer(2**62)))
+    with np.errstate(over="ignore"):
+        h = _splitmix64(_splitmix64(kx ^ base) ^ (ky * np.uint64(0xD6E8FEB86659FD93)))
+    return (h >> np.uint64(11)).astype(np.float64) / float(2**53)
+
+
+#: Downstream hydraulic geometry (Leopold & Maddock 1953): width = a Q^b, depth = c Q^f,
+#: velocity = Q / (width depth); b + f + m = 1. Typical mid-range values, a start for tuning,
+#: not a law of every river: Q = 1000 m^3/s gives ~160 m, ~4.8 m, ~1.3 m/s.
+HYDRAULIC_WIDTH = (5.0, 0.5)
+HYDRAULIC_DEPTH = (0.3, 0.4)
+
+
+def hydraulic_geometry(q_m3_s):
+    """Bankfull-like channel ``(width_m, depth_m, velocity_m_s)`` of the mean discharge."""
+    q = np.maximum(np.asarray(q_m3_s, dtype=np.float64), 0.0)
+    width = HYDRAULIC_WIDTH[0] * q ** HYDRAULIC_WIDTH[1]
+    depth = HYDRAULIC_DEPTH[0] * q ** HYDRAULIC_DEPTH[1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        velocity = np.where(q > 0, q / np.maximum(width * depth, 1e-12), 0.0)
+    return width, depth, velocity
 
 
 def river_network(
@@ -516,6 +563,7 @@ def river_network(
             xs.append(float(b.xmin if side == 0 else b.xmax if side == 1 else x))
             ys.append(float(b.ymin if side == 2 else b.ymax if side == 3 else y))
         sl = np.asarray(slope_m_per_km)[cells]
+        w_m, d_m, v_ms = hydraulic_geometry(q[cells[-1]])
         segments.append(
             {
                 "id": sid,
@@ -525,6 +573,9 @@ def river_network(
                 "strahler": int(strahler[cells[-1]]),
                 "length_km": round(len(cells) * layout.spacing_km, 2),
                 "discharge_m3_s": round(float(q[cells[-1]]), 3),
+                "width_m": round(float(w_m), 1),
+                "depth_m": round(float(d_m), 2),
+                "velocity_m_s": round(float(v_ms), 2),
                 "drainage_area_km2": round(float(hyd["area_km2"][cells[-1]]), 1),
                 "mean_slope_m_per_km": round(float(sl.mean()), 4),
                 "mouth": mouth,

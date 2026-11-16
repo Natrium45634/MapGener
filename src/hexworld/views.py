@@ -1247,6 +1247,8 @@ def _render_temperature(project: Project, mode: str, overlays: frozenset) -> np.
     land = L["land_mask"]
     if mode == "mean":
         rgb = _stops(L["temperature_mean_c"], _TEMP_STOPS, _TEMP_RGB)
+    elif mode in ("djf", "jja"):
+        rgb = _stops(L[f"temperature_{mode}_c"], _TEMP_STOPS, _TEMP_RGB)
     elif mode == "seasonal":
         rgb = _ramp_rgb(2.0 * L["temperature_seasonal_c"], 0.0, 50.0)
     elif mode == "snow":
@@ -1255,10 +1257,11 @@ def _render_temperature(project: Project, mode: str, overlays: frozenset) -> np.
         rgb = _ramp_rgb(L["glacial_potential"], 0.0, 1.0)
     else:
         raise KeyError(f"Unknown mode {mode!r} of view 'temperature'")
-    if mode != "mean":
+    if mode not in ("mean", "djf", "jja"):
         _sea_tint(project, rgb, land)
     if "isotherms" in overlays:
-        band = np.floor(L["temperature_mean_c"] / 10.0).astype(np.int32)
+        field = L[f"temperature_{mode}_c"] if mode in ("djf", "jja") else L["temperature_mean_c"]
+        band = np.floor(field / 10.0).astype(np.int32)
         _shade(rgb, id_rim(band, project.layout), 0.55)
     if "coast" in overlays:
         _shade(rgb, mask_rim(land, project.layout), 0.35)
@@ -1280,6 +1283,23 @@ def _legend_temperature(project: Project, mode: str) -> list[LegendItem]:
                     f"средняя по суше {_num(s['land_mean_temperature_c'], '+.1f')} °C; градиент "
                     f"{project.config.climate.lapse_rate_c_per_km:g} °C/км"
                 )
+            ]
+        )
+    if mode in ("djf", "jja"):
+        name = "декабрь–февраль" if mode == "djf" else "июнь–август"
+        land = project.hydro.layers["land_mask"]
+        field = project.hydro.layers[f"temperature_{mode}_c"]
+        mean = float(field[land].mean()) if land.any() else None
+        return (
+            head
+            + [LegendItem(f"средняя температура: {name}")]
+            + [
+                LegendItem(f"{int(t):+d} °C", tuple(int(c) for c in rgb))
+                for t, rgb in zip(_TEMP_STOPS, _TEMP_RGB, strict=True)
+            ]
+            + [
+                LegendItem(f"средняя по суше {_num(mean, '+.1f')} °C"),
+                LegendItem("лето северного полушария — июнь–август, южного — декабрь–февраль"),
             ]
         )
     lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
@@ -1321,6 +1341,19 @@ def _wind_vectors(project: Project, step_hex: int = 9) -> VectorLayer:
     return VectorLayer("lines", xs, ys, (255, 255, 255), 1.2, True, "wind")
 
 
+_REGIME_RGB = np.array(
+    [[70, 110, 200], [90, 170, 90], [210, 80, 60], [220, 160, 50], [150, 150, 150]],
+    dtype=np.float64,
+)
+_REGIME_TITLES = (
+    "декабрь–февраль",
+    "март–май (весеннее половодье)",
+    "июнь–август",
+    "сентябрь–ноябрь",
+    "стока нет",
+)
+
+
 def _render_precipitation(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
     L = project.hydro.layers
     land = L["land_mask"]
@@ -1333,6 +1366,14 @@ def _render_precipitation(project: Project, mode: str, overlays: frozenset) -> n
         _sea_tint(project, rgb, land, 0.85)
     elif mode == "runoff":
         rgb = _stops(L["runoff_mm_yr"], _PRECIP_STOPS, _PRECIP_RGB)
+        _sea_tint(project, rgb, land, 0.85)
+    elif mode in ("djf", "jja"):
+        rgb = _stops(L[f"precipitation_{mode}_mm"], _PRECIP_STOPS / 4.0, _PRECIP_RGB)
+    elif mode == "regime":
+        peak = L["runoff_peak_season"]
+        rgb = _REGIME_RGB[np.minimum(peak, 4)].copy()
+        melt = np.clip(L["snowmelt_share"], 0.0, 1.0)[..., None]
+        rgb = (rgb * (1.0 - 0.55 * melt) + np.array([245, 245, 255]) * 0.55 * melt).astype(np.uint8)
         _sea_tint(project, rgb, land, 0.85)
     elif mode == "pet":
         rgb = _ramp_rgb(L["potential_evapotranspiration_mm_yr"], 0.0, 2000.0)
@@ -1361,6 +1402,39 @@ def _legend_precipitation(project: Project, mode: str) -> list[LegendItem]:
             head
             + items
             + [LegendItem(extra), LegendItem("стрелки — преобладающий ветер, длина ~ скорость")]
+        )
+    if mode in ("djf", "jja"):
+        name = "декабрь–февраль" if mode == "djf" else "июнь–август"
+        return (
+            head
+            + [LegendItem(f"осадки за {name}, мм за сезон")]
+            + [
+                LegendItem(f"{int(v / 4)}", tuple(int(c) for c in rgb))
+                for v, rgb in zip(_PRECIP_STOPS, _PRECIP_RGB, strict=True)
+            ]
+            + [
+                LegendItem("пояса дождей и муссоны смещаются к летнему полушарию"),
+                LegendItem("стрелки — средний за год ветер"),
+            ]
+        )
+    if mode == "regime":
+        wb = s.get("water_balance") or {}
+        return (
+            head
+            + [LegendItem("сезон наибольшего стока")]
+            + [
+                LegendItem(t, tuple(int(c) for c in rgb))
+                for t, rgb in zip(_REGIME_TITLES, _REGIME_RGB, strict=True)
+            ]
+            + [
+                LegendItem("светлее — больше талых вод (снег, ледники)"),
+                LegendItem(
+                    f"баланс суши: P {_num(wb.get('precipitation_mm_yr'), '.0f')} = "
+                    f"ET {_num(wb.get('evapotranspiration_mm_yr'), '.0f')} + сток "
+                    f"{_num(wb.get('runoff_mm_yr'), '.0f')} + глубокие потери "
+                    f"{_num(wb.get('deep_infiltration_mm_yr'), '.0f')} мм/год"
+                ),
+            ]
         )
     if mode == "aridity":
         sh = s["aridity_shares"]
@@ -1498,6 +1572,12 @@ def _legend_hydrology(project: Project, mode: str) -> list[LegendItem]:
     ]
 
 
+def _v4_uplift(project: Project) -> np.ndarray:
+    """Tectonic uplift rate acting during the v4 erosion period, mm/yr (0 when switched off)."""
+    rate = np.asarray(project.hist.layers["uplift_rate_mm_yr"], dtype=np.float64)
+    return rate if project.config.erosion.continue_uplift else np.zeros_like(rate)
+
+
 def _render_erosion(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
     h = project.hydro
     L = h.layers
@@ -1521,6 +1601,8 @@ def _render_erosion(project: Project, mode: str, overlays: frozenset) -> np.ndar
         rgb = _ramp_rgb(L["sediment_thickness_m"], 0.0, 1500.0, 0.5)
     elif mode == "slope":
         rgb = _ramp_rgb(L["slope_m_per_km"], 0.0, 40.0, 0.6)
+    elif mode == "uplift":
+        rgb = diverging(_v4_uplift(project), 2.0)
     else:
         raise KeyError(f"Unknown mode {mode!r} of view 'erosion'")
     if "coast" in overlays:
@@ -1562,6 +1644,18 @@ def _legend_erosion(project: Project, mode: str) -> list[LegendItem]:
             LegendItem("ниже на 800 м и больше", (25, 60, 150)),
             LegendItem("с учётом продолжающегося поднятия"),
         ]
+    if mode == "uplift":
+        on = project.config.erosion.continue_uplift
+        return head + [
+            LegendItem("поднятие 2 мм/год и больше", (150, 30, 30)),
+            LegendItem("покой", (236, 236, 236)),
+            LegendItem("опускание 2 мм/год и больше", (25, 60, 150)),
+            LegendItem(
+                "скорость тектоники выбранной эпохи; действует во время эрозии"
+                if on
+                else "поднятие во время эрозии выключено (continue_uplift = false)"
+            ),
+        ]
     scales = {
         "erosion": "снято до 1500 м",
         "deposition": "отложено до 500 м",
@@ -1583,11 +1677,15 @@ register_view(
         layers=(
             "temperature_mean_c",
             "temperature_seasonal_c",
+            "temperature_djf_c",
+            "temperature_jja_c",
             "snow_fraction",
             "glacial_potential",
         ),
         modes=(
             Option("mean", "Среднегодовая температура"),
+            Option("djf", "Декабрь–февраль"),
+            Option("jja", "Июнь–август"),
             Option("seasonal", "Годовой размах"),
             Option("snow", "Доля снега в осадках"),
             Option("glacial", "Условия для льда"),
@@ -1610,11 +1708,18 @@ register_view(
             "potential_evapotranspiration_mm_yr",
             "wind_u_ms",
             "wind_v_ms",
+            "precipitation_djf_mm",
+            "precipitation_jja_mm",
+            "runoff_peak_season",
+            "snowmelt_share",
         ),
         modes=(
             Option("precipitation", "Осадки"),
+            Option("djf", "Осадки декабря–февраля"),
+            Option("jja", "Осадки июня–августа"),
             Option("aridity", "Увлажнение (индекс аридности P/PET)"),
             Option("runoff", "Сток"),
+            Option("regime", "Режим стока (сезон половодья)"),
             Option("pet", "Потенциальное испарение"),
         ),
         overlays=(Option("coast", "Берег", True), Option("wind", "Ветер", True)),
@@ -1676,6 +1781,7 @@ register_view(
             Option("deposition", "Отложено"),
             Option("sediment", "Толщина осадков"),
             Option("slope", "Уклон"),
+            Option("uplift", "Тектоническое поднятие"),
         ),
         overlays=(Option("coast", "Берег", True), Option("rivers", "Крупные реки")),
         note="Речная (stream power) и склоновая эрозия, перенос и отложение наносов",
