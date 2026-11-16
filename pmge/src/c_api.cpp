@@ -64,6 +64,11 @@ void pmge_request_init(pmge_request* r) {
   r->maturity = 0.2;
   r->valley_depth = 0.6;
   r->detail = 1.0;
+  r->style = PMGE_STYLE_AUTO;
+  r->complexity = 1.0;
+  r->age_ma = 0.0;
+  r->asymmetry = 0.0;
+  r->plateau = 0.0;
 }
 
 int pmge_validate(const pmge_request* request, char* message, size_t size) {
@@ -96,9 +101,10 @@ pmge_plan* pmge_plan_create_external(
     const pmge_request* request, int32_t ridge_count, const int32_t* ridge_offsets,
     const double* ridge_xy, const double* ridge_crest, const double* ridge_half_width,
     const int32_t* ridge_rank, const int32_t* ridge_system, const double* ridge_sharpness,
-    int32_t valley_count, const int32_t* valley_offsets, const double* valley_xy,
-    const double* valley_depth, const double* valley_half_width, double grid_x0, double grid_y0,
-    double grid_cell, int32_t grid_nx, int32_t grid_ny, const float* amplitude, const float* gain,
+    const double* ridge_plateau, const double* ridge_asymmetry, int32_t valley_count,
+    const int32_t* valley_offsets, const double* valley_xy, const double* valley_depth,
+    const double* valley_half_width, double grid_x0, double grid_y0, double grid_cell,
+    int32_t grid_nx, int32_t grid_ny, const float* amplitude, const float* gain,
     double mean_offset) {
   pmge_plan* out = nullptr;
   guarded([&] {
@@ -126,6 +132,10 @@ pmge_plan* pmge_plan_create_external(
       r.system = ridge_system ? ridge_system[i] : 0;
       r.half_width = ridge_half_width[i];
       r.sharpness = ridge_sharpness ? ridge_sharpness[i] : 1.2;
+      r.plateau = ridge_plateau ? ridge_plateau[i] : 0.0;
+      r.asymmetry = ridge_asymmetry ? ridge_asymmetry[i] : 0.0;
+      need(r.sharpness > 0 && r.plateau >= 0 && r.plateau < 1 && std::abs(r.asymmetry) < 1,
+           "ridge sharpness must be > 0, plateau in [0, 1), |asymmetry| < 1");
       for (int32_t k = a; k < b; ++k) {
         r.points.push_back({ridge_xy[2 * k], ridge_xy[2 * k + 1]});
         r.crest.push_back(ridge_crest[k]);

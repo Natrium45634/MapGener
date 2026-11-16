@@ -1,6 +1,7 @@
 // pmge_cli: materialise a heightmap of one request through the public C ABI.
 //   pmge_cli --mode circle|box|line --size 512 --extent 60000 --seed 7 --peaks 5
 //            --max 3000 --types sharp=1,flat=0 --erode thermal|fluvial|none --out out
+//            --style auto|alpine|himalayan|... --complexity 1 --age 0 --asymmetry 0 --plateau 0
 // Writes <out>.pgm (16-bit, big-endian, 0 = min_m, 65535 = max_m) and <out>.json (the plan).
 #include <cmath>
 #include <cstdio>
@@ -26,6 +27,21 @@ int main(int argc, char** argv) {
     else if (k == "--peaks") r.peak_count = std::atoi(v.c_str());
     else if (k == "--max") r.max_m = std::atof(v.c_str());
     else if (k == "--maturity") r.maturity = std::atof(v.c_str());
+    else if (k == "--age") r.age_ma = std::atof(v.c_str());
+    else if (k == "--complexity") r.complexity = std::atof(v.c_str());
+    else if (k == "--asymmetry") r.asymmetry = std::atof(v.c_str());
+    else if (k == "--plateau") r.plateau = std::atof(v.c_str());
+    else if (k == "--style") {
+      static const char* styles[] = {"auto", "volcanic_arc", "alpine", "himalayan", "andean",
+                                     "fold_belt", "old_massif", "broad_upland", "mixed", "block"};
+      r.style = -1;
+      for (int s = 0; s < PMGE_STYLES; ++s)
+        if (v == styles[s]) r.style = s;
+      if (r.style < 0) {
+        std::fprintf(stderr, "unknown style %s\n", v.c_str());
+        return 2;
+      }
+    }
     else if (k == "--erode") erode = v;
     else if (k == "--out") out = v;
     else if (k == "--types") {

@@ -544,7 +544,7 @@ def test_pmge_backend_through_the_c_abi(hist_config, hist_project):
     )
     assert pm.hist.validation["ok"], pm.hist.validation
     info = pm.hist.summary["mountain_backend"]
-    assert info["is_pmge"] and info["abi"] == 1 and "pmge" in info["library"]
+    assert info["is_pmge"] and info["abi"] == 2 and "pmge" in info["library"]
     assert "geo_history" in pm.stats["reused_stages"]  # the backend does not touch history
     assert pm.hist.stage_keys["mountain_plan"] != ref.hist.stage_keys["mountain_plan"]
     a, b = ref.hist.layers["elevation_m"], pm.hist.layers["elevation_m"]

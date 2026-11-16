@@ -18,6 +18,17 @@ SEA_MODES = ("target_land_fraction", "fixed_sea_level_m")
 CRUST_LAYOUTS = ("clustered", "uniform")
 HISTORY_PROFILES = ("calm", "earthlike", "active")
 MOUNTAIN_BACKENDS = ("auto", "reference", "pmge")
+MOUNTAIN_STYLES = (
+    "volcanic_arc",
+    "alpine",
+    "himalayan",
+    "andean",
+    "fold_belt",
+    "old_massif",
+    "broad_upland",
+    "mixed",
+    "block",
+)
 ROUTING_MODES = ("stochastic", "steepest")
 CLIMATE_PROFILES = ("earthlike", "dry", "wet")
 MODES = ("regional", "world")
@@ -177,6 +188,12 @@ class MountainParams:
     max_elevation_m: float = 8800.0
     #: Orogenic relief above which a cell belongs to a mountain system, m.
     system_threshold_m: float = 450.0
+    #: Architecture of every system: "auto" (from tectonics, width, age and the seed) or
+    #: one of hexworld.mountains.STYLES for all systems.
+    style: str = "auto"
+    #: 0 = one crest per system (the 3.x behaviour); 1 = parallel ranges, plateaus,
+    #: basins and irregular branching; up to 2 = more ranges and spurs.
+    complexity: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -341,6 +358,10 @@ class Config:
             raise ConfigError('history.epoch must be "final", "initial" or a time in Ma')
         if self.mountains.backend not in MOUNTAIN_BACKENDS:
             raise ConfigError(f"mountains.backend must be one of {MOUNTAIN_BACKENDS}")
+        if self.mountains.style not in ("auto", *MOUNTAIN_STYLES):
+            raise ConfigError(f"mountains.style must be 'auto' or one of {MOUNTAIN_STYLES}")
+        if not 0.0 <= self.mountains.complexity <= 2.0:
+            raise ConfigError("mountains.complexity must be within [0, 2]")
         if not 0.0 <= self.mountains.detail <= 2.0:
             raise ConfigError("mountains.detail must be within [0, 2]")
         if not 2000.0 <= self.mountains.max_elevation_m <= 12000.0:

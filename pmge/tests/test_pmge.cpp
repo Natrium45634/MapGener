@@ -1,5 +1,6 @@
 // PMGE tests through the public C ABI only (what an embedding program sees).
 // No external test framework: the library must build with a bare C++20 toolchain.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -41,6 +42,7 @@ static pmge_request base_request() {
   r.base_m = 300;
   r.min_m = 300;
   r.max_m = 2800;
+  r.style = PMGE_STYLE_ALPINE;  // the classic range most checks below are written for
   return r;
 }
 
@@ -292,6 +294,14 @@ static void test_hex_sampling() {
     cx.push_back(10000 + 800.0 * k);
     cy.push_back(30000);
   }
+  {  // and one hex right on the first summit of the plan, wherever the range runs
+    char* j = pmge_plan_json(h.p);
+    std::string js(j);
+    pmge_free(j);
+    size_t a = js.find("\"peaks\":[{");
+    cx.push_back(std::atof(js.c_str() + js.find("\"x_m\":", a) + 6));
+    cy.push_back(std::atof(js.c_str() + js.find("\"y_m\":", a) + 6));
+  }
   std::vector<pmge_hex_sample> out(cx.size());
   for (int orientation : {PMGE_HEX_FLAT_TOP, PMGE_HEX_POINTY_TOP}) {
     CHECK(pmge_sample_hexes(h.p, cx.data(), cy.data(), int64_t(cx.size()), 1500.0, orientation,
@@ -368,15 +378,150 @@ static void test_external_plan() {
   int32_t offs[] = {0, 3};
   double hw[] = {4000};
   float amp[] = {2000, 2000, 2000, 2000};
-  PlanHolder h(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, nullptr, 0,
+  PlanHolder h(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, nullptr, nullptr,
+                                         nullptr, 0,
                                          nullptr, nullptr, nullptr, nullptr, -50000, -50000,
                                          100000, 2, 2, amp, nullptr, 0.0));
   CHECK(h.p != nullptr);
   double on = pmge_sample_height(h.p, 10000, 0), off = pmge_sample_height(h.p, 10000, 9000);
   CHECK(on > 1500 && std::abs(off) < 1e-9);  // a delta: zero away from the ridges
-  CHECK(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, nullptr, 0,
+  CHECK(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, nullptr, nullptr,
+                                         nullptr, 0,
                                   nullptr, nullptr, nullptr, nullptr, 0, 0, 1, 1, 1, amp, nullptr,
                                   0.0) == nullptr);  // grid too small
+}
+
+// helpers for the ABI 2 checks
+static std::string plan_json(pmge_plan* p) {
+  char* j = pmge_plan_json(p);
+  std::string s(j ? j : "");
+  pmge_free(j);
+  return s;
+}
+static int count_of(const std::string& s, const std::string& what) {
+  int n = 0;
+  for (size_t at = s.find(what); at != std::string::npos; at = s.find(what, at + 1)) ++n;
+  return n;
+}
+static std::vector<double> numbers_after(const std::string& s, const std::string& key,
+                                         const std::string& section) {
+  std::vector<double> out;
+  size_t a = s.find(section), b = s.find("],\"", a);
+  for (size_t at = s.find(key, a); at != std::string::npos && at < b; at = s.find(key, at + 1))
+    out.push_back(std::atof(s.c_str() + at + key.size()));
+  return out;
+}
+
+static pmge_request box_request() {
+  pmge_request r = base_request();
+  r.footprint_type = PMGE_FOOTPRINT_BOX;
+  r.box_min_x = 0;
+  r.box_min_y = 0;
+  r.box_max_x = 120000;
+  r.box_max_y = 60000;
+  return r;
+}
+
+static void test_styles_build_and_differ() {
+  // every architecture builds a valid plan, and they are not one shape renamed
+  std::vector<std::vector<float>> maps;
+  const char* names[] = {"", "volcanic_arc", "alpine", "himalayan", "andean", "fold_belt",
+                         "old_massif", "broad_upland", "mixed", "block"};
+  for (int style = PMGE_STYLE_VOLCANIC_ARC; style < PMGE_STYLES; ++style) {
+    pmge_request r = box_request();
+    r.style = style;
+    PlanHolder h(pmge_plan_create(&r, nullptr, 0));
+    CHECK(h.p != nullptr);
+    if (!h.p) continue;
+    std::string js = plan_json(h.p);
+    CHECK(js.find(std::string("\"style\":\"") + names[style] + "\"") != std::string::npos);
+    CHECK(count_of(js, "\"rank\":\"main\"") >= 1);
+    std::vector<float> m(size_t(60) * 30);
+    CHECK(pmge_generate_heightmap(h.p, 1000, 1000, 2000, 60, 30, m.data()) == PMGE_OK);
+    maps.push_back(m);
+  }
+  int distinct = 0, pairs = 0;
+  for (size_t a = 0; a < maps.size(); ++a)
+    for (size_t b = a + 1; b < maps.size(); ++b) {
+      double diff = 0;
+      for (size_t k = 0; k < maps[a].size(); ++k) diff += std::abs(maps[a][k] - maps[b][k]);
+      distinct += diff / double(maps[a].size()) > 40.0;
+      ++pairs;
+    }
+  CHECK(distinct == pairs);  // mean height difference > 40 m for every pair of styles
+  // parallel ranges: a fold belt has many, complexity 0 keeps one crest
+  pmge_request r = box_request();
+  r.style = PMGE_STYLE_FOLD_BELT;
+  PlanHolder many(pmge_plan_create(&r, nullptr, 0));
+  r.complexity = 0;
+  PlanHolder one(pmge_plan_create(&r, nullptr, 0));
+  CHECK(count_of(plan_json(many.p), "\"role\":\"fold\"") >= 4);
+  CHECK(count_of(plan_json(one.p), "\"role\":\"fold\"") == 1);
+}
+
+static void test_spacing_is_irregular() {
+  // peaks and spurs are not placed at equal intervals
+  pmge_request r = box_request();
+  r.box_max_x = 160000;
+  r.box_max_y = 50000;
+  PlanHolder h(pmge_plan_create(&r, nullptr, 0));
+  std::string js = plan_json(h.p);
+  auto xs = numbers_after(js, "\"x_m\":", "\"peaks\":[");
+  std::sort(xs.begin(), xs.end());
+  std::vector<double> gaps;
+  for (size_t k = 1; k < xs.size(); ++k) gaps.push_back(xs[k] - xs[k - 1]);
+  CHECK(gaps.size() >= 6);
+  double mean = 0, var = 0;
+  for (double g : gaps) mean += g / double(gaps.size());
+  for (double g : gaps) var += (g - mean) * (g - mean) / double(gaps.size());
+  CHECK(mean > 0 && std::sqrt(var) / mean > 0.2);  // coefficient of variation of the spacing
+  CHECK(count_of(js, "\"rank\":\"spur\"") >= 6);
+}
+
+static void test_external_plateau_and_asymmetry() {
+  pmge_request r;
+  pmge_request_init(&r);
+  double xy[] = {0, 0, 10000, 0, 20000, 0};
+  double crest[] = {1.0, 1.0, 1.0};
+  int32_t offs[] = {0, 3};
+  double hw[] = {4000}, sharp[] = {1.2}, plat[] = {0.5}, asym[] = {0.5};
+  float amp[] = {2000, 2000, 2000, 2000};
+  PlanHolder flat(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, sharp,
+                                            plat, nullptr, 0, nullptr, nullptr, nullptr, nullptr,
+                                            -50000, -50000, 100000, 2, 2, amp, nullptr, 0.0));
+  CHECK(flat.p != nullptr);
+  double qx[] = {10000, 10000}, qy[] = {0, 1500};
+  pmge_sample s[2];
+  CHECK(pmge_sample_batch(flat.p, qx, qy, 2, s) == PMGE_OK);
+  CHECK(std::abs(s[0].structure - s[1].structure) < 1e-9 && s[0].structure > 0.99);  // level top
+  PlanHolder skew(pmge_plan_create_external(&r, 1, offs, xy, crest, hw, nullptr, nullptr, sharp,
+                                            nullptr, asym, 0, nullptr, nullptr, nullptr, nullptr,
+                                            -50000, -50000, 100000, 2, 2, amp, nullptr, 0.0));
+  double left = pmge_sample_height(skew.p, 10000, 3000);
+  double right = pmge_sample_height(skew.p, 10000, -3000);
+  CHECK(left > right + 100);  // the left flank (+y for an eastward axis) is wider and gentler
+}
+
+static void test_age_erodes_the_range() {
+  // the same range young and after 50 / 300 Ma: lower, with rounder summits
+  double prev_max = 1e30;
+  int prev_sharp = 1 << 30;
+  for (double age : {0.0, 50.0, 300.0}) {
+    pmge_request r = box_request();
+    r.age_ma = age;
+    PlanHolder h(pmge_plan_create(&r, nullptr, 0));
+    std::vector<float> m(size_t(120) * 60);
+    CHECK(pmge_generate_heightmap(h.p, 0, 0, 1000, 120, 60, m.data()) == PMGE_OK);
+    double mx = *std::max_element(m.begin(), m.end());
+    std::string js = plan_json(h.p);
+    int sharp = count_of(js, "\"type\":\"sharp\"") + count_of(js, "\"type\":\"needle\"") +
+                count_of(js, "\"type\":\"jagged\"");
+    CHECK(mx < prev_max);
+    CHECK(sharp <= prev_sharp);
+    prev_max = mx;
+    prev_sharp = sharp;
+  }
+  CHECK(prev_max < 300 + 0.6 * 2500);  // 300 Ma later little more than half the relief is left
 }
 
 int main() {
@@ -393,7 +538,11 @@ int main() {
                {"hex_sampling", test_hex_sampling},
                {"thread_count_does_not_change_results", test_thread_count_does_not_change_results},
                {"erosion_models", test_erosion_models},
-               {"external_plan", test_external_plan}};
+               {"external_plan", test_external_plan},
+               {"styles_build_and_differ", test_styles_build_and_differ},
+               {"spacing_is_irregular", test_spacing_is_irregular},
+               {"external_plateau_and_asymmetry", test_external_plateau_and_asymmetry},
+               {"age_erodes_the_range", test_age_erodes_the_range}};
   for (auto& t : tests) {
     int before = g_failed;
     t.fn();

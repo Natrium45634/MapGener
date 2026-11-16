@@ -29,7 +29,7 @@ from scipy.spatial import cKDTree
 
 from ..noise import FractalNoise
 from ..rng import Stream
-from .plan import RANK_SPUR, MountainPlan
+from .plan import MountainPlan
 
 ADAPTER_ABI_VERSION = 1
 POLICIES = ("add", "masked", "constrained_fit")
@@ -85,46 +85,111 @@ class HeightSampler(Protocol):
     def sample_points(self, x, y) -> HeightPatch: ...
 
 
+class _Group:
+    """Points of ridges (or valleys) of similar width in one KD-tree."""
+
+    def __init__(self, arrays: dict):
+        self.__dict__.update(arrays)
+        self.tree = cKDTree(np.column_stack([self.px, self.py]))
+        self.reach = float((self.hw * (1.0 + np.abs(self.asym))).max())
+
+
+def _point_normals(points: np.ndarray) -> np.ndarray:
+    d = np.gradient(points, axis=0) if len(points) > 1 else np.array([[1.0, 0.0]])
+    t = d / np.maximum(np.hypot(d[:, 0], d[:, 1]), 1e-9)[:, None]
+    return np.column_stack([-t[:, 1], t[:, 0]])
+
+
+def _groups(items, width_of) -> list[_Group]:
+    """Split by half-width (narrow, wide, very wide) so a narrow crest never hides a
+    plateau or a basin from the nearest-neighbour search."""
+    buckets: dict[int, list] = {}
+    for it in items:
+        hw = width_of(it)
+        buckets.setdefault(0 if hw <= 90.0 else (1 if hw <= 220.0 else 2), []).append(it)
+    return [buckets[k] for k in sorted(buckets)]
+
+
 class ReferenceSampler:
-    """Analytic sampler: relief at any world point, so windows and chunks never seam."""
+    """Analytic sampler: relief at any world point, so windows and chunks never seam.
+
+    Cross profile of a ridge at distance ``d`` on side ``side`` of its axis::
+
+        hw_side = hw * (1 + asymmetry * side)          # asymmetric flanks
+        u = d / hw_side;  u' = max(0, (u - plateau) / (1 - plateau))
+        structure = crest * (1 - u') ** sharpness      # level top up to ``plateau``
+    """
 
     def __init__(self, request: MountainRequest):
         self.request = request
         plan = request.plan
-        xs, ys, crest, hw, sharp, sysid, spur = [], [], [], [], [], [], []
         sharp_by_system = {s.id: s.sharpness for s in plan.systems}
-        for r in plan.ridges:
-            n = len(r.points)
-            xs.append(r.points[:, 0])
-            ys.append(r.points[:, 1])
-            crest.append(r.crest)
-            hw.append(np.full(n, r.half_width_km))
-            sharp.append(np.full(n, sharp_by_system.get(r.system, 1.2)))
-            sysid.append(np.full(n, r.system))
-            spur.append(np.full(n, r.rank == RANK_SPUR))
-        self.empty = not xs
+        self.empty = not plan.ridges
         if self.empty:
-            return
-        self.px, self.py = np.concatenate(xs), np.concatenate(ys)
-        self.crest, self.hw = np.concatenate(crest), np.concatenate(hw)
-        self.sharp, self.sysid = np.concatenate(sharp), np.concatenate(sysid).astype(np.int32)
-        self.tree = cKDTree(np.column_stack([self.px, self.py]))
-        self.reach = float(self.hw.max())
-        vx, vy, vd, vw = [], [], [], []
-        for v in plan.valleys:
-            vx.append(v.points[:, 0])
-            vy.append(v.points[:, 1])
-            vd.append(v.depth)
-            vw.append(np.full(len(v.points), v.half_width_km))
-        self.vtree = None
-        if vx:
-            self.vx, self.vy = np.concatenate(vx), np.concatenate(vy)
-            self.vd, self.vw = np.concatenate(vd), np.concatenate(vw)
-            self.vtree = cKDTree(np.column_stack([self.vx, self.vy]))
+            self.groups, self.vgroups = [], []
+        else:
+            self.groups = []
+            for group in _groups(plan.ridges, lambda r: r.half_width_km):
+                parts: dict[str, list] = {k: [] for k in
+                                          ("px", "py", "crest", "hw", "sharp", "sysid", "plat",
+                                           "asym", "nx", "ny")}  # fmt: skip
+                for r in group:
+                    n = len(r.points)
+                    normals = _point_normals(r.points)
+                    sharp = (
+                        r.sharpness
+                        if r.sharpness is not None
+                        else sharp_by_system.get(r.system, 1.2)
+                    )
+                    parts["px"].append(r.points[:, 0])
+                    parts["py"].append(r.points[:, 1])
+                    parts["crest"].append(r.crest)
+                    parts["hw"].append(np.full(n, r.half_width_km))
+                    parts["sharp"].append(np.full(n, sharp))
+                    parts["sysid"].append(np.full(n, r.system))
+                    parts["plat"].append(np.full(n, min(r.plateau, 0.9)))
+                    parts["asym"].append(np.full(n, r.asymmetry))
+                    parts["nx"].append(normals[:, 0])
+                    parts["ny"].append(normals[:, 1])
+                arrays = {k: np.concatenate(v) for k, v in parts.items()}
+                arrays["sysid"] = arrays["sysid"].astype(np.int32)
+                self.groups.append(_Group(arrays))
+            self.vgroups = []
+            for group in _groups(plan.valleys, lambda v: v.half_width_km):
+                arrays = {
+                    "px": np.concatenate([v.points[:, 0] for v in group]),
+                    "py": np.concatenate([v.points[:, 1] for v in group]),
+                    "vd": np.concatenate([v.depth for v in group]),
+                    "hw": np.concatenate([np.full(len(v.points), v.half_width_km) for v in group]),
+                }
+                arrays["asym"] = np.zeros(arrays["px"].size)
+                self.vgroups.append(_Group(arrays))
         pts = np.array([[p["x_km"], p["y_km"]] for p in plan.passes]) if plan.passes else None
         self.pass_tree = cKDTree(pts) if pts is not None else None
         stream = Stream(request.world_seed, "mountains/v3/detail")
         self.detail = FractalNoise(stream, [46.0, 23.0, 11.5], [1.0, 0.55, 0.3])
+
+    @staticmethod
+    def _ridge_values(g: _Group, pts: np.ndarray):
+        k = min(8, g.px.size)
+        d, idx = g.tree.query(pts, k=k, distance_upper_bound=g.reach)
+        if k == 1:
+            d, idx = d[:, None], idx[:, None]
+        ok = np.isfinite(d)
+        idx = np.where(ok, idx, 0)
+        side = np.sign(
+            (pts[:, 0:1] - g.px[idx]) * g.nx[idx] + (pts[:, 1:2] - g.py[idx]) * g.ny[idx]
+        )
+        hw = g.hw[idx] * (1.0 + g.asym[idx] * side)
+        u = np.where(ok, d / hw, 2.0)
+        plat = g.plat[idx]
+        u2 = np.clip((u - plat) / (1.0 - plat), 0.0, None)
+        prof = np.clip(1.0 - u2, 0.0, 1.0) ** g.sharp[idx]
+        val = np.where(ok, g.crest[idx] * prof, 0.0)
+        best = np.argmax(val, axis=1)
+        rows = np.arange(len(pts))
+        dist = np.where(ok[:, 0], d[:, 0], np.inf)
+        return val[rows, best], g.sysid[idx[rows, best]], dist
 
     def sample_points(self, x, y) -> HeightPatch:
         x = np.asarray(x, dtype=np.float64)
@@ -139,29 +204,24 @@ class ReferenceSampler:
             zero = np.zeros(shape)
             return HeightPatch(zero, zero, zero, system.reshape(shape), dist.reshape(shape))
         pts = np.column_stack([x.ravel(), y.ravel()])
-        k = min(8, self.px.size)
-        d, idx = self.tree.query(pts, k=k, distance_upper_bound=self.reach)
-        if k == 1:
-            d, idx = d[:, None], idx[:, None]
-        ok = np.isfinite(d)
-        idx = np.where(ok, idx, 0)
-        u = np.where(ok, d / self.hw[idx], 2.0)
-        prof = np.clip(1.0 - u, 0.0, 1.0) ** self.sharp[idx]
-        val = np.where(ok, self.crest[idx] * prof, 0.0)
-        best = np.argmax(val, axis=1)
-        rows = np.arange(n)
-        structure = val[rows, best]
-        system = np.where(structure > 0, self.sysid[idx[rows, best]], -1).astype(np.int32)
-        dist = np.where(ok[:, 0], d[:, 0], np.inf)
-        if self.vtree is not None:
-            kv = min(4, self.vx.size)
-            dv, iv = self.vtree.query(pts, k=kv, distance_upper_bound=float(self.vw.max()))
+        for g in self.groups:
+            val, sid, d = self._ridge_values(g, pts)
+            better = val > structure
+            structure = np.where(better, val, structure)
+            system = np.where(better, sid, system)
+            dist = np.minimum(dist, d)
+        system = np.where(structure > 0, system, -1).astype(np.int32)
+        for g in self.vgroups:
+            kv = min(4, g.px.size)
+            dv, iv = g.tree.query(pts, k=kv, distance_upper_bound=g.reach)
             if kv == 1:
                 dv, iv = dv[:, None], iv[:, None]
             okv = np.isfinite(dv)
             iv = np.where(okv, iv, 0)
-            vprof = np.clip(1.0 - np.where(okv, dv / self.vw[iv], 2.0), 0.0, 1.0)
-            valley = np.where(okv, self.vd[iv] * vprof, 0.0).max(axis=1)
+            u = np.where(okv, dv / g.hw[iv], 2.0)
+            vprof = np.clip(1.0 - u, 0.0, 1.0)
+            vprof = vprof * vprof * (3.0 - 2.0 * vprof)  # smooth edges for wide basins
+            valley = np.maximum(valley, np.where(okv, g.vd[iv] * vprof, 0.0).max(axis=1))
         # a valley lowers the flanks but never cuts a crest
         pattern = structure * (1.0 - 0.6 * valley * (1.0 - structure) ** 0.5) - 0.22 * valley * (
             structure < 0.35
@@ -231,7 +291,9 @@ class PmgeSampler:
                 "half_width_km": r.half_width_km,
                 "rank": r.rank,
                 "system": r.system,
-                "sharpness": sharp.get(r.system, 1.2),
+                "sharpness": r.sharpness if r.sharpness is not None else sharp.get(r.system, 1.2),
+                "plateau": r.plateau,
+                "asymmetry": r.asymmetry,
             }
             for r in plan.ridges
         ]

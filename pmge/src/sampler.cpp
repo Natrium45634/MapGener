@@ -88,16 +88,29 @@ void Plan::finalize() {
   pindex_.clear();
   passindex_.clear();
   range_limit_ = request.spur_length_m + request.ridge_half_width_m + request.foothill_width_m;
+  // index cell: the typical (not the widest) reach, so plateaus do not slow every lookup
+  std::vector<double> reaches;
+  for (const Ridge& r : ridges) reaches.push_back(r.half_width * (1.0 + std::abs(r.asymmetry)));
   cell_ = 1;
-  for (const Ridge& r : ridges) cell_ = std::max(cell_, r.half_width);
-  for (const Ridge& r : ridges) {
+  if (!reaches.empty()) {
+    std::vector<double> sorted = reaches;
+    std::sort(sorted.begin(), sorted.end());
+    cell_ = std::max(1.0, sorted[size_t(0.9 * double(sorted.size() - 1))]);
+  }
+  for (size_t ri = 0; ri < ridges.size(); ++ri) {
+    const Ridge& r = ridges[ri];
     for (size_t i = 0; i + 1 < r.points.size(); ++i) {
       Segment s{r.points[i].x, r.points[i].y, r.points[i + 1].x, r.points[i + 1].y,
                 r.crest[i],    r.crest[i + 1], r.half_width,      r.sharpness,
                 r.system,      r.id};
+      s.plateau = std::clamp(r.plateau, 0.0, 0.9);
+      s.asymmetry = std::clamp(r.asymmetry, -0.9, 0.9);
+      Vec2 n = perp(normalized(Vec2{s.bx - s.ax, s.by - s.ay}));
+      s.nx = n.x;
+      s.ny = n.y;
       uint32_t id = uint32_t(segments_.size());
       segments_.push_back(s);
-      double m = r.half_width;
+      double m = reaches[ri];
       for_cells(std::min(s.ax, s.bx) - m, std::min(s.ay, s.by) - m, std::max(s.ax, s.bx) + m,
                 std::max(s.ay, s.by) + m, cell_, [&](uint64_t k) { index_[k].push_back(id); });
     }
@@ -196,9 +209,13 @@ Sample Plan::sample(double x, double y) const {
       double t;
       double d = seg_distance(x, y, g.ax, g.ay, g.bx, g.by, t);
       dmin = std::min(dmin, d);
-      if (d >= g.half_width) continue;
+      double side = (x - (g.ax + t * (g.bx - g.ax))) * g.nx + (y - (g.ay + t * (g.by - g.ay))) * g.ny;
+      double hw = g.half_width * (1.0 + g.asymmetry * (side >= 0 ? 1.0 : -1.0));
+      if (d >= hw) continue;
+      double u = d / hw;
+      double u2 = g.plateau > 0 ? std::max(0.0, (u - g.plateau) / (1.0 - g.plateau)) : u;
       double crest = g.ca + (g.cb - g.ca) * t;
-      double v = crest * std::pow(1.0 - d / g.half_width, g.sharpness);
+      double v = crest * std::pow(1.0 - u2, g.sharpness);
       if (v > s) {
         s = v;
         system = g.system;
@@ -227,9 +244,9 @@ Sample Plan::sample(double x, double y) const {
       double d = seg_distance(x, y, g.ax, g.ay, g.bx, g.by, t);
       if (d >= g.half_width) continue;
       double u = d / g.half_width;
-      double shape = external ? 1.0 - u
-                              : (1.0 - r.maturity) * (1.0 - u) +
-                                    r.maturity * (1.0 - u * u * u * u);  // V when young, U when old
+      double shape = external ? smoothstep(1.0 - u)  // same as the HexWorld reference sampler
+                              : (1.0 - maturity_eff) * (1.0 - u) +
+                                    maturity_eff * (1.0 - u * u * u * u);  // V young, U old
       valley = std::max(valley, (g.da + (g.db - g.da) * t) * shape);
     }
   }
@@ -294,13 +311,13 @@ Sample Plan::sample(double x, double y) const {
     }
     // young ranges: sharp crests above a narrow body; old ones: worn crests on a broad,
     // lower body (the modelled erosion of the history removes the ridge contrast first)
-    double m = r.maturity;
+    double m = maturity_eff;
     double env = (body + (1.0 - body) * foot) * (1.0 - (0.8 - 0.25 * m) * valley);
     double v = std::max(0.0, (0.42 + 0.18 * m) * env + (0.62 - 0.32 * m) * pattern +
                                  (1.0 - 0.75 * m) * rough * (0.4 + env));
     if (v > 0.9) v = 0.9 + 0.1 * std::tanh((v - 0.9) / 0.1);  // point-wise ceiling, no rescale
     double mask = footprint_mask(x, y);
-    out.relief = (r.max_m - r.base_m) * v * mask;
+    out.relief = (r.max_m - r.base_m) * height_scale * v * mask;
     out.height = std::clamp(r.base_m + out.relief, r.min_m, r.max_m);
     out.structure = std::max(out.structure, std::clamp(body * 0.5, 0.0, 0.3));
   }

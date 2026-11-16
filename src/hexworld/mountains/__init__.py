@@ -9,7 +9,8 @@ from .backend import (
     get_backend,
     limit_elevation,
 )
-from .plan import MountainPlan, MountainSystem, Ridge, Valley, build_plan
+from .builder import STYLES, build_plan
+from .plan import MountainPlan, MountainSystem, Ridge, Valley
 
 __all__ = [
     "BackendUnavailable",
@@ -20,6 +21,7 @@ __all__ = [
     "PmgeBackend",
     "ReferenceBackend",
     "Ridge",
+    "STYLES",
     "Valley",
     "build_plan",
     "get_backend",

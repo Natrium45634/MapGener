@@ -28,7 +28,7 @@
 extern "C" {
 #endif
 
-#define PMGE_ABI_VERSION 1
+#define PMGE_ABI_VERSION 2
 
 enum { PMGE_OK = 0, PMGE_ERR_ARGUMENT = 1, PMGE_ERR_CONSTRAINT = 2, PMGE_ERR_INTERNAL = 3 };
 enum { PMGE_FOOTPRINT_CIRCLE = 0, PMGE_FOOTPRINT_BOX = 1, PMGE_FOOTPRINT_LINE = 2 };
@@ -36,6 +36,13 @@ enum {
   PMGE_PEAK_SHARP = 0, PMGE_PEAK_JAGGED = 1, PMGE_PEAK_ROUNDED = 2, PMGE_PEAK_DOME = 3,
   PMGE_PEAK_FLAT = 4, PMGE_PEAK_NEEDLE = 5, PMGE_PEAK_VOLCANIC = 6, PMGE_PEAK_TRUNCATED = 7,
   PMGE_PEAK_TYPES = 8
+};
+/* Architecture of a standalone mountain system (see docs/STYLES.md). */
+enum {
+  PMGE_STYLE_AUTO = 0, PMGE_STYLE_VOLCANIC_ARC = 1, PMGE_STYLE_ALPINE = 2,
+  PMGE_STYLE_HIMALAYAN = 3, PMGE_STYLE_ANDEAN = 4, PMGE_STYLE_FOLD_BELT = 5,
+  PMGE_STYLE_OLD_MASSIF = 6, PMGE_STYLE_BROAD_UPLAND = 7, PMGE_STYLE_MIXED = 8,
+  PMGE_STYLE_BLOCK = 9, PMGE_STYLES = 10
 };
 enum { PMGE_FOOTHILL_SMOOTH = 0, PMGE_FOOTHILL_ROLLING = 1, PMGE_FOOTHILL_ABRUPT = 2,
        PMGE_FOOTHILL_TERRACED = 3 };
@@ -66,6 +73,12 @@ typedef struct pmge_request {
   double maturity;               /* 0 young and sharp .. 1 old and worn */
   double valley_depth;           /* 0 none .. 1 deep */
   double detail;                 /* multi-scale detail, 0 off .. 2 */
+  /* ABI 2 */
+  int32_t style;                 /* PMGE_STYLE_*; AUTO picks one from size, age and seed */
+  double complexity;             /* 0 one crest .. 1 parallel ranges, irregular spurs .. 2 */
+  double age_ma;                 /* time since uplift stopped: erosion lowers, widens, rounds */
+  double asymmetry;              /* -0.9..0.9: one flank wider and gentler than the other */
+  double plateau;                /* 0..0.9: share of the main range's half-width that is level */
 } pmge_request;
 
 typedef struct pmge_sample {
@@ -105,14 +118,19 @@ PMGE_API pmge_plan* pmge_plan_create(const pmge_request* request, const double* 
 /* External plan: the caller supplies ridge axes and valleys (e.g. from a geological
  * model). Ridge i owns points ridge_offsets[i] .. ridge_offsets[i+1]-1 of xy/crest.
  * amplitude (nx*ny, row-major, metres) is the relief the structure is scaled by; gain may be
- * NULL (= 1). The sample is a delta: amplitude * gain * detail * (pattern - mean_offset). */
+ * NULL (= 1). The sample is a delta: amplitude * gain * detail * (pattern - mean_offset).
+ * ridge_sharpness / ridge_plateau / ridge_asymmetry may be NULL (1.2 / 0 / 0). Cross profile
+ * of a ridge at distance d on the side s = +1 (left of the direction of travel) or -1:
+ *   hw = half_width * (1 + asymmetry * s); u = d / hw; u' = max(0, (u - plateau) / (1 - plateau))
+ *   structure = crest * (1 - u') ^ sharpness */
 PMGE_API pmge_plan* pmge_plan_create_external(
     const pmge_request* request, int32_t ridge_count, const int32_t* ridge_offsets,
     const double* ridge_xy, const double* ridge_crest, const double* ridge_half_width,
     const int32_t* ridge_rank, const int32_t* ridge_system, const double* ridge_sharpness,
-    int32_t valley_count, const int32_t* valley_offsets, const double* valley_xy,
-    const double* valley_depth, const double* valley_half_width, double grid_x0, double grid_y0,
-    double grid_cell, int32_t grid_nx, int32_t grid_ny, const float* amplitude, const float* gain,
+    const double* ridge_plateau, const double* ridge_asymmetry, int32_t valley_count,
+    const int32_t* valley_offsets, const double* valley_xy, const double* valley_depth,
+    const double* valley_half_width, double grid_x0, double grid_y0, double grid_cell,
+    int32_t grid_nx, int32_t grid_ny, const float* amplitude, const float* gain,
     double mean_offset);
 
 PMGE_API void pmge_plan_destroy(pmge_plan* plan);

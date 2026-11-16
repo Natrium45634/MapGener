@@ -21,7 +21,7 @@ COORDINATE_VERSION = "km-x-east-y-south/flat-top-odd-q-1"
 #: Bumped whenever v3.0 history / volcanism / erosion change their output.
 HISTORY_ALGORITHM_VERSION = "geohistory-2"
 #: Bumped whenever the mountain plan or the reference height backend change.
-MOUNTAINS_ALGORITHM_VERSION = "mountains-1"
+MOUNTAINS_ALGORITHM_VERSION = "mountains-2"
 #: v4.0 climate, hydrology and landscape evolution.
 CLIMATE_ALGORITHM_VERSION = "climate-1"
 HYDRO_ALGORITHM_VERSION = "hydro-1"

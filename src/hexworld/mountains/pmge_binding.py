@@ -1,4 +1,4 @@
-"""ctypes binding to the PMGE shared library (C ABI version 1).
+"""ctypes binding to the PMGE shared library (C ABI version 2).
 
 HexWorld works in km, PMGE in metres: every coordinate and length is converted at
 this boundary and nowhere else. The library is found, in this order, through
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-ABI_VERSION = 1
+ABI_VERSION = 2
 KM = 1000.0
 
 _dbl = ctypes.c_double
@@ -51,6 +51,12 @@ class Request(ctypes.Structure):
         ("maturity", _dbl),
         ("valley_depth", _dbl),
         ("detail", _dbl),
+        # ABI 2
+        ("style", _i32),
+        ("complexity", _dbl),
+        ("age_ma", _dbl),
+        ("asymmetry", _dbl),
+        ("plateau", _dbl),
     ]
 
 
@@ -121,6 +127,8 @@ class Library:
             _P(_i32),
             _P(_i32),
             _P(_dbl),
+            _P(_dbl),
+            _P(_dbl),
             _i32,
             _P(_i32),
             _P(_dbl),
@@ -143,6 +151,21 @@ class Library:
             _P(_dbl),
             _i64,
             ctypes.c_void_p,
+        ]
+        lib.pmge_plan_create.restype = ctypes.c_void_p
+        lib.pmge_plan_create.argtypes = [_P(Request), _P(_dbl), _i32]
+        lib.pmge_plan_json.restype = ctypes.c_void_p
+        lib.pmge_plan_json.argtypes = [ctypes.c_void_p]
+        lib.pmge_free.argtypes = [ctypes.c_void_p]
+        lib.pmge_generate_heightmap.restype = ctypes.c_int
+        lib.pmge_generate_heightmap.argtypes = [
+            ctypes.c_void_p,
+            _dbl,
+            _dbl,
+            _dbl,
+            _i32,
+            _i32,
+            _P(ctypes.c_float),
         ]
         self.lib = lib
         self.abi = int(lib.pmge_abi_version())
@@ -186,6 +209,7 @@ class ExternalPlan:
             return p
 
         r_off, r_xy, r_crest, r_hw, r_rank, r_sys, r_sharp = [0], [], [], [], [], [], []
+        r_plat, r_asym = [], []
         for r in ridges:
             r_xy.append(np.asarray(r["points"], dtype=np.float64) * KM)
             r_crest.append(np.asarray(r["crest"], dtype=np.float64))
@@ -194,6 +218,8 @@ class ExternalPlan:
             r_rank.append(r["rank"])
             r_sys.append(r["system"])
             r_sharp.append(r["sharpness"])
+            r_plat.append(r.get("plateau", 0.0))
+            r_asym.append(r.get("asymmetry", 0.0))
         v_off, v_xy, v_depth, v_hw = [0], [], [], []
         for v in valleys:
             v_xy.append(np.asarray(v["points"], dtype=np.float64) * KM)
@@ -219,6 +245,8 @@ class ExternalPlan:
             ptr(r_rank, _i32, np.int32),
             ptr(r_sys, _i32, np.int32),
             ptr(r_sharp, _dbl, np.float64),
+            ptr(r_plat, _dbl, np.float64),
+            ptr(r_asym, _dbl, np.float64),
             len(valleys),
             ptr(v_off, _i32, np.int32),
             ptr(cat(v_xy, 2).ravel(), _dbl, np.float64),
@@ -257,3 +285,73 @@ class ExternalPlan:
         if handle:
             self.library.lib.pmge_plan_destroy(handle)
             self.handle = None
+
+
+STYLE_NAMES = (
+    "auto",
+    "volcanic_arc",
+    "alpine",
+    "himalayan",
+    "andean",
+    "fold_belt",
+    "old_massif",
+    "broad_upland",
+    "mixed",
+    "block",
+)
+
+
+class StandalonePlan:
+    """A plan PMGE designs itself inside a footprint (showcase, tests, other games)."""
+
+    def __init__(self, library: Library, request: Request, line_xy=None):
+        self.library = library
+        lib = library.lib
+        if line_xy is not None:
+            pts = np.ascontiguousarray(line_xy, dtype=np.float64).ravel()
+            handle = lib.pmge_plan_create(
+                ctypes.byref(request), pts.ctypes.data_as(_P(_dbl)), len(pts) // 2
+            )
+        else:
+            handle = lib.pmge_plan_create(ctypes.byref(request), None, 0)
+        if not handle:
+            raise RuntimeError(f"PMGE rejected the request: {library.error()}")
+        self.handle = handle
+
+    def json(self) -> dict:
+        import json
+
+        raw = self.library.lib.pmge_plan_json(self.handle)
+        try:
+            return json.loads(ctypes.string_at(raw).decode())
+        finally:
+            self.library.lib.pmge_free(raw)
+
+    def heightmap(self, x0, y0, cell, nx, ny) -> np.ndarray:
+        out = np.zeros((ny, nx), dtype=np.float32)
+        rc = self.library.lib.pmge_generate_heightmap(
+            self.handle, x0, y0, cell, nx, ny, out.ctypes.data_as(_P(ctypes.c_float))
+        )
+        if rc != 0:
+            raise RuntimeError(self.library.error())
+        return out
+
+    def __del__(self):
+        if getattr(self, "handle", None):
+            self.library.lib.pmge_plan_destroy(self.handle)
+            self.handle = None
+
+
+def new_request(library: Library, **fields) -> Request:
+    """A request with PMGE's defaults and the given fields (``style`` may be a name)."""
+    req = Request()
+    library.lib.pmge_request_init(ctypes.byref(req))
+    for key, value in fields.items():
+        if key == "style" and isinstance(value, str):
+            value = STYLE_NAMES.index(value)
+        if key == "peak_type_weights":
+            for i, w in enumerate(value):
+                req.peak_type_weights[i] = w
+            continue
+        setattr(req, key, value)
+    return req

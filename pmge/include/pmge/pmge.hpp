@@ -22,7 +22,13 @@ struct Ridge {
   std::vector<double> crest;  // relative crest height 0..1 per point
   double half_width = 0;      // m
   double sharpness = 1.2;     // exponent of the cross profile
+  double plateau = 0;         // share of the half width that is a level top
+  double asymmetry = 0;       // the left flank (+) or the right flank (-) is wider
+  int role = 0;               // RangeRole: main, frontal, secondary, back, plateau, ...
 };
+
+enum RangeRole { ROLE_MAIN, ROLE_FRONTAL, ROLE_SECONDARY, ROLE_BACK, ROLE_PLATEAU, ROLE_BASE,
+                 ROLE_CORE, ROLE_FOLD, ROLE_BLOCK, ROLE_BRANCH, ROLE_SPUR };
 
 struct Peak {
   int id = 0, ridge = 0, system = 0;
@@ -71,6 +77,9 @@ class Plan {
   std::vector<Pass> passes;
   std::vector<Valley> valleys;
   Grid amplitude, gain;
+  int style = 0;              // the resolved PMGE_STYLE_* (standalone plans)
+  double maturity_eff = 0;    // maturity after age_ma of erosion
+  double height_scale = 1;    // share of the initial relief left after age_ma
 
   void finalize();  // builds the spatial index; call after editing the lists
   Sample sample(double x, double y) const;
@@ -82,6 +91,7 @@ class Plan {
   struct Segment {
     double ax, ay, bx, by, ca, cb, half_width, sharpness;
     int system, ridge;
+    double plateau = 0, asymmetry = 0, nx = 0, ny = 0;
   };
   struct VSegment {
     double ax, ay, bx, by, da, db, half_width;
