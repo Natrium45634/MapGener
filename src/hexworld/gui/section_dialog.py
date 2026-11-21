@@ -69,7 +69,7 @@ class ProfileWidget(QWidget):
                         QPointF(X(d[k]), Y(h[k])),
                     ]
                 )
-                p.setPen(Qt.PenStyle.NoPen)
+                p.setPen(QPen(color, 1.2))  # an outline of the fill colour: no seams
                 p.setBrush(QBrush(color))
                 p.drawPolygon(poly)
         # sediment between bedrock and surface, rock below the bedrock
@@ -82,7 +82,7 @@ class ProfileWidget(QWidget):
                     QPointF(X(d[k]), Y(b[k])),
                 ]
             )
-            p.setPen(Qt.PenStyle.NoPen)
+            p.setPen(QPen(QColor(222, 196, 140), 1.2))
             p.setBrush(QBrush(QColor(222, 196, 140)))
             p.drawPolygon(sed)
             rock = QPolygonF(
@@ -93,6 +93,7 @@ class ProfileWidget(QWidget):
                     QPointF(X(d[k]), b_px),
                 ]
             )
+            p.setPen(QPen(QColor(150, 130, 115), 1.2))
             p.setBrush(QBrush(QColor(150, 130, 115)))
             p.drawPolygon(rock)
         path = QPainterPath(QPointF(X(d[0]), Y(h[0])))

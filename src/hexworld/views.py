@@ -2234,7 +2234,10 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
     if "coast" in overlays:
         _shade(rgb, mask_rim(~sea, layout), 0.35)
     if T is not None and "faults" in overlays:
-        rgb[T["fracture_zone_mask"] & sea] = (235, 225, 150)
+        # major fracture zones only (>= 4 Ma of age jump): thin dark lineations, as on
+        # bathymetric charts; minor offsets stay in the layer, not on the picture
+        major = T["fracture_zone_mask"] & (T["fracture_zone_offset_ma"] >= 4.0) & sea
+        _shade(rgb, major, 0.55, (20, 20, 30))
         rgb[T["trench_axis_mask"] & sea] = (0, 0, 0)
     if T is not None and "canyons" in overlays and "submarine_canyon_mask" in T:
         rgb[T["submarine_canyon_mask"] & sea] = (255, 255, 255)
