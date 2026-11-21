@@ -330,9 +330,7 @@ def test_rift_is_elongated_with_fault_walls_and_shoulders():
         "polarity": [1, -1] * 32,
     }
     x = np.linspace(-150.0, 150.0, 301)
-    sub, fill, flank, _w = basins.evaluate(
-        [plan], x, np.zeros(x.size), x, np.zeros(x.size)
-    )
+    sub, fill, flank, _w = basins.evaluate([plan], x, np.zeros(x.size), x, np.zeros(x.size))
     assert sub.max() > 2000.0 and flank.max() > 300.0
     assert np.all(fill <= sub)
     # one wall steep (the border fault), the other gentle (the hinge)

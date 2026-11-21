@@ -89,9 +89,7 @@ def v3_stage_keys(config: Config, v2_keys: dict, layout, epoch_time: float | Non
     hist.pop("epoch")
     # the baseline crust age comes from the ridge pieces (terrain parameters, v4.6)
     ages = (config.terrain.ridge_piece_length_km, config.terrain.target_median_age_ma)
-    history = _key(
-        "geo_history", HISTORY_ALGORITHM_VERSION, v2_keys["macro_elevation"], hist, ages
-    )
+    history = _key("geo_history", HISTORY_ALGORITHM_VERSION, v2_keys["macro_elevation"], hist, ages)
     mountains = asdict(config.mountains)
     # the backend that will really be used: "auto" must not hide a change of backend
     mountains["backend"] = resolve_backend_name(config.mountains.backend)
