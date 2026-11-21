@@ -357,7 +357,11 @@ def test_sag_is_broad_gentle_and_bedrock_differs_from_surface():
         [plan], cx + r, np.full(r.size, cy), cx + r, np.full(r.size, cy)
     )
     surface_drop = sub - fill
-    assert sub[0] > 1000.0 and surface_drop[0] < 0.25 * sub[0]  # mostly filled: flat surface
+    if plan["under_filled"]:
+        assert 150.0 < surface_drop[0] < 0.5 * sub[0]  # the Caspian type: a real depression
+    else:
+        assert np.all(surface_drop == 0.0)  # filled to the brim: bedrock deep, surface flat
+    assert sub[0] > 1000.0 and not np.array_equal(sub, surface_drop)  # bedrock != surface
     width = r[np.argmax(sub < 0.5 * sub[0])]
     assert width > 200.0  # broad
     assert np.max(np.abs(np.diff(surface_drop)) / 10.0) < 5.0  # gentle: < 5 m per km

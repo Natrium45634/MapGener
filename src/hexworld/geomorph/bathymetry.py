@@ -40,17 +40,6 @@ def footprint(d_km, sigma_km, spacing_km):
     return (sigma_km / s_eff) * np.exp(-0.5 * (np.asarray(d_km) / s_eff) ** 2)
 
 
-def _nearest_index(layout, mask):
-    """Flat index of the nearest hex of ``mask`` for every hex (-1 if mask is empty)."""
-    hx, hy = layout.centers()
-    pts = np.column_stack([hx.ravel(), hy.ravel()])
-    idx = np.nonzero(mask.ravel())[0]
-    if idx.size == 0:
-        return np.full(pts.shape[0], -1, dtype=np.int64), np.full(pts.shape[0], np.inf)
-    d, k = cKDTree(pts[idx]).query(pts)
-    return idx[k], d
-
-
 def _neighbours(layout):
     from ..stages.raster import neighbor_index
 
@@ -97,6 +86,7 @@ def compose_sea_floor(
     seed: str,
     volcano_rows: list[dict] | None = None,
     age_scale: float = 1.0,
+    transform_points=None,
 ) -> dict:
     """Sea floor of the epoch. Returns flat-free (rows, cols) layers and a summary."""
     shape = (layout.height, layout.width)
@@ -117,12 +107,14 @@ def compose_sea_floor(
 
     # -- 1. where the sea floor is: seaward of the continental crust edge ----------------
     gap_rift = new & (cf > 0.05)
-    cont_hex = np.where(np.isfinite(cont), cont >= 0.0, cf >= 0.5)
     c_eff = cont.copy()
     missing = ~np.isfinite(c_eff)
     if missing.any():
-        _k, dist = _nearest_index(layout, cont_hex.reshape(shape))
-        c_eff[missing] = -np.minimum(dist[missing], 1.0e4)
+        # new crust: the distance to where the continent edge was, in the plate's own
+        # frame - a world function, so every window and resolution gets the same value
+        c_gap = relief_model.continents.continentality(mx[missing], my[missing])
+        c_eff[missing] = np.minimum(c_gap, -1.0)
+    cont_hex = c_eff >= 0.0
     marine = (c_eff < 0.0) & ~gap_rift
     m = np.nonzero(marine)[0]
 
@@ -221,9 +213,9 @@ def compose_sea_floor(
         f_rate = np.clip(np.sqrt(np.maximum(rate, 0.0) / 50.0), 0.6, 1.3)
         f_age = 0.55 + 0.45 * np.clip(np.nan_to_num(age, nan=80.0) / 100.0, 0.0, 1.5)
         d_axis = params.trench_depth_m * f_age * f_rate * np.exp(0.25 * along(hx, hy))
-        # the overriding side takes the depth of the nearest subducting hex
-        k_sub, _d = _nearest_index(layout, sub.reshape(shape))
-        d_here = np.where(sub, d_axis, d_axis[np.maximum(k_sub, 0)])
+        # local values only (no search for the nearest subducting hex, which would make
+        # the result depend on the window): the inner wall uses the crust of its own side
+        d_here = d_axis
         bulge = (250.0 + 250.0 * np.clip(np.nan_to_num(age, nan=80.0) / 100.0, 0.0, 1.0)) * f_rate
         trench = np.where(
             sub,
@@ -236,8 +228,11 @@ def compose_sea_floor(
         outer_rise = sub & (tdist > 60.0) & (tdist < 220.0) & (trench > 60.0)
 
     # -- 8. continental margins ----------------------------------------------------------------
-    bclass = flat("boundary_class", np.int64)
-    _kt, tf_dist = _nearest_index(layout, (bclass == 4).reshape(shape))
+    # distance to transform plate boundaries of the world skeleton, in the plate frame
+    if transform_points is not None and len(transform_points):
+        tf_dist, _ = cKDTree(np.asarray(transform_points)).query(np.column_stack([mx, my]))
+    else:
+        tf_dist = np.full(n, 1.0e4)
     weights = margin_weights(tdist, side, tf_dist)
     var_noise = FractalNoise(stream.child("margin_width"), [1600.0, 800.0], [1.0, 0.4])
     variation = np.exp(0.35 * var_noise(mx, my))

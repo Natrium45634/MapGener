@@ -30,6 +30,7 @@ from .geomorph.bathymetry import compose_sea_floor
 from .geomorph.ocean_age import baseline_age_scale, build_ridge_pieces
 from .geomorph.surface_water import ocean_mask, sources_from_world
 from .project import TerrainData
+from .stages.boundaries import TYPE_TRANSFORM
 from .stages.hydrology import hex_graph
 from .version import TERRAIN_ALGORITHM_VERSION
 
@@ -107,6 +108,12 @@ def compose_terrain(config, geometry, project, report=None) -> dict:
         config.seed,
         hist.volcanoes,
         age_scale=scale,
+        transform_points=np.column_stack(
+            [
+                skeleton.bx[skeleton.kind == TYPE_TRANSFORM],
+                skeleton.by[skeleton.kind == TYPE_TRANSFORM],
+            ]
+        ),
     )
     sea["summary"]["baseline_age_scale"] = round(float(scale), 4)
     timings["v46_sea_floor"] = round(time.perf_counter() - t0, 4)
@@ -123,13 +130,10 @@ def compose_terrain(config, geometry, project, report=None) -> dict:
     in_mountains = hist.layers["mountain_system_id"] >= 0
     plans: list[dict] = []
     if "rift_graben" in params.basins or "pull_apart" in params.basins:
-        boundary_plans = basin_mod.plan_boundary_basins(
-            layout,
-            hist.layers["plate_id_epoch"],
-            continental,
-            project.motion,
-            config.seed,
-            layout.spacing_km,
+        # planned on the world raster of the epoch, not on the hexes of the window: the
+        # same rift / pull-apart in every window and at every resolution
+        boundary_plans = basin_mod.plan_boundary_basins_world(
+            hist.world, project.motion, config.seed
         )
         for p in boundary_plans:
             if p["basin_type"] == "rift_graben" and "rift_graben" in params.basins:

@@ -16,8 +16,8 @@ generator of round pits:
   the root is already in the surface) and only on continental crust: a foredeep along the
   mountain front and a low forebulge beyond it. No mountains, no foredeep;
 * ``intracratonic_sag`` - slow, broad subsidence of the platform interior (Williston,
-  Michigan, Paris, the Caspian lowland): wide, gentle, mostly filled by sediment; one sag
-  may be under-filled and lie below the sea level.
+  Michigan, Paris, the Caspian lowland): wide, gentle, filled by sediment to the brim (deep
+  bedrock under a plain); one sag may be under-filled and lie below the sea level.
 
 The **bedrock** subsidence and the **sediment fill** are separate: the surface sinks by
 ``subsidence - fill``. A deep basin can have an almost flat surface. The fill is assumed to
@@ -140,11 +140,53 @@ def _axis(x, y):
 
 
 def plan_boundary_basins(layout, plate, cont_ok, motion, seed: str, spacing_km: float):
-    """Rift grabens and pull-apart basins on the continental plate boundaries of the epoch."""
+    """Rift grabens and pull-apart basins on the continental boundaries of a hex grid."""
     i, j, mx, my, nx, ny = _edges(layout, plate, cont_ok)
     if i.size == 0:
         return []
     pi, pj = plate.ravel()[i], plate.ravel()[j]
+    return _plan_from_edges(mx, my, nx, ny, pi, pj, motion, seed, spacing_km)
+
+
+def plan_boundary_basins_world(world: dict, motion, seed: str, continental_above_m=-1200.0):
+    """The same on the world raster of the epoch (window independent).
+
+    Continental crust is taken where the epoch surface lies above ``continental_above_m``
+    (shelves at most a few hundred metres deep, oceanic floor below -2500 m).
+    """
+    g = world["grid"]
+    cell = float(g["cell_km"])
+    plate = np.asarray(world["plate_id"])
+    z = np.asarray(world["elevation_m"])
+    ny_, nx_ = plate.shape
+    xs = g["x0_km"] + cell * np.arange(nx_)
+    ys = g["y0_km"] + cell * np.arange(ny_)
+    cont = z > continental_above_m
+    parts = []
+    for dr, dc in ((0, 1), (1, 0)):
+        a = (slice(0, ny_ - dr), slice(0, nx_ - dc))
+        b = (slice(dr, ny_), slice(dc, nx_))
+        hit = (plate[a] != plate[b]) & cont[a] & cont[b]
+        r, c = np.nonzero(hit)
+        parts.append(
+            (
+                xs[c] + 0.5 * dc * cell,
+                ys[r] + 0.5 * dr * cell,
+                np.full(r.size, float(dc)),
+                np.full(r.size, float(dr)),
+                plate[a][r, c],
+                plate[b][r, c],
+            )
+        )
+    mx, my, nx, ny, pi, pj = (np.concatenate([p[k] for p in parts]) for k in range(6))
+    if mx.size == 0:
+        return []
+    return _plan_from_edges(
+        mx, my, nx, ny, pi.astype(np.int64), pj.astype(np.int64), motion, seed, cell
+    )
+
+
+def _plan_from_edges(mx, my, nx, ny, pi, pj, motion, seed: str, spacing_km: float):
     # hex edges point in six directions only: take the boundary trend over ~200 km of the
     # same plate pair (PCA of the edge midpoints), oriented from plate i towards plate j
     lo, hi = np.minimum(pi, pj), np.maximum(pi, pj)
@@ -249,7 +291,9 @@ def plan_sags(continentality, x, y, boundary_distance_km, seed: str, density: fl
         caspian = len(plans) == 0 and u[5] < 0.6  # the first sag may be under-filled
         w = rs.child("outline").random(4)
         subsidence = 1200.0 + 2800.0 * u[2]
-        lowering = (180.0 + 260.0 * u[3]) if caspian else (30.0 + 120.0 * u[3])
+        # a sag is normally filled to the brim (Williston, Michigan, Paris: a deep sediment
+        # column under a plain, no closed bowl); only the under-filled one is a depression
+        lowering = (180.0 + 260.0 * u[3]) if caspian else 0.0
         plans.append(
             {
                 "basin_type": BASIN_TYPES[SAG],
