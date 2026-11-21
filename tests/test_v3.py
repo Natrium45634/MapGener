@@ -313,6 +313,11 @@ def test_reference_sampler_is_continuous_and_seamless(hist_project):
     assert max(np.ptp(east), np.ptp(south)) > 300.0
     for profile in (east, south):
         assert np.abs(np.diff(profile)).max() < 60.0  # no cliffs: smooth flanks and foothills
+    # nowhere around the system: a 1 km grid has no ledge (a range or basin hidden from the
+    # neighbour search, or a hard switch in the valley term, would show as one)
+    gx, gy = np.meshgrid(cx + np.arange(-300.0, 300.0, 1.0), cy + np.arange(-300.0, 300.0, 1.0))
+    grid = sampler.sample_points(gx, gy).relief_m
+    assert max(np.abs(np.diff(grid, axis=0)).max(), np.abs(np.diff(grid, axis=1)).max()) < 120.0
     # two adjacent "chunks" evaluated separately agree exactly on their shared edge
     edge_y = cy + np.linspace(-200.0, 200.0, 300)
     left = sampler.sample_points(np.full(edge_y.shape, cx), edge_y).relief_m

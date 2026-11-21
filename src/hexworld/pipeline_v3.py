@@ -54,7 +54,15 @@ from .stages.history import (
 from .stages.relief import build_relief
 from .stages.sea import derive_land
 from .stages.skeleton import build_skeleton
-from .stages.volcanism import ARC, HOTSPOT, VolcanoBuilder, VolcanoSet, cone_field, place_hotspots
+from .stages.volcanism import (
+    ARC,
+    HOTSPOT,
+    VolcanoBuilder,
+    VolcanoSet,
+    cone_field,
+    footprint_cones,
+    place_hotspots,
+)
 from .version import HISTORY_ALGORITHM_VERSION, MOUNTAINS_ALGORITHM_VERSION
 
 V3_STAGES = ("geo_history", "mountain_plan", "v3_raster", "v3_sea")
@@ -360,7 +368,21 @@ def sample_epoch(
     vx, vy, vidx = volcanoes.positions(kin, t)
     vheight = volcanoes.heights(vidx, t, config.history.erosion_intensity)
     vradius = np.array([volcanoes.volcanoes[int(i)].radius_km for i in vidx])
-    cones, vnear, vdist = cone_field(px, py, vx, vy, vheight, vradius)
+    # the hex value averages each cone over the hex footprint (no single-hex spikes); the
+    # true summit of a volcano is kept in its own layer
+    # an arc volcano stands on the arc massif it builds: a broad low platform under every
+    # arc cone (3 x the radius, 30 % of the height) merges into a continuous volcanic ridge
+    is_arc = np.array([volcanoes.volcanoes[int(i)].kind == ARC for i in vidx], dtype=bool)
+    if is_arc.any():
+        bx = np.concatenate([vx, vx[is_arc]])
+        by = np.concatenate([vy, vy[is_arc]])
+        bh = np.concatenate([vheight, 0.3 * vheight[is_arc]])
+        br = np.concatenate([vradius, 3.0 * vradius[is_arc]])
+    else:
+        bx, by, bh, br = vx, vy, vheight, vradius
+    fh, fr = footprint_cones(bh, br, layout.spacing_km)
+    cones, _near, _dist = cone_field(px, py, bx, by, fh, fr)
+    _point, vnear, vdist = cone_field(px, py, vx, vy, vheight, vradius)
     volcano_id = np.full(n, -1, dtype=np.int32)
     volcanic_age = np.full(n, np.nan, dtype=np.float32)
     if vidx.size:
@@ -370,6 +392,17 @@ def sample_epoch(
         volcanic_age[hit] = t - births[vnear[hit]]
 
     elevation = limit_elevation(macro + patch + cones, config.mountains.max_elevation_m)
+    elevation, specks = remove_specks(elevation, layout, (system_id >= 0) | (volcano_id >= 0))
+    summit = np.full(n, np.nan, dtype=np.float32)
+    if vidx.size:
+        # summit of the volcano covering the hex: base under it plus its full edifice
+        base = macro + patch
+        tops = vheight[np.maximum(vnear, 0)]
+        summit = np.where(
+            volcano_id >= 0,
+            limit_elevation(np.maximum(base + tops, elevation), config.mountains.max_elevation_m),
+            np.nan,
+        ).astype(np.float32)
 
     # -- diagnostics and rock ---------------------------------------------------------
     fraction = np.zeros(n, dtype=np.float32)
@@ -492,6 +525,7 @@ def sample_epoch(
         "volcanic_potential": grid2(potential, np.float32),
         "volcano_id": grid2(volcano_id, np.int32),
         "volcanic_age_ma": grid2(volcanic_age, np.float32),
+        "volcano_summit_m": grid2(summit, np.float32),
         "slope_m_per_km": grid2(slope, np.float32),
         "local_relief_m": grid2(local, np.float32),
     }
@@ -527,6 +561,38 @@ def _volcano_table(volcanoes: VolcanoSet, kin, t, layout, elevation, sea, erosio
             }
         )
     return out
+
+
+#: A hex standing this far above all six neighbours with no process to make it (no volcano,
+#: no mountain system) is below the map's resolution.
+SPECK_THRESHOLD_M = 350.0
+
+
+def remove_specks(elevation, layout, protect, threshold=SPECK_THRESHOLD_M, passes=2):
+    """Minimum mapping unit: single-hex spikes without a cause take their neighbours' median.
+
+    Nearest-cell sampling of the ~60-90 km history raster on a hex grid of similar size makes
+    a hex here and there land on the other side of a sharp continental margin: a lone 75 km
+    hex of continental crust standing 4-5 km above the abyssal floor, repeated along the
+    margin as a dotted chain of "islands". A real feature of one hex has a cause the model
+    knows (a volcano, a mountain system); ``protect`` keeps those. Returns ``(z, count)``.
+    """
+    shape = (layout.height, layout.width)
+    z = np.asarray(elevation, dtype=np.float64).reshape(shape).copy()
+    keep = np.asarray(protect).reshape(shape)
+    removed = 0
+    for _ in range(passes):
+        nbrs = []
+        for d in range(6):
+            nb, valid = raster_stage.neighbor_index(layout, d)
+            nbrs.append(np.where(valid, z.ravel()[nb.ravel()].reshape(shape), np.nan))
+        stack = np.stack(nbrs)
+        speck = (z - np.nanmax(stack, axis=0) > threshold) & ~keep
+        if not speck.any():
+            break
+        z[speck] = np.nanmedian(stack[:, speck], axis=0)
+        removed += int(speck.sum())
+    return z.ravel(), removed
 
 
 def run_v3(
@@ -716,8 +782,10 @@ def run_v3(
         if sim is not None
         else Kinematics(project.motion.velocity, project.motion.omega, project.motion.pole)
     )
+    summits = layers.get("volcano_summit_m")
+    top = elev if summits is None else np.where(np.isfinite(summits), summits, elev)
     volcano_table = _volcano_table(
-        volcano_set, kin, t_epoch, layout, elev, sea, config.history.erosion_intensity
+        volcano_set, kin, t_epoch, layout, top, sea, config.history.erosion_intensity
     )
     info = entry["info"]
     balance = entry["balance"]

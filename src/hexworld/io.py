@@ -48,6 +48,7 @@ from .version import (
     CLIMATE_ALGORITHM_VERSION,
     CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
+    ENV_ALGORITHM_VERSION,
     GENERATOR_VERSION,
     HISTORY_ALGORITHM_VERSION,
     HYDRO_ALGORITHM_VERSION,
@@ -64,6 +65,7 @@ V1_DATA_FILES = ("plates.json", "fields.npz", "boundaries.npz", "boundaries.json
 V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 #: v3.0 data: selected epoch, checkpoints, event log, mountain plan.
 V4_DATA_FILES = ("hydro_fields.npz", "hydrology.json", "rivers.geojson")
+V45_DATA_FILES = ("environment_fields.npz", "environment_monthly.npz", "environment.json")
 V3_DATA_FILES = (
     "history_fields.npz",
     "history.json",
@@ -312,6 +314,57 @@ def _write_v3_data(project: Project, path: Path) -> None:
     )
 
 
+def _env_hash(env) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(env.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    return h.hexdigest()
+
+
+def _env_layer_table(env) -> dict:
+    from .pipeline_v45 import ENV_LAYER_SPECS, MONTHLY_FIELDS
+
+    out = {
+        name: {"dtype": str(a.dtype), "shape": list(a.shape), "unit": ENV_LAYER_SPECS[name][0],
+               "description": ENV_LAYER_SPECS[name][1]}
+        for name, a in env.layers.items()
+    }  # fmt: skip
+    for name, a in env.monthly.items():
+        unit, text = MONTHLY_FIELDS[name]
+        out[name] = {"dtype": str(a.dtype), "shape": list(a.shape), "unit": unit,
+                     "description": text, "layout": "month-major (12, rows, cols)"}  # fmt: skip
+    return out
+
+
+def _write_v45_data(project: Project, path: Path) -> None:
+    from .pipeline_v45 import MONTHLY_FIELDS
+
+    e = project.env
+    np.savez_compressed(path / "environment_fields.npz", **e.layers)
+    # month-major arrays (12, rows, cols), float32; NoData = NaN outside land (see the mask)
+    np.savez_compressed(path / "environment_monthly.npz", **e.monthly)
+    _write_json(
+        path / "environment.json",
+        {
+            "world_id": project.world_id,
+            "stage": "ecological_foundation_4_5",
+            "algorithm_version": ENV_ALGORITHM_VERSION,
+            "source_snapshot": "v4 final (after erosion)",
+            "calendar": e.summary.get("calendar"),
+            "month_index": "0 = January .. 11 = December",
+            "monthly_fields": {
+                k: {"unit": u, "description": d} for k, (u, d) in MONTHLY_FIELDS.items()
+            },
+            "methods": e.methods,
+            "summary": e.summary,
+            "stage_keys": e.stage_keys,
+            "warnings": e.warnings,
+            "timings_s": e.timings,
+            "nodata": "NaN in float fields outside valid cells; soil_present / land_mask masks",
+        },
+    )
+
+
 def save_project(project: Project, path: str | Path, overwrite: bool = True) -> Path:
     """Save ``project`` into directory ``path``.
 
@@ -346,10 +399,14 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
     geo_same = project.geo is not None and stored_geo == project.geo.geo_hash()
     hist_same = project.hist is not None and stored_hist == project.hist.hist_hash()
     if same_geology:
+        env_same = project.env is None or (existing.get("v45") or {}).get("env_hash") == (
+            _env_hash(project.env)
+        )
         nothing_new = (
             (project.geo is None or geo_same)
             and (project.hist is None or hist_same)
             and (project.hydro is None or hydro_same)
+            and env_same
         )
         if nothing_new:
             stored_config = json.loads((path / "config.json").read_text(encoding="utf-8"))
@@ -366,13 +423,35 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
 
     if not same_geology:
         _write_v1_data(project, path)
-        for name in V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES:  # no stale data of another world
+        stale = V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES
+        for name in stale:  # no stale data of another world
             (path / name).unlink(missing_ok=True)
     _write_json(path / "config.json", project.config.to_dict())
     files = list(DATA_FILES)
     v2_manifest = None
     v3_manifest = None
     v4_manifest = None
+    v45_manifest = None
+    stored_env = (existing.get("v45") or {}).get("env_hash")
+    if project.env is not None and project.hydro is not None:
+        env_hash = _env_hash(project.env)
+        if not (
+            same_geology and stored_env == env_hash
+            and all((path / n).exists() for n in V45_DATA_FILES)
+        ):  # fmt: skip
+            _write_v45_data(project, path)
+        files += list(V45_DATA_FILES)
+        v45_manifest = {
+            "algorithm_version": ENV_ALGORITHM_VERSION,
+            "files": list(V45_DATA_FILES),
+            "env_hash": env_hash,
+            "content_hashes": project.env.content_hashes(),
+            "stage_keys": project.env.stage_keys,
+            "layers": _env_layer_table(project.env),
+        }
+    else:
+        for name in V45_DATA_FILES:  # an ecological layer of another v4 state would be stale
+            (path / name).unlink(missing_ok=True)
     if project.hydro is not None:
         if not (same_geology and hydro_same and all((path / n).exists() for n in V4_DATA_FILES)):
             _write_v4_data(project, path)
@@ -498,6 +577,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v2": v2_manifest,
         "v3": v3_manifest,
         "v4": v4_manifest,
+        "v45": v45_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -670,6 +750,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
             }
     _load_history(project, path, manifest, config, geometry, verify)
     _load_hydro(project, path, manifest, config, verify)
+    _load_env(project, path, manifest, config, verify)
     return project
 
 
@@ -761,6 +842,55 @@ def _load_history(project: Project, path: Path, manifest: dict, config, geometry
             "world": world,
             "rates": hist.summary.get("world_rates", {}),
         }
+
+
+def _load_env(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v4.5 data, or say why not (it is never loaded stale)."""
+    from .pipeline_v45 import env_stage_keys
+    from .project import EnvData
+    from .stages.validate import validate_env
+
+    v45 = manifest.get("v45")
+    if not v45 or project.hydro is None:
+        return
+    if not all((path / name).exists() for name in V45_DATA_FILES):
+        project.warnings.append("The manifest lists v4.5 data, but its files are missing.")
+        return
+    doc = json.loads((path / "environment.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != ENV_ALGORITHM_VERSION:
+        project.warnings.append(
+            f"The stored ecological layers were produced by {doc.get('algorithm_version')}, "
+            f"this build uses {ENV_ALGORITHM_VERSION}: NOT loaded (not calculated)."
+        )
+        return
+    keys = env_stage_keys(config, project.hydro.stage_keys)
+    if keys["v45_environment"] != doc["stage_keys"].get("v45_environment"):
+        project.warnings.append(
+            "The stored ecological layers belong to another v4 state or configuration: "
+            "NOT loaded (not calculated)."
+        )
+        return
+    with np.load(path / "environment_fields.npz") as data:
+        layers = {name: data[name] for name in data.files}
+    with np.load(path / "environment_monthly.npz") as data:
+        monthly = {name: data[name] for name in data.files}
+    env = EnvData(
+        layers=layers,
+        monthly=monthly,
+        summary=doc["summary"],
+        methods=doc["methods"],
+        stage_keys=dict(doc["stage_keys"]),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = env.content_hashes()
+        for key, expected in v45["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.env = env
+    env.validation = validate_env(project)
+    project.cache["v45_environment"] = env
 
 
 def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) -> None:

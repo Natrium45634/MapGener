@@ -190,7 +190,9 @@ def derive_landmasses(
 
 
 def stage_depth(project: Project) -> str:
-    """The last stage a project holds ("v1".."v4"): re-derivations keep that depth."""
+    """The last stage a project holds ("v1".."v45"): re-derivations keep that depth."""
+    if project.env is not None:
+        return "v45"
     if project.hydro is not None:
         return "v4"
     if project.hist is not None:
@@ -282,7 +284,7 @@ def generate_v4(project: Project, config: Config | None = None, progress=None) -
             erosion=config.erosion,
         )
     )
-    return generate(cfg, progress=progress, reuse=project, through="v4")
+    return generate(cfg, progress=progress, reuse=project, through="v45")
 
 
 def generate_climate(project: Project, config: Config | None = None):
@@ -357,3 +359,47 @@ def erode(project: Project, config: Config | None = None, progress=None) -> dict
         None,
         report=progress,
     )
+
+
+def generate_environment(project: Project, config: Config | None = None, progress=None) -> Project:
+    """Add (or update) the v4.5 ecological foundation; v1-v4 are reused as they are."""
+    if project.hydro is None:
+        raise LookupError("v4.5 needs the v4 climate and hydrology; run v4 first")
+    cfg = (
+        project.config
+        if config is None
+        else replace(project.config, environment=config.environment)
+    )
+    return generate(cfg, progress=progress, reuse=project, through="v45")
+
+
+def hex_months(project: Project, col: int, row: int) -> list[dict]:
+    """The 12 months of one hex: one row per month with every monthly field (units in names)."""
+    from .stages.environment import MONTH_DAYS
+
+    if project.env is None:
+        raise LookupError("the ecological layers (v4.5) are not calculated for this project")
+    if not project.layout.inside(col, row):
+        raise IndexError(f"hex ({col}, {row}) is outside the grid")
+    rows = []
+    for m in range(12):
+        item = {"month": m + 1, "days": int(MONTH_DAYS[m])}
+        for name, arr in project.env.monthly.items():
+            v = float(arr[m, row, col])
+            item[name] = None if np.isnan(v) else round(v, 4)
+        rows.append(item)
+    return rows
+
+
+def export_hex_months_csv(project: Project, col: int, row: int, path) -> str:
+    """Write the 12-month table of a hex as CSV (UTF-8, comma separated); returns the path."""
+    import csv
+    from pathlib import Path
+
+    rows = hex_months(project, col, row)
+    out = Path(path)
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    return str(out)

@@ -309,6 +309,88 @@ PNG — только изображение. Оно никогда не чита
 (другая эпоха, уровень моря или параметры), данные v4 **не загружаются**, причина пишется в
 `warnings`; v1–v3 остаются.
 
+## Данные v4.5 (экологический фундамент)
+
+Файлы: `environment_fields.npz` (поля гексов `[row, col]`), `environment_monthly.npz`
+(массивы `(12, rows, cols)`, месяц 0 = январь, float32), `environment.json` (календарь,
+методы и происхождение каждого поля, сводка, ключ стадии). NoData — NaN вне суши; маски
+`soil_present`, `land_mask` (v4). Нули на месте отсутствующих данных не пишутся.
+
+### `environment_monthly.npz`
+
+| Поле | Единицы | Смысл |
+|---|---|---|
+| `temperature_monthly_c` | degC | monthly mean air temperature |
+| `precip_monthly_mm` | mm/month | precipitation (rain + snow water equivalent) |
+| `pet_monthly_mm` | mm/month | reference potential evapotranspiration |
+| `aet_monthly_mm` | mm/month | actual evapotranspiration of the reference cover |
+| `snowpack_monthly_swe_mm` | mm | snow water equivalent at the end of the month |
+| `soil_storage_monthly_mm` | mm | plant-available water at the end of the month |
+| `runoff_monthly_mm` | mm/month | local runoff (quick flow + baseflow), not river Q |
+| `groundwater_recharge_mm` | mm/month | recharge of the model groundwater store |
+
+### `environment_fields.npz`
+
+| Поле | Тип | Единицы | Смысл |
+|---|---|---|---|
+| `soil_present` | bool | bool | soil on this land hex (not bare rock, ice or water) |
+| `parent_material_class` | uint8 | enum | parent material, stages.environment.PARENT_MATERIALS |
+| `sand_frac` | float32 | 0..1 | sand share of the fine earth; NaN where no soil |
+| `silt_frac` | float32 | 0..1 | silt share of the fine earth; NaN where no soil |
+| `clay_frac` | float32 | 0..1 | clay share of the fine earth; NaN where no soil |
+| `coarse_fragment_frac` | float32 | 0..1 | stones by volume |
+| `soil_depth_m` | float32 | m | soil thickness (static potential, approximate) |
+| `soil_organic_potential` | float32 | 0..1 | organic matter potential (estimate) |
+| `field_capacity_vol` | float32 | m3/m3 | FC at -33 kPa, Saxton & Rawls 2006 |
+| `wilting_point_vol` | float32 | m3/m3 | PWP at -1500 kPa, Saxton & Rawls 2006 |
+| `porosity_vol` | float32 | m3/m3 | saturated water content |
+| `awc_mm` | float32 | mm | available water in the reference root zone (0 = no soil) |
+| `ks_mm_h` | float32 | mm/h | saturated hydraulic conductivity |
+| `infiltration_capacity_mm_day` | float32 | mm/day | daily intake limit |
+| `terrain_rocky_fraction` | float32 | 0..1 | bare rock share of the surface |
+| `soil_salinity_proxy` | uint8 | 0/1 | potential salinity (dry closed basins, low coasts) |
+| `drainage_class` | uint8 | enum | 0 excessively .. 5 very poorly, 255 water |
+| `twi` | float32 | ln m | topographic wetness index ln(a / tan b), grid-dependent |
+| `twi_anomaly` | float32 | ln | TWI minus that of one hex on a 1 % slope |
+| `hand_m` | float32 | m | height above the first drainage cell along the flow path |
+| `wetness_potential` | float32 | 0..1 | potential waterlogging (proxy) |
+| `floodplain_potential` | float32 | 0..1 | share of the hex a floodplain can cover (potential) |
+| `waterlogging_months` | uint8 | months | months with the soil saturated (proxy) |
+| `slope_deg` | float32 | deg | mean hex-scale slope |
+| `aspect_deg` | float32 | deg | downslope direction, 0 = north, clockwise; NaN on flats |
+| `coastal_marine_influence` | float32 | 0..1 | exp(-distance to the sea / 100 km) |
+| `lake_shore_influence` | float32 | 0..1 | exp(-distance to a lake / 30 km) |
+| `solar_radiation_toa_mj_day` | float32 | MJ/m2/day | annual mean extraterrestrial radiation |
+| `day_length_range_h` | float32 | h | longest minus shortest day |
+| `local_runoff_annual_mm` | float32 | mm/yr | sum of the monthly local runoff |
+| `runoff_difference_vs_v4_mm` | float32 | mm/yr | v4.5 monthly runoff minus v4 runoff |
+| `groundwater_recharge_annual_mm` | float32 | mm/yr | recharge of the model groundwater store |
+| `groundwater_storage_proxy_mm` | float32 | mm | mean model groundwater store (not a water table) |
+| `persistent_snow_accumulation_mm_yr` | float32 | mm/yr | snow left every year (no ice flow) |
+| `permanent_ice_mask` | bool | bool | perennial snow accumulation on ground < 60 m/km |
+| `environment_feature_flags` | uint16 | bitset | site flags, pipeline_v45.FLAGS |
+| `quality_flags` | uint16 | bitset | quality, pipeline_v45.QUALITY |
+| `gdd5_proxy_c_day` | float32 | degC day | growing degree days > 5 degC from monthly means |
+| `freezing_degree_days` | float32 | degC day | sum of negative monthly means x days |
+| `thawing_degree_days` | float32 | degC day | sum of positive monthly means x days |
+| `frost_number` | float32 | 0..1 | air frost number (Nelson & Outcalt 1987) |
+| `permafrost_potential` | float32 | 0..1 | permafrost potential from the frost number |
+| `warmest_month_c` | float32 | degC | warmest monthly mean |
+| `coldest_month_c` | float32 | degC | coldest monthly mean |
+| `annual_temperature_range_c` | float32 | degC | warmest minus coldest month |
+| `cold_month_count` | uint8 | months | months below 0 degC |
+| `dry_month_count` | uint8 | months | months with P < 0.5 PET |
+| `growing_month_count` | uint8 | months | months >= 5 degC with AET >= 0.5 PET |
+| `precip_seasonality_cv` | float32 | % | coefficient of variation of monthly P |
+| `aridity_p_over_pet` | float32 | P/PET | annual aridity index from 12 months |
+| `aet_over_pet` | float32 | AET/PET | annual water supply of the reference cover |
+| `snow_cover_months` | uint8 | months | months ending with > 10 mm of snow |
+| `annual_max_swe_mm` | float32 | mm | largest end-of-month snowpack |
+
+Календарь модели: 365 дней, месяцы 31/28/31/30/31/30/31/31/30/31/30/31 (без високосных).
+Морозные дни по месячным средним не считаются (`frost_days_exact` = not calculated); GDD,
+мерзлота, поймы, засоление — оценки и потенциалы.
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от

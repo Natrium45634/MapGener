@@ -616,6 +616,9 @@ class ClimateLayers(dict):
     """Hex climate layers (name -> array) with the water-balance diagnostics in ``balance``."""
 
     balance: dict = {}
+    #: the four seasons behind the annual layers (DJF, MAM, JJA, SON), (4, rows, cols):
+    #: "t" degC, "p" and "pet" mm per season; not stored as layers
+    seasons: dict = {}
 
 
 def hex_climate(
@@ -752,6 +755,11 @@ def hex_climate(
             "runoff_peak_season": peak,
         }
     )
+    layers.seasons = {
+        "t": t_s.astype(np.float32),
+        "p": p_s.astype(np.float32),
+        "pet": pet_s.astype(np.float32),
+    }
     layers.balance = {
         "land_hexes": int(flat.sum()),
         "precipitation_mm_yr": float(lp.mean()) if lp.size else None,

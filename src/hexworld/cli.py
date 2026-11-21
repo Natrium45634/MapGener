@@ -695,6 +695,68 @@ def cmd_hex(args) -> int:
     return 0
 
 
+def cmd_environment(args) -> int:
+    """Add or update the v4.5 ecological foundation of a saved project."""
+    from .api import generate_environment
+
+    project = load_project(args.project)
+    if project.hydro is None:
+        print("error: v4.5 needs v4 data; run `hexworld climate` first", file=sys.stderr)
+        return 1
+    data = project.config.to_dict()
+    env = dict(data.get("environment", {}))
+    for arg, key in (
+        ("root_depth", "reference_root_depth_m"),
+        ("soil_depth", "max_soil_depth_m"),
+        ("rain_days", "rain_days_per_month"),
+        ("degree_day", "degree_day_mm"),
+    ):
+        if getattr(args, arg, None) is not None:
+            env[key] = getattr(args, arg)
+    data["environment"] = env
+    t0 = time.perf_counter()
+    result = generate_environment(project, Config.from_dict(data))
+    e = result.env
+    wb = e.summary["water_balance"]
+    print(
+        f"v4.5            ok {e.validation['ok']}; soil on "
+        f"{100 * e.summary['soil_present_share']:.0f} % "
+        f"of land, mean AWC {e.summary['mean_awc_mm']:.0f} mm"
+    )
+    print(
+        f"water           P {wb['precipitation_mm_yr']:.0f} = ET {wb['aet_mm_yr']:.0f} + runoff "
+        f"{wb['runoff_mm_yr']:.0f} + deep {wb['deep_loss_mm_yr']:.0f} + dS "
+        f"{wb['storage_change_mm_yr']:.0f} mm/yr; residual {wb['max_abs_residual_mm']:.1e} mm; "
+        f"spin-up {wb['spinup_years']} yr"
+    )
+    print(f"time            {time.perf_counter() - t0:.2f} s")
+    if args.hex is not None:
+        from .api import export_hex_months_csv
+
+        col, row = args.hex
+        target = args.csv or f"hex_{col}_{row}_months.csv"
+        print(f"months csv      {export_hex_months_csv(result, col, row, target)}")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if e.validation["ok"] else 2
+
+
+def cmd_months(args) -> int:
+    """Print (or write as CSV) the 12 months of one hex."""
+    from .api import export_hex_months_csv, hex_months
+
+    project = load_project(args.project)
+    if args.csv:
+        print(export_hex_months_csv(project, args.col, args.row, args.csv))
+        return 0
+    rows = hex_months(project, args.col, args.row)
+    keys = [k for k in rows[0] if k not in ("month", "days")]
+    print("month " + " ".join(f"{k[:14]:>14}" for k in keys))
+    for r in rows:
+        cells = " ".join("             -" if r[k] is None else f"{r[k]:14.2f}" for k in keys)
+        print(f"{r['month']:>5} {cells}")
+    return 0
+
+
 def cmd_gui(args) -> int:
     try:
         from .gui.app import run
@@ -861,6 +923,28 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument("col", type=int)
     h.add_argument("row", type=int)
     h.set_defaults(func=cmd_hex)
+
+    en = sub.add_parser(
+        "environment",
+        help="add or update v4.5 data (12 months, soils, monthly water, wetness, indices)",
+    )
+    en.add_argument("project")
+    en.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    en.add_argument("--root-depth", type=float, help="reference root zone, m (default 1.0)")
+    en.add_argument("--soil-depth", type=float, help="maximum soil depth, m (default 3.0)")
+    en.add_argument("--rain-days", type=float, help="rain days per month (infiltration limit)")
+    en.add_argument("--degree-day", type=float, help="snow melt, mm per degC per day")
+    en.add_argument("--hex", type=int, nargs=2, metavar=("COL", "ROW"),
+                    help="also write the 12 months of this hex as CSV")  # fmt: skip
+    en.add_argument("--csv", help="file for --hex (default hex_COL_ROW_months.csv)")
+    en.set_defaults(func=cmd_environment)
+
+    mo = sub.add_parser("months", help="12-month table of one hex (v4.5)")
+    mo.add_argument("project")
+    mo.add_argument("col", type=int)
+    mo.add_argument("row", type=int)
+    mo.add_argument("--csv", help="write CSV instead of printing")
+    mo.set_defaults(func=cmd_months)
 
     u = sub.add_parser("gui", help="open the viewer")
     u.add_argument("project", nargs="?", help="project directory to open")

@@ -100,6 +100,11 @@ HIST_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "volcanic_potential": ("float32", "0..1", "where magmatism is plausible; not a probability"),
     "volcano_id": ("int32", "id", "volcanic centre covering the hex, -1 = none"),
     "volcanic_age_ma": ("float32", "Ma", "age of that centre, NaN = none"),
+    "volcano_summit_m": (
+        "float32",
+        "m",
+        "summit of that volcano (hex values average cones), NaN = none",
+    ),
     "slope_m_per_km": ("float32", "m/km", "steepest slope to a neighbouring hex"),
     "local_relief_m": ("float32", "m", "height range of the continuous surface within the hex"),
     "land_mask": ("bool", "bool", "elevation_m > sea_level_m"),
@@ -283,6 +288,25 @@ class HydroData:
         return h.hexdigest()
 
 
+@dataclass
+class EnvData:
+    """Results of v4.5: monthly climate, soils, monthly water, wetness, indices."""
+
+    layers: dict[str, np.ndarray]  # (rows, cols)
+    monthly: dict[str, np.ndarray]  # (12, rows, cols), month 0 = January
+    summary: dict
+    methods: dict  # field -> method / provenance / quality
+    stage_keys: dict[str, str]
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    def content_hashes(self) -> dict[str, str]:
+        out = {f"env/{k}": array_hash(v) for k, v in self.layers.items()}
+        out.update({f"env_monthly/{k}": array_hash(v) for k, v in self.monthly.items()})
+        return out
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -316,6 +340,8 @@ class Project:
     hist: HistoryData | None = None
     #: v4.0 data (climate, hydrology, erosion); ``None`` if not generated.
     hydro: HydroData | None = None
+    #: v4.5 data (months, soils, monthly water, ecological indices); ``None`` if not run.
+    env: EnvData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -331,6 +357,8 @@ class Project:
             names += [n for n in self.hist.layers if n not in names]
         if self.hydro is not None:
             names += [n for n in self.hydro.layers if n not in names]
+        if self.env is not None:
+            names += [n for n in self.env.layers if n not in names]
         return names
 
     @property
@@ -371,6 +399,8 @@ class Project:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
         if name == "base_macro_elevation_m" and self.geo is not None:
             return self.geo.layers["macro_elevation_m"]  # a reference, not a copy
+        if self.env is not None and name in self.env.layers:
+            return self.env.layers[name]  # v4.5 fields have their own names
         if self.hydro is not None and name in self.hydro.layers:
             return self.hydro.layers[name]  # v4 (after erosion) wins over everything older
         if self.hist is not None and name in self.hist.layers:
@@ -470,7 +500,38 @@ class Project:
             info["v4_source"] = (
                 f"v4 after erosion of the t = {self.hydro.epoch_time_ma:g} Ma surface"
             )
+        if self.env is not None:
+            for name, arr in self.env.layers.items():
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[name] = bool(v)
+                elif np.issubdtype(arr.dtype, np.integer):
+                    info[name] = int(v)
+                else:
+                    info[name] = None if np.isnan(v) else float(v)
+            info["monthly"] = {
+                name: [None if np.isnan(x) else float(x) for x in arr[:, row, col]]
+                for name, arr in self.env.monthly.items()
+            }
+        if self.hist is not None and info.get("depth_m", 0.0) > 0.0:
+            from .stages.ocean import PROVINCES, TITLES
+
+            code = int(self.seafloor_provinces()[row, col])
+            info["seafloor_province"] = PROVINCES[code]
+            info["seafloor_province_title"] = TITLES[PROVINCES[code]]
         return info
+
+    def seafloor_provinces(self) -> np.ndarray:
+        """Sea-floor province codes of the current surface (cached per surface and sea level)."""
+        from .stages.ocean import project_provinces
+
+        z = self.layer("elevation_m")
+        key = (id(z), self.current_sea_level_m)
+        cache = self.__dict__.get("_seafloor_cache")
+        if cache is None or cache[0] != key:
+            cache = (key, project_provinces(self))
+            self.__dict__["_seafloor_cache"] = cache
+        return cache[1]
 
     # -- world-space queries (resolution independent) -----------------------
     def _require_models(self):

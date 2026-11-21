@@ -68,6 +68,9 @@ class ViewSpec:
     legend: Callable[[Project, str], list[LegendItem]] | None = field(default=None, repr=False)
     #: Optional vector overlays: ``vectors(project, mode, overlays) -> list[VectorLayer]``.
     vectors: Callable | None = field(default=None, repr=False)
+    #: The view shows one month at a time: the GUI offers a month selector and passes the
+    #: choice as the overlay token ``"month:<0..11>"`` (a display choice, never a recompute).
+    months: bool = False
 
     def availability(self, project: Project | None) -> tuple[bool, str]:
         """Whether the view can be drawn for ``project``, and why not if it cannot."""
@@ -75,12 +78,14 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3", "v4") and project.geo is None:
+        if self.stage in ("v2", "v3", "v4", "v45") and project.geo is None:
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
         if self.stage == "v4" and project.hydro is None:
             return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
         if self.stage in ("v3", "v4") and project.hist is None:
             return False, f"«{self.title}»: геоистория ещё не сгенерирована для этого проекта"
+        if self.stage == "v45" and project.env is None:
+            return False, f"«{self.title}»: экологические параметры (v4.5) не рассчитаны"
         return True, ""
 
     def default_mode(self) -> str:
@@ -166,10 +171,21 @@ _HYPSO_RGB = np.array(
 
 
 def hypsometric(relative_m: np.ndarray) -> np.ndarray:
-    """Hypsometric tint for heights relative to sea level (metres)."""
-    out = np.empty(relative_m.shape + (3,), dtype=np.uint8)
+    """Hypsometric tint for heights relative to sea level (metres).
+
+    Land: a continuous ramp. Sea: the stepped depth tints of a physical atlas (shelf to
+    200 m, then 1000, 2000, ... m; deeper than 6 km - trenches - almost black), so shelves,
+    slopes, abyssal plains and trenches read at a glance.
+    """
+    from .stages.ocean import depth_tint
+
+    rel = np.asarray(relative_m, dtype=np.float64)
+    out = np.empty(rel.shape + (3,), dtype=np.uint8)
     for c in range(3):
-        out[..., c] = np.interp(relative_m, _HYPSO_STOPS, _HYPSO_RGB[:, c]).astype(np.uint8)
+        out[..., c] = np.interp(rel, _HYPSO_STOPS, _HYPSO_RGB[:, c]).astype(np.uint8)
+    sea = rel < 0.0
+    if sea.any():
+        out[sea] = depth_tint(-rel[sea])
     return out
 
 
@@ -502,9 +518,15 @@ def _legend_heights(project: Project, mode: str) -> list[LegendItem]:
     ]
     if mode in ("hypsometric", "baseline"):
         steps = [
-            (-4500, "глубина 4500 м"),
-            (-1500, "глубина 1500 м"),
-            (-200, "глубина 200 м"),
+            (-7500, "глубже 7000 м (дно желобов)"),
+            (-6500, "6000–7000 м: глубоководные желоба"),
+            (-5500, "5000–6000 м"),
+            (-4500, "4000–5000 м: абиссаль"),
+            (-3500, "3000–4000 м"),
+            (-2500, "2000–3000 м"),
+            (-1500, "1000–2000 м"),
+            (-500, "200–1000 м: материковый склон"),
+            (-100, "0–200 м: шельф"),
             (1, "берег, 0 м"),
             (500, "высота 500 м"),
             (1000, "высота 1000 м"),
@@ -776,6 +798,8 @@ _STYLE_RGB = {
     "broad_upland": (200, 190, 120),
     "mixed": (70, 150, 200),
     "block": (180, 90, 150),
+    "highland": (150, 110, 60),
+    "composite": (230, 90, 120),
 }
 _STYLE_TITLES = {
     "volcanic_arc": "вулканическая дуга",
@@ -787,6 +811,8 @@ _STYLE_TITLES = {
     "broad_upland": "широкое нагорье, пологие края",
     "mixed": "смешанный: широкое пологое основание и острое ядро",
     "block": "глыбовый: наклонённые блоки, крутые с одной стороны",
+    "highland": "горная страна: много хребтов разного простирания, котловины",
+    "composite": "горный узел: пучки складчатых хребтов расходятся из узла",
 }
 
 
@@ -1187,6 +1213,7 @@ def _v4_head(project: Project) -> list[LegendItem]:
 
 def _ramp_rgb(values, lo, hi, power=1.0):
     t = np.clip((np.asarray(values, dtype=np.float64) - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+    t = np.nan_to_num(t, nan=0.0)  # NoData: the caller paints it in its own colour
     return render.ramp(t**power).copy()
 
 
@@ -1230,7 +1257,7 @@ _ARIDITY_TITLES = (
 
 
 def _stops(values, stops, colors):
-    v = np.asarray(values, dtype=np.float64)
+    v = np.nan_to_num(np.asarray(values, dtype=np.float64), nan=float(stops[0]))
     out = np.empty(v.shape + (3,), dtype=np.uint8)
     for c in range(3):
         out[..., c] = np.interp(v, stops, colors[:, c]).astype(np.uint8)
@@ -1791,6 +1818,133 @@ register_view(
     )
 )
 
+# -- ocean floor ------------------------------------------------------------------------
+_AGE_STOPS = np.array([0, 10, 25, 50, 80, 120, 180], dtype=np.float64)
+_AGE_RGB = np.array(
+    [[200, 30, 30], [235, 120, 40], [240, 200, 60], [110, 190, 90], [60, 160, 190],
+     [70, 90, 190], [120, 60, 150]],
+    dtype=np.float64,
+)  # fmt: skip
+
+
+def _ocean_sea_level(project: Project) -> float:
+    sea = project.current_sea_level_m
+    return 0.0 if sea is None else float(sea)
+
+
+def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .stages import ocean
+
+    layout = project.layout
+    z = project.layer("elevation_m").astype(np.float64)
+    sea_level = _ocean_sea_level(project)
+    depth = sea_level - z
+    sea = depth > 0.0
+    shade = hillshade(z, layout)
+    land_rgb = (np.array([168.0, 164.0, 150.0]) * (0.55 + 0.6 * shade[..., None])).clip(0, 255)
+    if mode == "bathymetry":
+        rgb = ocean.depth_tint(depth).astype(np.float64)
+        rgb = rgb * (0.78 + 0.32 * shade[..., None])
+    elif mode == "provinces":
+        rgb = ocean.RGB[ocean.project_provinces(project)].astype(np.float64)
+        rgb = rgb * (0.85 + 0.2 * shade[..., None])
+    elif mode == "age":
+        age = np.nan_to_num(project.layer("crust_age_ma").astype(np.float64), nan=200.0)
+        rgb = np.stack([np.interp(age, _AGE_STOPS, _AGE_RGB[:, c]) for c in range(3)], axis=-1)
+        cont = project.layer("continental_fraction") >= 0.5
+        rgb[cont] = (200.0, 200.0, 200.0)
+    elif mode == "sediment":
+        rgb = _ramp_rgb(project.layer("sediment_thickness_m"), 0.0, 2000.0, 0.5).astype(np.float64)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'ocean'")
+    rgb = np.where(sea[..., None], rgb, land_rgb).clip(0, 255).astype(np.uint8)
+    if "isobaths" in overlays:
+        steps = np.asarray(ocean.DEPTH_STEPS)
+        band = np.where(sea, np.searchsorted(steps, depth, side="right"), -1).astype(np.int32)
+        rim = id_rim(band, layout) & sea
+        _shade(rgb, rim, 0.6)
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(~sea, layout), 0.35)
+    if "plate_boundaries" in overlays:
+        kind = project.layer("boundary_class")
+        rgb[(kind == 2) & sea] = (250, 250, 250)  # subduction: trench side
+        rgb[(kind == 3) & sea] = (255, 210, 60)  # spreading
+    return rgb
+
+
+def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
+    from .stages import ocean
+
+    head = [LegendItem(f"уровень моря {_ocean_sea_level(project):+.0f} м; поверхность — итоговая")]
+    if mode == "bathymetry":
+        names = (
+            "0–200 м: шельф, мелководья",
+            "200–1000 м: бровка и верх склона",
+            "1000–2000 м: материковый склон",
+            "2000–3000 м: склон, гребни хребтов",
+            "3000–4000 м: подножие, склоны хребтов",
+            "4000–5000 м: абиссальные равнины",
+            "5000–6000 м: глубокие котловины",
+            "6000–7000 м: глубоководные желоба",
+            "глубже 7000 м: дно желобов",
+        )
+        return head + [
+            LegendItem(t, tuple(int(c) for c in rgb))
+            for t, rgb in zip(names, ocean.DEPTH_RGB, strict=True)
+        ]
+    if mode == "provinces":
+        codes = ocean.project_provinces(project)
+        sea = codes > 0
+        total = max(int(sea.sum()), 1)
+        items = []
+        for name in ocean.PROVINCES[1:]:
+            share = float((codes == ocean.CODE[name]).sum()) / total
+            items.append(
+                LegendItem(
+                    f"{ocean.TITLES[name]}: {100 * share:.1f} %",
+                    tuple(int(c) for c in ocean.RGB[ocean.CODE[name]]),
+                )
+            )
+        return head + items + [LegendItem("доли — от площади моря в окне")]
+    if mode == "age":
+        return (
+            head
+            + [
+                LegendItem(f"{int(a)} млн лет", tuple(int(c) for c in rgb))
+                for a, rgb in zip(_AGE_STOPS, _AGE_RGB, strict=True)
+            ]
+            + [
+                LegendItem("молодая кора у срединных хребтов, древняя — у окраин"),
+                LegendItem("серым — континентальная кора", (200, 200, 200)),
+            ]
+        )
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    return head + [LegendItem("0 м", lo), LegendItem("2000 м осадков и больше", hi)]
+
+
+register_view(
+    ViewSpec(
+        id="ocean",
+        title="Дно океана",
+        stage="v3",
+        layers=("elevation_m", "crust_age_ma", "continental_fraction", "boundary_class"),
+        modes=(
+            Option("bathymetry", "Глубины (ступени атласа)"),
+            Option("provinces", "Формы дна"),
+            Option("age", "Возраст океанической коры"),
+            Option("sediment", "Толщина осадков"),
+        ),
+        overlays=(
+            Option("coast", "Берег", True),
+            Option("isobaths", "Изобаты 200, 1000, 2000 … м", True),
+            Option("plate_boundaries", "Оси спрединга и зоны субдукции"),
+        ),
+        note="Шельф, склон, подножие, абиссаль, срединные хребты, желоба, подводные горы",
+        render=_render_ocean,
+        legend=_legend_ocean,
+    )
+)
+
 # -- coasts (v4) ----------------------------------------------------------------------------
 _COAST_RGB = {
     "ice": (235, 245, 255),
@@ -1971,6 +2125,491 @@ register_view(
         render=_render_coasts,
         legend=_legend_coasts,
         vectors=_vectors_coasts,
+    )
+)
+
+# -- v4.5 ecological foundation --------------------------------------------------------------
+_SEA_RGB = (34, 46, 66)
+_NODATA_RGB = (150, 150, 150)
+_PM_RGB = np.array(
+    [[34, 46, 66], [196, 120, 110], [200, 170, 120], [150, 110, 150], [210, 70, 60],
+     [150, 80, 60], [90, 170, 200], [150, 190, 220], [235, 210, 120], [225, 200, 160],
+     [120, 170, 150], [170, 160, 150]],
+    dtype=np.uint8,
+)  # fmt: skip
+_DRAIN_RGB = np.array(
+    [[230, 200, 120], [160, 200, 110], [110, 175, 120], [90, 160, 170], [60, 110, 180],
+     [40, 60, 140]],
+    dtype=np.uint8,
+)  # fmt: skip
+
+
+def _month_of(overlays) -> int:
+    for token in overlays:
+        if isinstance(token, str) and token.startswith("month:"):
+            return int(token.split(":", 1)[1]) % 12
+    return 0
+
+
+def _env_land(project):
+    h = project.hydro.layers
+    return h["land_mask"] & (h["lake_id"] < 0)
+
+
+def _finish_env(project, rgb, valid, overlays):
+    """Sea, lakes and missing data have their own colours; never a value of the scale."""
+    land = _env_land(project)
+    rgb = np.asarray(rgb, dtype=np.uint8).copy()
+    rgb[~project.hydro.layers["land_mask"]] = _SEA_RGB
+    rgb[project.hydro.layers["lake_id"] >= 0] = (60, 110, 170)
+    rgb[land & ~valid] = _NODATA_RGB
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(project.hydro.layers["land_mask"], project.layout), 0.4)
+    if "rivers" in overlays:
+        rgb[project.hydro.layers["river_mask"]] = (40, 90, 200)
+    return rgb
+
+
+_MONTHLY_MODES = {
+    "temperature": ("temperature_monthly_c", "°C"),
+    "precipitation": ("precip_monthly_mm", "мм/мес"),
+    "pet": ("pet_monthly_mm", "мм/мес"),
+    "snowpack": ("snowpack_monthly_swe_mm", "мм в.э."),
+    "soil_water": ("soil_storage_monthly_mm", "мм"),
+    "aet": ("aet_monthly_mm", "мм/мес"),
+    "recharge": ("groundwater_recharge_mm", "мм/мес"),
+    "runoff": ("runoff_monthly_mm", "мм/мес"),
+}
+
+
+def _render_seasonality(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    e = project.env
+    month = _month_of(overlays)
+    if mode == "temperature":
+        v = e.monthly["temperature_monthly_c"][month]
+        rgb = _stops(v, _TEMP_STOPS, _TEMP_RGB)
+        return _finish_env(project, rgb, np.isfinite(v), overlays)
+    if mode == "precipitation":
+        v = e.monthly["precip_monthly_mm"][month]
+        rgb = _stops(v, _PRECIP_STOPS / 12.0, _PRECIP_RGB)
+    elif mode == "pet":
+        v = e.monthly["pet_monthly_mm"][month]
+        rgb = _ramp_rgb(v, 0.0, 200.0)
+    elif mode == "snowpack":
+        v = e.monthly["snowpack_monthly_swe_mm"][month]
+        rgb = _ramp_rgb(v, 0.0, 400.0, 0.6)
+    elif mode == "wettest":
+        p = e.monthly["precip_monthly_mm"]
+        v = np.argmax(p, axis=0).astype(np.float64)
+        rgb = _MONTH_RGB[v.astype(int)]
+    elif mode == "coldest":
+        v = np.argmin(e.monthly["temperature_monthly_c"], axis=0).astype(np.float64)
+        rgb = _MONTH_RGB[v.astype(int)]
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'seasonality'")
+    return _finish_env(project, rgb, np.isfinite(v), overlays)
+
+
+_MONTH_RGB = np.array(
+    [[60, 90, 200], [80, 120, 220], [90, 170, 120], [120, 190, 90], [170, 200, 80],
+     [230, 200, 60], [240, 150, 50], [230, 100, 60], [200, 120, 90], [160, 110, 150],
+     [110, 100, 190], [70, 80, 180]],
+    dtype=np.uint8,
+)  # fmt: skip
+
+
+def _legend_seasonality(project: Project, mode: str) -> list[LegendItem]:
+    from .stages.environment import MONTH_NAMES
+
+    head = [LegendItem("месяц выбирается в списке справа от режима")]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    src = project.env.methods.get("months", {})
+    note = LegendItem(
+        f"источник: {src.get('method', '—')} (уверенность {src.get('confidence', '—')})"
+    )
+    if mode == "temperature":
+        return (
+            head
+            + [
+                LegendItem(f"{int(t):+d} °C", tuple(int(c) for c in rgb))
+                for t, rgb in zip(_TEMP_STOPS, _TEMP_RGB, strict=True)
+            ]
+            + [note]
+        )
+    if mode == "precipitation":
+        return (
+            head
+            + [
+                LegendItem(f"{v / 12.0:.0f} мм/мес", tuple(int(c) for c in rgb))
+                for v, rgb in zip(_PRECIP_STOPS, _PRECIP_RGB, strict=True)
+            ]
+            + [note]
+        )
+    if mode in ("wettest", "coldest"):
+        what = "самый влажный месяц" if mode == "wettest" else "самый холодный месяц"
+        return [LegendItem(what)] + [
+            LegendItem(name, tuple(int(c) for c in _MONTH_RGB[k]))
+            for k, name in enumerate(MONTH_NAMES)
+        ]
+    scale = {"pet": "200 мм/мес", "snowpack": "400 мм водного эквивалента"}[mode]
+    extra = (
+        [LegendItem("эталонная испаряемость (эвристика по температуре и длине дня)")]
+        if mode == "pet"
+        else [LegendItem("запас снега на конец месяца")]
+    )
+    return head + [LegendItem("0", lo), LegendItem(scale, hi)] + extra
+
+
+def _render_soils(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.env.layers
+    present = L["soil_present"]
+    if mode == "parent":
+        rgb = _PM_RGB[np.minimum(L["parent_material_class"], len(_PM_RGB) - 1)]
+        valid = _env_land(project)
+    elif mode == "texture":
+        # sand -> red, silt -> green, clay -> blue (the texture triangle as colour)
+        tri = np.stack([L["sand_frac"], L["silt_frac"], L["clay_frac"]], axis=-1)
+        rgb = (60.0 + 195.0 * np.nan_to_num(tri)).clip(0, 255)
+        valid = present
+    elif mode == "depth":
+        rgb, valid = _ramp_rgb(L["soil_depth_m"], 0.0, 3.0), _env_land(project)
+    elif mode == "coarse":
+        rgb, valid = _ramp_rgb(L["coarse_fragment_frac"], 0.0, 0.8), present
+    elif mode == "awc":
+        rgb, valid = _ramp_rgb(L["awc_mm"], 0.0, 250.0), _env_land(project)
+    elif mode == "permeability":
+        rgb = _ramp_rgb(np.log10(np.maximum(np.nan_to_num(L["ks_mm_h"]), 0.1)), -1.0, 2.5)
+        valid = present
+    elif mode == "drainage":
+        rgb = _DRAIN_RGB[np.minimum(L["drainage_class"], 5)]
+        valid = _env_land(project)
+    elif mode == "organic":
+        rgb, valid = _ramp_rgb(L["soil_organic_potential"], 0.0, 1.0), present
+    elif mode == "salinity":
+        rgb = np.where(L["soil_salinity_proxy"][..., None] > 0, (235, 235, 210), (120, 140, 110))
+        valid = _env_land(project)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'soils'")
+    return _finish_env(project, rgb, valid, overlays)
+
+
+def _legend_soils(project: Project, mode: str) -> list[LegendItem]:
+    from .stages.environment import DRAINAGE_TITLES, PARENT_MATERIALS, PARENT_TITLES
+
+    s = project.env.summary
+    tail = [
+        LegendItem("серым — голая скала или лёд (почвы нет)", _NODATA_RGB),
+        LegendItem("почвы — оценка по геологии и климату, не измерение"),
+    ]
+    if mode == "parent":
+        sh = s.get("parent_material_shares", {})
+        return [
+            LegendItem(
+                f"{PARENT_TITLES[n]}: {100 * sh.get(n, 0.0):.0f} %",
+                tuple(int(c) for c in _PM_RGB[k]),
+            )
+            for k, n in enumerate(PARENT_MATERIALS)
+            if k > 0
+        ] + tail
+    if mode == "texture":
+        return [
+            LegendItem("песок — красный, пыль (ил) — зелёный, глина — синий", None),
+            LegendItem("песчаные", (240, 90, 90)),
+            LegendItem("пылеватые (лёсс)", (90, 230, 100)),
+            LegendItem("глинистые", (90, 100, 240)),
+            LegendItem("суглинки — смешанные тона"),
+        ] + tail
+    if mode == "drainage":
+        sh = s.get("drainage_class_shares", {})
+        from .stages.environment import DRAINAGE_CLASSES
+
+        return [
+            LegendItem(
+                f"дренаж {t}: {100 * sh.get(n, 0.0):.0f} %", tuple(int(c) for c in _DRAIN_RGB[k])
+            )
+            for k, (n, t) in enumerate(zip(DRAINAGE_CLASSES, DRAINAGE_TITLES, strict=True))
+        ] + tail
+    if mode == "salinity":
+        return [
+            LegendItem(
+                "возможное засоление (сухие бессточные и приморские низины)", (235, 235, 210)
+            ),
+            LegendItem("нет признаков", (120, 140, 110)),
+        ]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    scale = {
+        "depth": ("0 м", "3 м и глубже"),
+        "coarse": ("без камней", "80 % обломков"),
+        "awc": ("0 мм", f"250 мм (среднее {_num(s.get('mean_awc_mm'), '.0f')} мм)"),
+        "permeability": ("0,1 мм/ч (глина)", "300 мм/ч (песок)"),
+        "organic": ("низкий потенциал органики", "высокий (оценка)"),
+    }[mode]
+    return [LegendItem(scale[0], lo), LegendItem(scale[1], hi)] + tail
+
+
+def _render_moisture(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    e = project.env
+    month = _month_of(overlays)
+    L, M = e.layers, e.monthly
+    if mode == "soil_water":
+        cap = np.maximum(np.nan_to_num(L["awc_mm"]), 5.0)
+        v = M["soil_storage_monthly_mm"][month] / cap
+        rgb = _stops(np.nan_to_num(v), np.array([0.0, 0.25, 0.5, 0.75, 1.0]), _WET_RGB)
+    elif mode == "stress":
+        pet = np.maximum(M["pet_monthly_mm"][month], 1e-6)
+        v = 1.0 - M["aet_monthly_mm"][month] / pet
+        v = np.where(M["pet_monthly_mm"][month] < 5.0, 0.0, v)
+        rgb = _stops(np.nan_to_num(v), np.array([0.0, 0.25, 0.5, 0.75, 1.0]), _WET_RGB[::-1])
+    elif mode in ("aet", "recharge", "runoff"):
+        v = M[_MONTHLY_MODES[mode][0]][month]
+        rgb = _stops(np.nan_to_num(v), _PRECIP_STOPS / 12.0, _PRECIP_RGB)
+    elif mode == "dry_months":
+        v = L["dry_month_count"].astype(np.float64)
+        rgb = _stops(v, np.array([0.0, 3.0, 6.0, 9.0, 12.0]), _WET_RGB[::-1])
+    elif mode == "wetness":
+        v = L["wetness_potential"]
+        rgb = _stops(np.nan_to_num(v), np.array([0.0, 0.25, 0.5, 0.75, 1.0]), _WET_RGB)
+    elif mode == "twi":
+        v = L["twi_anomaly"]
+        rgb = _ramp_rgb(np.nan_to_num(v), -2.0, 8.0)
+    elif mode == "hand":
+        v = L["hand_m"]
+        rgb = _ramp_rgb(np.log10(1.0 + np.nan_to_num(v)), 0.0, 3.0)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'moisture'")
+    return _finish_env(project, rgb, np.isfinite(v) & _env_land(project), overlays)
+
+
+_WET_RGB = np.array(
+    [[170, 110, 60], [220, 190, 120], [200, 220, 170], [110, 180, 200], [40, 90, 170]],
+    dtype=np.float64,
+)
+
+
+def _legend_moisture(project: Project, mode: str) -> list[LegendItem]:
+    s = project.env.summary
+    wb = s.get("water_balance", {})
+    head = [
+        LegendItem(
+            f"баланс суши: P {_num(wb.get('precipitation_mm_yr'), '.0f')} = ET "
+            f"{_num(wb.get('aet_mm_yr'), '.0f')} + сток {_num(wb.get('runoff_mm_yr'), '.0f')} + "
+            f"глубокие потери {_num(wb.get('deep_loss_mm_yr'), '.0f')} + Δзапасов "
+            f"{_num(wb.get('storage_change_mm_yr'), '.0f')} мм/год; невязка "
+            f"{_num(wb.get('max_abs_residual_mm'), '.1e')} мм"
+        )
+    ]
+    steps = ("0", "1/4", "1/2", "3/4", "1")
+    if mode in ("soil_water", "wetness"):
+        what = "запас влаги / AWC" if mode == "soil_water" else "потенциал переувлажнения"
+        return (
+            head
+            + [LegendItem(what)]
+            + [
+                LegendItem(t, tuple(int(c) for c in rgb))
+                for t, rgb in zip(steps, _WET_RGB, strict=True)
+            ]
+        )
+    if mode == "stress":
+        return (
+            head
+            + [LegendItem("водный стресс: 1 − AET/PET (месяц)")]
+            + [
+                LegendItem(t, tuple(int(c) for c in rgb))
+                for t, rgb in zip(steps, _WET_RGB[::-1], strict=True)
+            ]
+        )
+    if mode == "dry_months":
+        return (
+            head
+            + [LegendItem("сухих месяцев (P < 0,5·PET)")]
+            + [
+                LegendItem(t, tuple(int(c) for c in rgb))
+                for t, rgb in zip(("0", "3", "6", "9", "12"), _WET_RGB[::-1], strict=True)
+            ]
+        )
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "twi":
+        return head + [
+            LegendItem("TWI − TWI(гекс на уклоне 1 %): −2", lo),
+            LegendItem("+8", hi),
+            LegendItem("склонность к накоплению воды; не уровень грунтовых вод"),
+        ]
+    if mode == "hand":
+        return head + [
+            LegendItem("0 м над дреной", lo),
+            LegendItem("1000 м и выше", hi),
+            LegendItem("высота над ближайшей рекой/водоёмом вниз по стоку"),
+        ]
+    return (
+        head
+        + [
+            LegendItem(f"{int(v / 12)} мм/мес", tuple(int(c) for c in rgb))
+            for v, rgb in zip(_PRECIP_STOPS, _PRECIP_RGB, strict=True)
+        ]
+        + [LegendItem("местный сток — не расход реки; реки — из v4")]
+    )
+
+
+def _render_ecology(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.env.layers
+    if mode == "gdd":
+        v = L["gdd5_proxy_c_day"]
+        rgb = _ramp_rgb(np.nan_to_num(v), 0.0, 6000.0)
+    elif mode == "aridity":
+        from .stages.climate import aridity_class
+
+        v = L["aridity_p_over_pet"]
+        rgb = _ARIDITY_RGB[aridity_class(np.nan_to_num(v))].copy()
+    elif mode == "seasonality":
+        v = L["precip_seasonality_cv"]
+        rgb = _ramp_rgb(np.nan_to_num(v), 0.0, 120.0)
+    elif mode == "cold":
+        v = L["cold_month_count"].astype(np.float64)
+        rgb = _ramp_rgb(v, 0.0, 12.0)
+    elif mode == "growing":
+        v = L["growing_month_count"].astype(np.float64)
+        rgb = _ramp_rgb(v, 0.0, 12.0)
+    elif mode == "flood":
+        v = np.maximum(np.nan_to_num(L["floodplain_potential"]), L["waterlogging_months"] / 12.0)
+        rgb = _stops(v, np.array([0.0, 0.25, 0.5, 0.75, 1.0]), _WET_RGB)
+    elif mode == "frost":
+        v = L["permafrost_potential"]
+        rgb = _ramp_rgb(np.nan_to_num(v), 0.0, 1.0)
+        rgb[L["permanent_ice_mask"]] = (245, 250, 255)
+    elif mode == "rocky":
+        v = L["terrain_rocky_fraction"]
+        rgb = _ramp_rgb(np.nan_to_num(v), 0.0, 1.0)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'ecology'")
+    return _finish_env(project, rgb, np.isfinite(v) & _env_land(project), overlays)
+
+
+def _legend_ecology(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    s = project.env.summary
+    if mode == "aridity":
+        return [
+            LegendItem(t, tuple(c)) for t, c in zip(_ARIDITY_TITLES, _ARIDITY_RGB, strict=True)
+        ] + [LegendItem("индекс P/PET по 12 месяцам")]
+    if mode == "flood":
+        return [
+            LegendItem("потенциал поймы / доля месяцев с переувлажнением"),
+            *(
+                LegendItem(t, tuple(int(c) for c in rgb))
+                for t, rgb in zip(("0", "1/4", "1/2", "3/4", "1"), _WET_RGB, strict=True)
+            ),
+            LegendItem(
+                f"поймы ~{100 * s.get('floodplain_area_share', 0):.1f} % площади суши; "
+                f"переувлажнено ≥2 мес — {100 * s.get('waterlogged_share', 0):.0f} %"
+            ),
+            LegendItem("потенциал, не карта фактических паводков"),
+        ]
+    if mode == "frost":
+        return [
+            LegendItem("потенциал мерзлоты 0 (число мороза < 0,4)", lo),
+            LegendItem("1 (число мороза ≥ 0,65)", hi),
+            LegendItem("многолетний снег/лёд (накопление без стаивания)", (245, 250, 255)),
+            LegendItem("оценка по воздуху (Nelson & Outcalt 1987), не мерзлота-факт"),
+        ]
+    scale = {
+        "gdd": ("0 °C·сут", "6000 °C·сут (сумма T > 5 °C, оценка по месяцам)"),
+        "seasonality": ("осадки ровные по году", "сезонность CV 120 %"),
+        "cold": ("нет месяцев < 0 °C", "12 холодных месяцев"),
+        "growing": ("0 месяцев роста", "12 (T ≥ 5 °C и AET ≥ 0,5·PET)"),
+        "rocky": ("рыхлый покров", "голая скала"),
+    }[mode]
+    return [LegendItem(scale[0], lo), LegendItem(scale[1], hi)]
+
+
+_ENV_OVERLAYS = (Option("coast", "Берег", True), Option("rivers", "Реки"))
+register_view(
+    ViewSpec(
+        id="seasonality",
+        title="Сезонность",
+        stage="v45",
+        layers=("temperature_monthly_c", "precip_monthly_mm", "pet_monthly_mm"),
+        modes=(
+            Option("temperature", "Температура месяца"),
+            Option("precipitation", "Осадки месяца"),
+            Option("pet", "Испаряемость (PET) месяца"),
+            Option("snowpack", "Снежный запас на конец месяца"),
+            Option("wettest", "Самый влажный месяц"),
+            Option("coldest", "Самый холодный месяц"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="12 месяцев из сезонной физики v4; выбор месяца не пересчитывает климат",
+        render=_render_seasonality,
+        legend=_legend_seasonality,
+        months=True,
+    )
+)
+register_view(
+    ViewSpec(
+        id="soils",
+        title="Почвы",
+        stage="v45",
+        layers=("parent_material_class", "sand_frac", "awc_mm", "drainage_class"),
+        modes=(
+            Option("parent", "Почвообразующая порода"),
+            Option("texture", "Механический состав"),
+            Option("depth", "Мощность почвы"),
+            Option("coarse", "Каменистость"),
+            Option("awc", "Доступная влага (AWC)"),
+            Option("permeability", "Водопроницаемость"),
+            Option("drainage", "Класс дренажа"),
+            Option("organic", "Потенциал органики"),
+            Option("salinity", "Признаки засоления"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Почвы из геологии, рельефа и климата; не биомы и не плодородие",
+        render=_render_soils,
+        legend=_legend_soils,
+    )
+)
+register_view(
+    ViewSpec(
+        id="moisture",
+        title="Влага",
+        stage="v45",
+        layers=("soil_storage_monthly_mm", "aet_monthly_mm", "twi", "hand_m"),
+        modes=(
+            Option("soil_water", "Запас влаги в почве (месяц)"),
+            Option("stress", "Водный стресс (месяц)"),
+            Option("aet", "Фактическое испарение (месяц)"),
+            Option("recharge", "Подпитка грунтовых вод (месяц)"),
+            Option("runoff", "Местный сток (месяц)"),
+            Option("dry_months", "Сухие месяцы за год"),
+            Option("wetness", "Потенциал переувлажнения"),
+            Option("twi", "Индекс влажности рельефа (TWI)"),
+            Option("hand", "Высота над дреной (HAND)"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Месячный водный баланс: вода не появляется и не исчезает",
+        render=_render_moisture,
+        legend=_legend_moisture,
+        months=True,
+    )
+)
+register_view(
+    ViewSpec(
+        id="ecology",
+        title="Экологические параметры",
+        stage="v45",
+        layers=("gdd5_proxy_c_day", "aridity_p_over_pet", "permafrost_potential"),
+        modes=(
+            Option("gdd", "Сумма температур выше 5 °C"),
+            Option("aridity", "Аридность P/PET"),
+            Option("seasonality", "Сезонность осадков"),
+            Option("cold", "Холодные месяцы"),
+            Option("growing", "Месяцы вегетации"),
+            Option("flood", "Поймы и переувлажнение (потенциал)"),
+            Option("frost", "Мерзлота и многолетний снег (потенциал)"),
+            Option("rocky", "Каменистость поверхности"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Условия среды для будущих биомов; биомов здесь нет",
+        render=_render_ecology,
+        legend=_legend_ecology,
     )
 )
 

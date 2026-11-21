@@ -101,13 +101,61 @@ def _point_normals(points: np.ndarray) -> np.ndarray:
 
 
 def _groups(items, width_of) -> list[_Group]:
-    """Split by half-width (narrow, wide, very wide) so a narrow crest never hides a
-    plateau or a basin from the nearest-neighbour search."""
-    buckets: dict[int, list] = {}
+    """Split by half-width (narrow, wide, very wide) and keep spurs apart, so neither a
+    narrow crest nor a swarm of dense spurs hides a range, a plateau or a basin from the
+    nearest-neighbour search (a hidden range would show as a cliff)."""
+    buckets: dict[tuple, list] = {}
     for it in items:
         hw = width_of(it)
-        buckets.setdefault(0 if hw <= 90.0 else (1 if hw <= 220.0 else 2), []).append(it)
+        spur = getattr(it, "role", "") == "spur"
+        # narrow width classes keep the search bound tight (see _ridge_values)
+        cls = int(np.searchsorted([40.0, 60.0, 90.0, 140.0, 220.0], hw))
+        buckets.setdefault((spur, cls), []).append(it)
     return [buckets[k] for k in sorted(buckets)]
+
+
+def ridge_groups(ridges, sharp_of) -> list[_Group]:
+    """Search groups of ridge vertices (see :func:`_groups`) with what the profile needs:
+    crest, half-width, sharpness, plateau, asymmetry, normals and the next vertex."""
+    out = []
+    for group in _groups(list(ridges), lambda r: r.half_width_km):
+        names = ("px", "py", "crest", "hw", "sharp", "sysid", "plat", "asym", "nx", "ny", "nxt",
+                 "prv")  # fmt: skip
+        parts: dict[str, list] = {k: [] for k in names}
+        offset = 0
+        for r in group:
+            n = len(r.points)
+            normals = _point_normals(r.points)
+            parts["px"].append(r.points[:, 0])
+            parts["py"].append(r.points[:, 1])
+            parts["crest"].append(r.crest)
+            parts["hw"].append(np.full(n, r.half_width_km))
+            parts["sharp"].append(np.full(n, sharp_of(r)))
+            parts["sysid"].append(np.full(n, r.system))
+            parts["plat"].append(np.full(n, min(r.plateau, 0.9)))
+            parts["asym"].append(np.full(n, r.asymmetry))
+            parts["nx"].append(normals[:, 0])
+            parts["ny"].append(normals[:, 1])
+            # the next / previous vertex of the same ridge (the ends point to themselves)
+            nxt = np.arange(offset + 1, offset + n + 1)
+            nxt[-1] = offset + n - 1
+            prv = np.arange(offset - 1, offset + n - 1)
+            prv[0] = offset
+            parts["nxt"].append(nxt)
+            parts["prv"].append(prv)
+            offset += n
+        arrays = {k: np.concatenate(v) for k, v in parts.items()}
+        arrays["sysid"] = arrays["sysid"].astype(np.int32)
+        arrays["nxt"] = arrays["nxt"].astype(np.int64)
+        arrays["prv"] = arrays["prv"].astype(np.int64)
+        grp = _Group(arrays)
+        # bounds for the exact search (see ReferenceSampler._ridge_values)
+        grp.crest_max = float(grp.crest.max())
+        grp.sharp_min = float(grp.sharp.min())
+        grp.plat_max = float(grp.plat.max())
+        grp.seg_max = float(np.hypot(grp.px[grp.nxt] - grp.px, grp.py[grp.nxt] - grp.py).max())
+        out.append(grp)
+    return out
 
 
 class ReferenceSampler:
@@ -128,32 +176,12 @@ class ReferenceSampler:
         if self.empty:
             self.groups, self.vgroups = [], []
         else:
-            self.groups = []
-            for group in _groups(plan.ridges, lambda r: r.half_width_km):
-                parts: dict[str, list] = {k: [] for k in
-                                          ("px", "py", "crest", "hw", "sharp", "sysid", "plat",
-                                           "asym", "nx", "ny")}  # fmt: skip
-                for r in group:
-                    n = len(r.points)
-                    normals = _point_normals(r.points)
-                    sharp = (
-                        r.sharpness
-                        if r.sharpness is not None
-                        else sharp_by_system.get(r.system, 1.2)
-                    )
-                    parts["px"].append(r.points[:, 0])
-                    parts["py"].append(r.points[:, 1])
-                    parts["crest"].append(r.crest)
-                    parts["hw"].append(np.full(n, r.half_width_km))
-                    parts["sharp"].append(np.full(n, sharp))
-                    parts["sysid"].append(np.full(n, r.system))
-                    parts["plat"].append(np.full(n, min(r.plateau, 0.9)))
-                    parts["asym"].append(np.full(n, r.asymmetry))
-                    parts["nx"].append(normals[:, 0])
-                    parts["ny"].append(normals[:, 1])
-                arrays = {k: np.concatenate(v) for k, v in parts.items()}
-                arrays["sysid"] = arrays["sysid"].astype(np.int32)
-                self.groups.append(_Group(arrays))
+            self.groups = ridge_groups(
+                plan.ridges,
+                lambda r: (
+                    r.sharpness if r.sharpness is not None else sharp_by_system.get(r.system, 1.2)
+                ),
+            )
             self.vgroups = []
             for group in _groups(plan.valleys, lambda v: v.half_width_km):
                 arrays = {
@@ -170,26 +198,89 @@ class ReferenceSampler:
         self.detail = FractalNoise(stream, [46.0, 23.0, 11.5], [1.0, 0.55, 0.3])
 
     @staticmethod
-    def _ridge_values(g: _Group, pts: np.ndarray):
-        k = min(8, g.px.size)
-        d, idx = g.tree.query(pts, k=k, distance_upper_bound=g.reach)
-        if k == 1:
-            d, idx = d[:, None], idx[:, None]
-        ok = np.isfinite(d)
-        idx = np.where(ok, idx, 0)
-        side = np.sign(
-            (pts[:, 0:1] - g.px[idx]) * g.nx[idx] + (pts[:, 1:2] - g.py[idx]) * g.ny[idx]
-        )
+    def _segment_values(g: _Group, pts: np.ndarray, idx, ok, a_idx, b_idx):
+        """Profile value of the segments a -> b (crest interpolated along them)."""
+        ax, ay = g.px[a_idx], g.py[a_idx]
+        bx, by = g.px[b_idx] - ax, g.py[b_idx] - ay
+        seg2 = bx * bx + by * by
+        rx, ry = pts[:, 0:1] - ax, pts[:, 1:2] - ay
+        t = np.clip((rx * bx + ry * by) / np.maximum(seg2, 1e-12), 0.0, 1.0)
+        t = np.where(seg2 > 0, t, 0.0)
+        d = np.hypot(rx - t * bx, ry - t * by)
+        crest = g.crest[a_idx] * (1.0 - t) + g.crest[b_idx] * t
+        # which flank (-1 .. 1), blended over a quarter of the half-width: a hard sign
+        # flips beyond the ends of a ridge and switched an asymmetric flank's width (ledge)
+        side = np.clip((rx * g.nx[idx] + ry * g.ny[idx]) / (0.25 * g.hw[idx]), -1.0, 1.0)
         hw = g.hw[idx] * (1.0 + g.asym[idx] * side)
         u = np.where(ok, d / hw, 2.0)
         plat = g.plat[idx]
         u2 = np.clip((u - plat) / (1.0 - plat), 0.0, None)
         prof = np.clip(1.0 - u2, 0.0, 1.0) ** g.sharp[idx]
-        val = np.where(ok, g.crest[idx] * prof, 0.0)
-        best = np.argmax(val, axis=1)
-        rows = np.arange(len(pts))
-        dist = np.where(ok[:, 0], d[:, 0], np.inf)
-        return val[rows, best], g.sysid[idx[rows, best]], dist
+        return np.where(ok, crest * prof, 0.0)
+
+    @staticmethod
+    def _ridge_values(g: _Group, pts: np.ndarray, exact: bool = True):
+        """Highest ridge profile at each point, exactly.
+
+        The k nearest vertices are tried first; every other vertex lies beyond the k-th
+        distance, so their segments are at least ``d_k - seg_max / 2`` away and cannot
+        give more than ``crest_max * profile(that distance)``. Points whose best value does
+        not beat that bound are searched again with 4 x more neighbours. (A fixed k let a
+        crowd of nearby vertices hide the ridge that is highest there: a ledge.)
+        ``exact=False``: one pass of the k nearest (a guide field, e.g. for tracing spurs).
+        """
+        if not exact:  # a guide field: nearest vertices only, one pass
+            k = min(8, g.px.size)
+            d, idx = g.tree.query(pts, k=k, distance_upper_bound=g.reach)
+            if k == 1:
+                d, idx = d[:, None], idx[:, None]
+            ok = np.isfinite(d)
+            idx = np.where(ok, idx, 0)
+            side = np.clip(
+                ((pts[:, 0:1] - g.px[idx]) * g.nx[idx] + (pts[:, 1:2] - g.py[idx]) * g.ny[idx])
+                / (0.25 * g.hw[idx]),
+                -1.0,
+                1.0,
+            )
+            u = np.where(ok, d / (g.hw[idx] * (1.0 + g.asym[idx] * side)), 2.0)
+            u2 = np.clip((u - g.plat[idx]) / (1.0 - g.plat[idx]), 0.0, None)
+            val = np.where(ok, g.crest[idx] * np.clip(1.0 - u2, 0.0, 1.0) ** g.sharp[idx], 0.0)
+            pick = np.argmax(val, axis=1)
+            rows = np.arange(len(pts))
+            return val[rows, pick], g.sysid[idx[rows, pick]], np.where(ok[:, 0], d[:, 0], np.inf)
+        n = len(pts)
+        best_val = np.zeros(n)
+        best_sid = np.full(n, -1, dtype=np.int32)
+        dist = np.full(n, np.inf)
+        todo = np.arange(n)
+        k = min(8, g.px.size)
+        while todo.size:
+            sub = pts[todo]
+            d, idx = g.tree.query(sub, k=k, distance_upper_bound=g.reach)
+            if k == 1:
+                d, idx = d[:, None], idx[:, None]
+            ok = np.isfinite(d)
+            idx = np.where(ok, idx, 0)
+            v_next = ReferenceSampler._segment_values(g, sub, idx, ok, idx, g.nxt[idx])
+            v_prev = ReferenceSampler._segment_values(g, sub, idx, ok, g.prv[idx], idx)
+            val = np.maximum(v_next, v_prev)
+            pick = np.argmax(val, axis=1)
+            rows = np.arange(len(todo))
+            top = val[rows, pick]
+            # what any vertex beyond the k-th could still give
+            dk = np.where(ok[:, -1], d[:, -1], np.inf)
+            reach_d = np.maximum(dk - 0.5 * g.seg_max, 0.0)
+            u = reach_d / max(g.reach, 1e-9)
+            u2 = np.clip((u - g.plat_max) / max(1.0 - g.plat_max, 1e-9), 0.0, None)
+            bound = g.crest_max * np.clip(1.0 - u2, 0.0, 1.0) ** g.sharp_min
+            done = (top >= bound) | ~ok[:, -1] | (k >= g.px.size) | (not exact)
+            keep = todo[done]
+            best_val[keep] = top[done]
+            best_sid[keep] = g.sysid[idx[rows, pick]][done]
+            dist[keep] = np.where(ok[done, 0], d[done, 0], np.inf)
+            todo = todo[~done]
+            k = min(4 * k, g.px.size)
+        return best_val, best_sid, dist
 
     def sample_points(self, x, y) -> HeightPatch:
         x = np.asarray(x, dtype=np.float64)
@@ -212,7 +303,7 @@ class ReferenceSampler:
             dist = np.minimum(dist, d)
         system = np.where(structure > 0, system, -1).astype(np.int32)
         for g in self.vgroups:
-            kv = min(4, g.px.size)
+            kv = min(12, g.px.size)  # as for ridges: dense valleys must not hide a basin
             dv, iv = g.tree.query(pts, k=kv, distance_upper_bound=g.reach)
             if kv == 1:
                 dv, iv = dv[:, None], iv[:, None]
@@ -223,8 +314,12 @@ class ReferenceSampler:
             vprof = vprof * vprof * (3.0 - 2.0 * vprof)  # smooth edges for wide basins
             valley = np.maximum(valley, np.where(okv, g.vd[iv] * vprof, 0.0).max(axis=1))
         # a valley lowers the flanks but never cuts a crest
-        pattern = structure * (1.0 - 0.6 * valley * (1.0 - structure) ** 0.5) - 0.22 * valley * (
-            structure < 0.35
+        # the extra deepening of valley floors fades in smoothly below the flanks (a hard
+        # switch at one structure value left a ledge of 0.22 x valley x amplitude)
+        floor = np.clip((0.45 - structure) / 0.2, 0.0, 1.0)
+        floor = floor * floor * (3.0 - 2.0 * floor)
+        pattern = (
+            structure * (1.0 - 0.6 * valley * (1.0 - structure) ** 0.5) - 0.22 * valley * floor
         )
         uplift = np.asarray(self.request.uplift(x.ravel(), y.ravel()), dtype=np.float64)
         gain = np.asarray(self.request.gain(x.ravel(), y.ravel()), dtype=np.float64)

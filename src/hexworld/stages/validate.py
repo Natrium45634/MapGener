@@ -202,7 +202,7 @@ def validate_history(project) -> dict:
             errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")
     if errors:
         return {"ok": False, "errors": errors, "warnings": warnings, "checks": checks}
-    nan_ok = {"orogen_age_ma", "last_tectonic_ma", "volcanic_age_ma"}
+    nan_ok = {"orogen_age_ma", "last_tectonic_ma", "volcanic_age_ma", "volcano_summit_m"}
     for name, arr in hist.layers.items():
         if np.issubdtype(arr.dtype, np.floating) and name not in nan_ok:
             if not np.isfinite(arr).all():
@@ -364,4 +364,43 @@ def validate_hydro(project) -> dict:
         lakes=len(h.lakes),
         land_fraction=round(float(L["land_mask"].mean()), 5),
     )
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
+def validate_env(project) -> dict:
+    """Invariants of v4.5: no NaN on valid land, physical soil limits, closed water budget."""
+    e = project.env
+    L, M = e.layers, e.monthly
+    hydro = project.hydro.layers
+    land = hydro["land_mask"] & (hydro["lake_id"] < 0)
+    soil = L["soil_present"]
+    errors: list[str] = []
+    checks: dict = {}
+    for name, arr in M.items():
+        if not np.isfinite(arr[:, land]).all():
+            errors.append(f"{name} has non-finite values on land")
+        if name != "temperature_monthly_c" and float(np.nanmin(arr)) < -1e-6:
+            errors.append(f"{name} is negative")
+    tex = L["sand_frac"][soil] + L["silt_frac"][soil] + L["clay_frac"][soil]
+    checks["texture_sum_max_error"] = float(np.abs(tex - 1.0).max()) if tex.size else 0.0
+    if tex.size and checks["texture_sum_max_error"] > 1e-5:
+        errors.append("sand + silt + clay != 1 on soil")
+    if soil.any():
+        wp, fc, por = (
+            L[k][soil] for k in ("wilting_point_vol", "field_capacity_vol", "porosity_vol")
+        )
+        if not ((wp >= 0) & (wp < fc) & (fc <= por + 1e-6)).all():
+            errors.append("0 <= PWP < FC <= porosity is violated")
+    if np.isfinite(L["sand_frac"][~soil]).any():
+        errors.append("texture is defined where there is no soil")
+    if float(np.nanmin(L["awc_mm"])) < 0.0 or float(np.nanmin(L["soil_depth_m"])) < 0.0:
+        errors.append("negative AWC or soil depth")
+    wb = e.summary["water_balance"]
+    checks["water_residual_mm"] = wb["max_abs_residual_mm"]
+    if wb["max_abs_residual_mm"] > max(wb["tolerance_mm"], 1e-6):
+        errors.append("the monthly water balance does not close")
+    mc = e.summary["month_check"]
+    checks.update(mc)
+    if mc["max_rel_precip_sum_error"] > 1e-6 or mc["max_abs_annual_temperature_error_c"] > 1e-3:
+        errors.append("the months do not add up to the seasons / the annual mean")
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}

@@ -111,6 +111,7 @@ def test_old_belts_are_broad_low_and_rounded():
         "broad_upland",
         "fold_belt",
         "mixed",
+        "highland",
     }
     assert np.mean([s.maturity for s in old_auto.systems]) > 0.7
     # the same architecture young and old
@@ -126,9 +127,16 @@ def test_old_belts_are_broad_low_and_rounded():
     spurs_young = sum(r.role == "spur" for r in young.ridges) / len(young.systems)
     spurs_old = sum(r.role == "spur" for r in old.ridges) / len(old.systems)
     assert spurs_old < spurs_young  # small spurs are the first to go
-    peaks_young = [p["crest"] for p in young.peaks]
-    peaks_old = [p["crest"] for p in old.peaks]
-    assert np.std(peaks_old) < np.std(peaks_young)  # accordant summits
+
+    def within_ridge_spread(plan):
+        # accordant summits: the summits of one range reach similar heights
+        by_ridge: dict = {}
+        for p in plan.peaks:
+            by_ridge.setdefault(p["ridge"], []).append(p["crest"])
+        cvs = [np.std(v) / np.mean(v) for v in by_ridge.values() if len(v) >= 3]
+        return float(np.median(cvs))
+
+    assert within_ridge_spread(old) < within_ridge_spread(young)
 
 
 @pytest.mark.parametrize("style", MOUNTAIN_STYLES)
@@ -156,3 +164,35 @@ def test_plan_is_deterministic_and_seed_sensitive():
     assert [r.points.tolist() for r in a.ridges] == [r.points.tolist() for r in b.ridges]
     c = _plan(seed="Belt2")
     assert [r.points.tolist() for r in a.ridges] != [r.points.tolist() for r in c.ridges]
+
+
+def _trend_dispersion(plan, roles):
+    """Spread of range trends (axial data: angles doubled), 0 = all parallel .. 1."""
+    angles = []
+    for r in plan.ridges:
+        if r.role in roles and len(r.points) >= 3:
+            d = r.points[-1] - r.points[0]
+            angles.append(2.0 * np.arctan2(d[1], d[0]))
+    assert len(angles) >= 4
+    return 1.0 - float(np.hypot(np.mean(np.cos(angles)), np.mean(np.sin(angles))))
+
+
+def test_highland_is_a_country_of_ranges_with_turning_trends():
+    belt = {"width_km": 1500.0, "length_km": 3600.0, "relief_m": 2200.0}
+    highland = _plan(MountainParams(style="highland"), age=60.0, worn=0.4, **belt)
+    fold = _plan(MountainParams(style="fold_belt"), age=60.0, worn=0.4, **belt)
+    ranges = [r for r in highland.ridges if r.role == "highland"]
+    assert len(ranges) >= 8 * len(highland.systems) // 2  # many ranges, not one or two
+    assert _trend_dispersion(highland, ("highland",)) > _trend_dispersion(fold, ("fold",)) + 0.1
+    assert all(s.style == "highland" for s in highland.systems)
+
+
+def test_composite_system_radiates_bundles_from_an_orogenic_knot():
+    plan = _plan(MountainParams(style="composite"), width_km=1100.0, length_km=3800.0)
+    knots = [k for k in plan.knots if k.get("kind") == "orogenic_knot"]
+    assert knots and all(k["arms"] >= 2 for k in knots)
+    k = knots[0]
+    peaks = [p for p in plan.peaks if p["system"] == k["system"]]
+    d = np.hypot([p["x_km"] - k["x_km"] for p in peaks], [p["y_km"] - k["y_km"] for p in peaks])
+    crest = np.array([p["crest"] for p in peaks])
+    assert np.corrcoef(d, crest)[0, 1] < 0.0  # the ranges get lower away from the knot

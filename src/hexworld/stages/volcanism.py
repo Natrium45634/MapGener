@@ -76,7 +76,8 @@ class VolcanoSet:
             active_span = max(0.0, min(t, v.last_active_ma) - v.birth_ma)
             grown = 1.0 - math.exp(-(active_span + 0.6) / 1.2)
             idle = max(0.0, t - v.last_active_ma - _EXTINCT_AFTER_MA)
-            rate = 0.012 if v.kind == HOTSPOT else 0.03  # share lost per Ma once extinct
+            # share lost per Ma once extinct: loose arc cones wear down within ~15 Ma
+            rate = 0.012 if v.kind == HOTSPOT else 0.05
             out[k] = v.height_m * grown * math.exp(-rate * erosion_intensity * idle)
         return out
 
@@ -159,9 +160,12 @@ class VolcanoBuilder:
                 stream = Stream(self.seed, f"geohistory/v3/hotspot/{h.id}/{serial}")
                 u = stream.random(3)
                 continental = float(cont_at_cell[ri, ci]) > 0.5
-                height = (700.0 + 900.0 * u[0]) if continental else (3300.0 + 2400.0 * u[0])
+                # on a continent a hotspot builds a broad low volcanic swell (plateau
+                # basalts, the Snake River Plain), not a string of tall cones; in the ocean
+                # the shields are wide enough to merge into a ridge (the Hawaiian Ridge)
+                height = (250.0 + 400.0 * u[0]) if continental else (3300.0 + 2400.0 * u[0])
                 height *= h.strength**0.5 * intensity**0.3
-                radius = (38.0 + 22.0 * u[1]) if continental else (55.0 + 35.0 * u[1])
+                radius = (80.0 + 50.0 * u[1]) if continental else (70.0 + 40.0 * u[1])
                 self._add(HOTSPOT, h.id, plate, h.x, h.y, when, height, radius)
         # every volcano still above its hotspot stays active
         for v in self.set.volcanoes:
@@ -192,14 +196,16 @@ class VolcanoBuilder:
         rows, cols = np.nonzero(zone & np.isfinite(off))
         stream = Stream(self.seed, f"geohistory/v3/arc/{t:.4f}")
         order = stream.permutation(rows.size)
-        spacing = 68.0  # arc volcanoes stand tens of km apart
         budget = 600
         for k in order:
             if budget <= 0:
                 break
             r, c = int(rows[k]), int(cols[k])
-            jitter = stream.random(4)
-            shift = float(off[r, c]) - (jitter[0] - 0.5) * 16.0
+            jitter = stream.random(5)
+            # arc volcanoes stand 40-110 km apart, scattered ~+-25 km across the arc line;
+            # an even 68 km spacing reads as a string of beads
+            spacing = 40.0 + 70.0 * jitter[4]
+            shift = float(off[r, c]) - (jitter[0] - 0.5) * 50.0
             x = float(gx[r, c]) - shift * float(gx_d[r, c] / norm[r, c])
             y = float(gy[r, c]) - shift * float(gy_d[r, c] / norm[r, c])
             if ax:
@@ -210,7 +216,9 @@ class VolcanoBuilder:
                         self.set.volcanoes[arc_ids[j]].last_active_ma = t
                     continue
             continental = float(cont_at_cell[r, c]) > 0.5
-            height = (900.0 + 1300.0 * jitter[2]) if continental else (1800.0 + 2200.0 * jitter[2])
+            # many small cones and a few giants (a skewed size distribution)
+            big = jitter[2] ** 2.5
+            height = (500.0 + 2000.0 * big) if continental else (1200.0 + 3000.0 * big)
             radius = 14.0 + 12.0 * jitter[3]
             self._add(
                 ARC,
@@ -229,6 +237,27 @@ class VolcanoBuilder:
             budget -= 1
 
 
+#: Share of the hex spacing over which a hex value averages a feature: a value on a grid of
+#: spacing s stands for the area around its centre, not for one point.
+FOOTPRINT_SHARE = 0.6
+
+
+def footprint_cones(heights, radii, spacing_km: float):
+    """Cones as seen by hexes of ``spacing_km``: the same volume over the hex footprint.
+
+    Sampling a 15-30 km volcano at the centre of a 75 km hex gives either nothing or its
+    full summit - single-hex spikes lined up along every arc. Averaged over the hex, a
+    cone of radius r keeps its volume (``h r^2``) but spreads to
+    ``r_eff = sqrt(r^2 + (0.6 s)^2)``: large shields (Hawaii, Iceland) stay islands, small
+    arc cones become the arc swell they make at that scale, and on fine grids (s << r)
+    nothing changes. The summit itself is reported separately.
+    """
+    r = np.asarray(radii, dtype=np.float64)
+    h = np.asarray(heights, dtype=np.float64)
+    r_eff = np.sqrt(r * r + (FOOTPRINT_SHARE * float(spacing_km)) ** 2)
+    return h * (r / np.maximum(r_eff, 1e-9)) ** 2, r_eff
+
+
 def cone_field(x, y, vx, vy, heights, radii):
     """Sum of volcanic cones at world points: ``(relief_m, nearest_index, distance_km)``."""
     from scipy.spatial import cKDTree
@@ -242,7 +271,7 @@ def cone_field(x, y, vx, vy, heights, radii):
         return relief, nearest, dist
     tree = cKDTree(np.column_stack([vx, vy]))
     reach = float(np.max(radii)) * 3.2
-    k = min(4, len(vx))
+    k = min(8, len(vx))
     d, idx = tree.query(np.column_stack([x.ravel(), y.ravel()]), k=k, distance_upper_bound=reach)
     if k == 1:
         d, idx = d[:, None], idx[:, None]

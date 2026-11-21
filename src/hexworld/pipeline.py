@@ -25,6 +25,7 @@ from .geometry import WorldGeometry, resolve_geometry
 from .pipeline_v2 import run_v2
 from .pipeline_v3 import run_v3
 from .pipeline_v4 import run_v4
+from .pipeline_v45 import run_env
 from .project import Project
 from .rng import Stream
 from .stages import raster as raster_stage
@@ -222,7 +223,7 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         stats=dict(base.stats, reused_stages=list(STAGES)),
         cache=dict(base.cache),
     )
-    if through in ("v2", "v3", "v4"):
+    if through in ("v2", "v3", "v4", "v45"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -243,10 +244,12 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         report("validate", 0.79)
         geo.validation = validate_geo(project)
         project.warnings.extend(geo.warnings)
-    if through in ("v3", "v4"):
+    if through in ("v3", "v4", "v45"):
         _add_history(config, geometry, project, base, report)
-    if through == "v4":
+    if through in ("v4", "v45"):
         _add_hydro(config, geometry, project, base, report)
+    if through == "v45" and config.environment.enabled:
+        _add_env(config, geometry, project, base, report)
     project.timings["total"] = round(time.perf_counter() - t_total, 4)
     report("done", 1.0)
     return project
@@ -281,11 +284,26 @@ def _add_hydro(config, geometry, project: Project, previous: Project | None, rep
     project.warnings.extend(hydro.warnings)
 
 
+def _add_env(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v4.5 ecological foundation on a project that holds v4 data (in place)."""
+    from .stages.validate import validate_env
+
+    old_keys = previous.env.stage_keys if previous is not None and previous.env else {}
+    old_cache = previous.cache if previous is not None else {}
+    env, env_cache, env_reused = run_env(config, geometry, project, old_keys, old_cache, report)
+    project.env = env
+    project.cache.update(env_cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + env_reused
+    project.timings.update(env.timings)
+    env.validation = validate_env(project)
+    project.warnings.extend(env.warnings)
+
+
 def generate(
     config: Config,
     progress: Progress | None = None,
     reuse: Project | None = None,
-    through: str = "v4",
+    through: str = "v45",
 ) -> Project:
     """Run the pipeline. ``reuse`` lets unchanged stages be taken from a previous project.
 
@@ -294,8 +312,8 @@ def generate(
     A ``progress`` callback may raise :class:`GenerationCancelled` to abort; the
     project passed as ``reuse`` is never modified.
     """
-    if through not in ("v1", "v2", "v3", "v4"):
-        raise ValueError('through must be "v1", "v2", "v3" or "v4"')
+    if through not in ("v1", "v2", "v3", "v4", "v45"):
+        raise ValueError('through must be "v1", "v2", "v3", "v4" or "v45"')
     report = progress or (lambda stage, fraction: None)
     timings: dict[str, float] = {}
     t_total = time.perf_counter()
@@ -503,7 +521,7 @@ def generate(
     )
     timed("assemble", t0)
 
-    if through in ("v2", "v3", "v4"):
+    if through in ("v2", "v3", "v4", "v45"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -530,10 +548,12 @@ def generate(
         project.geo.validation = validate_geo(project)
         project.warnings.extend(project.geo.warnings)
     timed("validate", t0)
-    if through in ("v3", "v4"):
+    if through in ("v3", "v4", "v45"):
         _add_history(config, geometry, project, reuse, report)
-    if through == "v4":
+    if through in ("v4", "v45"):
         _add_hydro(config, geometry, project, reuse, report)
+    if through == "v45" and config.environment.enabled:
+        _add_env(config, geometry, project, reuse, report)
     if project.stats["plates_visible"] < 2:
         project.warnings.append(
             "Only one plate is visible: there are no boundaries in this window."

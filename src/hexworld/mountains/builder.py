@@ -84,6 +84,8 @@ _SPUR_DENSITY = {
     "broad_upland": 0.45,
     "mixed": 1.0,
     "block": 0.8,
+    "highland": 0.7,
+    "composite": 0.6,
 }
 
 
@@ -106,8 +108,19 @@ class RangeSpec:
 
 
 # -- style choice -----------------------------------------------------------------------
-def choose_style(kind: str, width_km: float, relief_m: float, maturity: float, u: float) -> str:
-    """Architecture of a system from its tectonic setting, size and age (``u``: seed draw)."""
+def choose_style(
+    kind: str,
+    width_km: float,
+    relief_m: float,
+    maturity: float,
+    u: float,
+    branched: bool = False,
+) -> str:
+    """Architecture of a system from its tectonic setting, size and age (``u``: seed draw).
+
+    ``branched``: the relief spreads in several directions from the belt's axis (a knot
+    where belts meet), not along one line.
+    """
 
     def pick(options):
         total = sum(w for _s, w in options)
@@ -120,9 +133,20 @@ def choose_style(kind: str, width_km: float, relief_m: float, maturity: float, u
 
     if kind == "rift":
         return "block"
+    if branched and kind != "arc" and maturity < 0.6 and 400.0 < width_km < 1800.0:
+        if u < 0.45:
+            return "composite"
+        u = (u - 0.45) / 0.55  # the same draw, rescaled, for the other styles
+    wide = width_km > 650.0 and relief_m < 2600.0
     if maturity > 0.66 or kind == "inherited":
         return pick(
-            [("old_massif", 0.5), ("broad_upland", 0.25), ("fold_belt", 0.15), ("mixed", 0.1)]
+            [
+                ("old_massif", 0.45),
+                ("broad_upland", 0.2),
+                ("fold_belt", 0.15),
+                ("mixed", 0.1),
+                ("highland", 0.45 if wide else 0.0),
+            ]
         )
     if kind == "arc":
         if width_km < 260.0:
@@ -131,12 +155,25 @@ def choose_style(kind: str, width_km: float, relief_m: float, maturity: float, u
             return pick([("andean", 0.8), ("mixed", 0.2)])
         return pick([("andean", 0.45), ("alpine", 0.35), ("volcanic_arc", 0.2)])
     if maturity < 0.35:
+        if width_km > 900.0:  # very wide young belts: Tibet, or a Tien Shan-Mongolian
+            return pick(  # country of ranges
+                [("himalayan", 0.5 if relief_m > 1800.0 else 0.1), ("highland", 0.35),
+                 ("mixed", 0.15)]
+            )  # fmt: skip
         if width_km > 500.0 and relief_m > 1800.0:
             return pick([("himalayan", 0.7), ("mixed", 0.2), ("andean", 0.1)])
         if width_km > 280.0:
             return pick([("alpine", 0.45), ("fold_belt", 0.3), ("mixed", 0.25)])
         return pick([("alpine", 0.65), ("fold_belt", 0.25), ("block", 0.1)])
-    return pick([("mixed", 0.35), ("fold_belt", 0.25), ("broad_upland", 0.2), ("alpine", 0.2)])
+    return pick(
+        [
+            ("mixed", 0.35),
+            ("fold_belt", 0.25),
+            ("broad_upland", 0.2),
+            ("alpine", 0.2),
+            ("highland", 0.4 if wide else 0.0),
+        ]
+    )
 
 
 def style_ranges(style: str, stream: Stream, width_km: float, complexity: float) -> list:
@@ -294,6 +331,23 @@ def style_ranges(style: str, stream: Stream, width_km: float, complexity: float)
             out.append(
                 RangeSpec(side * 0.55, 0.65, 0.8, 1.2, "secondary", trim=(0.3 * u[5], 0.3 * u[6]))
             )
+    elif style == "highland":
+        # the raised country itself; its ranges are placed by _highland_ranges
+        out.append(
+            RangeSpec(
+                0.0,
+                0.3,
+                0.4 * width_km,
+                0.6,
+                "base",
+                plateau=0.45,
+                absolute_hw=True,
+                peaks=False,
+                spurs=False,
+            )
+        )
+    elif style == "composite":
+        pass  # bundles of ranges leaving the knot: _composite_ranges
     else:  # block: tilted fault blocks, en echelon, steep on alternating sides
         n = 1 + int(u[0] * (3 if extra else 1))
         for k in range(n):
@@ -541,13 +595,25 @@ def _build_system(
         float(np.median(left + right)) if total > 0 else 2.0 * float(inside_km[rows, cols].max())
     )
     style = getattr(params, "style", "auto")
+    branched = False
+    if total > 0 and rows.size >= 12:
+        # share of the system far from its axis: relief spreading in several directions
+        d_axis, _ = cKDTree(axis).query(np.column_stack([px, py]))
+        branched = float((d_axis > 0.75 * max(width, 2.0 * cell)).mean()) > 0.12
     if style == "auto":
-        style = choose_style(kind_name, width, float(rel.mean()), maturity, stream.random())
+        style = choose_style(
+            kind_name, width, float(rel.mean()), maturity, stream.random(), branched
+        )
         if style in ("himalayan", "broad_upland") and not plateau_ok:
             u = stream.random()
-            style = "mixed" if u < 0.35 else ("alpine" if u < 0.7 else "fold_belt")
+            if maturity > 0.66:  # an old belt stays old: a worn massif or a highland
+                style = "old_massif" if u < 0.6 or width < 650.0 else "highland"
+            else:
+                style = "mixed" if u < 0.35 else ("alpine" if u < 0.7 else "fold_belt")
     if total < 2.5 * cell:  # a short knot of relief: one massif, whatever the setting
         style = "volcanic_arc" if style == "volcanic_arc" else "alpine"
+    if style in ("highland", "composite") and rows.size < 20:
+        style = "mixed"  # too small for a country of ranges
     system = MountainSystem(
         id=sid,
         kind=kind_name,
@@ -556,7 +622,10 @@ def _build_system(
         maturity=round(maturity, 4),
         sharpness=round(1.55 - 0.85 * maturity, 4),
         relief_gain=round(
-            (0.95 - 0.5 * maturity) * (0.8 if style in ("himalayan", "broad_upland") else 1.0), 4
+            (0.95 - 0.5 * maturity)
+            * (0.8 if style in ("himalayan", "broad_upland") else 1.0)
+            * (1.25 if style == "highland" else 1.0),
+            4,
         ),
         area_km2=float(rows.size * cell * cell),
         centroid_km=(float(px.mean()), float(py.mean())),
@@ -620,7 +689,19 @@ def _build_system(
                 ids.append(rid)
         if ids:
             built.append((spec, ids))
-    if not any(spec.role in ("main", "core", "fold", "block") for spec, _ in built):
+    taper: dict = {}
+    if style == "highland":
+        built += _highland_ranges(
+            plan, sid, px, py, axis, width, params, m, front, step, variety, inside_at,
+            stream.child("highland"),
+        )  # fmt: skip
+    elif style == "composite":
+        made, taper = _composite_ranges(
+            plan, sid, rows, cols, px, py, rel, axis, params, m, front, step, variety,
+            inside_at, cell, stream.child("composite"),
+        )  # fmt: skip
+        built += made
+    if not any(spec.role in ("main", "core", "fold", "block", "highland") for spec, _ in built):
         # nothing of the architecture fitted: one crest along the axis
         spec = RangeSpec(0.0, 1.0, 1.0, 1.35, "main")
         built.append((spec, [_add_range(plan, sid, axis, spec, params, m, front, step)]))
@@ -673,6 +754,10 @@ def _build_system(
         local = np.clip(
             grid.bilinear(relief, ridge.points[:, 0], ridge.points[:, 1]) / rel_max, 0.15, 1.0
         )
+        if ridge.id in taper:  # composite: ranges get lower away from the knot
+            kx, ky, reach_km = taper[ridge.id]
+            d_knot = np.hypot(ridge.points[:, 0] - kx, ridge.points[:, 1] - ky)
+            local = local * (1.0 - 0.38 * np.clip(d_knot / max(reach_km, 1.0), 0.0, 1.0))
         _crest_and_peaks(plan, ridge, local, params, m, stream.child(f"crest/{ridge.id}"))
 
     # spurs and the valleys between them: lines of steepest descent of the flanks
@@ -684,7 +769,196 @@ def _build_system(
         _spurs(plan, ridge, field, inside_at, params, m, density, stream.child(f"spurs/{ridge.id}"))
 
     # intermontane basins between neighbouring parallel ranges
-    _basins(plan, built, axis, normals, s, left, right, front, params, m, step)
+    if style not in ("highland", "composite"):
+        _basins(plan, built, axis, normals, s, left, right, front, params, m, step)
+
+
+def _orientation_field(axis, stream: Stream, scale_km: float, amplitude: float):
+    """Trend of ranges at a point: the belt's local direction turned by a smooth field.
+
+    A few long-wave sinusoids (wavelengths ~1-3 x ``scale_km``) rotate the trend by up to
+    ``amplitude`` radians, so neighbouring ranges share a trend while the trends across a
+    wide country swing into arcs and fans (the Verkhoyansk-Kolyma arc, the Stanovoy).
+    """
+    s_ax, t_ax, _n_ax = _frame(axis)
+    tree = cKDTree(axis)
+    u = stream.random(16)
+    waves = []
+    for k in range(4):
+        ang = 2 * math.pi * u[k]
+        lam = scale_km * (1.0 + 2.0 * u[4 + k])
+        waves.append((math.cos(ang) / lam, math.sin(ang) / lam, 2 * math.pi * u[8 + k], u[12 + k]))
+    norm = sum(w[3] for w in waves) + 1e-9
+
+    def theta(x, y):
+        _d, i = tree.query(np.column_stack([np.atleast_1d(x), np.atleast_1d(y)]))
+        base = np.arctan2(t_ax[i, 1], t_ax[i, 0])
+        turn = sum(
+            a * np.sin(2 * math.pi * (kx * np.atleast_1d(x) + ky * np.atleast_1d(y)) + ph)
+            for kx, ky, ph, a in waves
+        )
+        return base + amplitude * turn / norm
+
+    return theta
+
+
+def _streamline(x0, y0, theta, length_km, step, inside_at, avoid, clearance):
+    """A range traced along the trend field both ways from a seed, inside the system."""
+    halves = []
+    for sign in (1.0, -1.0):
+        pts = []
+        x, y = x0, y0
+        prev = None
+        travelled = 0.0
+        while travelled < 0.5 * length_km:
+            a = float(theta(x, y)[0])
+            dx, dy = math.cos(a), math.sin(a)
+            if prev is not None and dx * prev[0] + dy * prev[1] < 0:
+                dx, dy = -dx, -dy  # a trend has no sense: keep going the same way
+            if prev is None:
+                dx, dy = sign * dx, sign * dy
+            x, y = x + dx * step, y + dy * step
+            if not bool(inside_at(np.array([x]), np.array([y]))[0]):
+                break
+            if avoid is not None and avoid.query([x, y])[0] < clearance:
+                break
+            pts.append((x, y))
+            prev = (dx, dy)
+            travelled += step
+        halves.append(pts)
+    line = halves[1][::-1] + [(x0, y0)] + halves[0]
+    return np.array(line, dtype=np.float64)
+
+
+def _highland_ranges(
+    plan, sid, px, py, axis, width, params, m, front, step, variety, inside_at, stream: Stream
+):
+    """An extensive mountain country: many medium ranges whose trends turn across it."""
+    spacing = 230.0 * (1.0 + 0.3 * m) / max(variety, 0.5) ** 0.5
+    theta = _orientation_field(axis, stream.child("trend"), max(width, 600.0), 1.05)
+    order = stream.permutation(px.size)
+    seeds: list = []
+    built = []
+    placed = None
+    for idx in order.tolist():
+        x, y = float(px[idx]), float(py[idx])
+        if any(math.hypot(x - a, y - b) < spacing for a, b in seeds):
+            continue
+        seeds.append((x, y))
+        u = stream.random(4)
+        length = (160.0 + 380.0 * u[0]) * (1.0 + 0.3 * m)
+        line = _streamline(x, y, theta, length, step, inside_at, placed, 0.42 * spacing)
+        if len(line) < 3 or arclength(line)[-1] < max(110.0, 0.5 * length):
+            continue
+        spec = RangeSpec(
+            0.0, 0.7 + 0.3 * u[1], 0.6 + 0.25 * u[2], 1.1, "highland", asym=(u[3] - 0.5)
+        )
+        rid = _add_range(plan, sid, line, spec, params, m, front, step)
+        built.append((spec, [rid]))
+        pts = (
+            plan.ridges[rid].points
+            if placed is None
+            else np.vstack([placed.data, plan.ridges[rid].points])
+        )
+        placed = cKDTree(pts)
+        if len(built) >= 60:
+            break
+    return built
+
+
+def _composite_ranges(
+    plan, sid, rows, cols, px, py, rel, axis, params, m, front, step, variety, inside_at,
+    cell, stream: Stream,
+):  # fmt: skip
+    """Several fold regions meeting at an orogenic knot (the Pamir knot, Altai-Sayan).
+
+    The knot is the highest part of the system. Arms run from it to the far ends of the
+    system in different directions (at least 50 degrees apart); along each arm a bundle of
+    parallel ridges fans out (virgation) and gets lower away from the knot.
+    Returns ``(built, taper)``; ``taper`` maps ridge id -> (knot x, knot y, reach km).
+    """
+    # the knot: the cell whose surroundings (within ~2 cells) stand highest
+    cells = np.column_stack([px, py])
+    near = cKDTree(cells).query_ball_point(cells, r=2.1 * cell)
+    smooth = np.array([float(rel[idx].mean()) for idx in near])
+    knot = int(np.argmax(smooth))
+    kx, ky = float(px[knot]), float(py[knot])
+    dist = np.hypot(px - kx, py - ky)
+    ang = np.arctan2(py - ky, px - kx)
+    reach = float(dist.max())
+    # candidate arm ends: the farthest cell of each 30-degree sector
+    targets = []
+    for k in range(12):
+        lo = -math.pi + k * math.pi / 6
+        sel = (ang >= lo) & (ang < lo + math.pi / 6)
+        if sel.any():
+            j = int(np.flatnonzero(sel)[np.argmax(dist[sel])])
+            targets.append((float(dist[j]), j))
+    targets.sort(reverse=True)
+    arms: list[int] = []
+    for d, j in targets:
+        if d < 0.35 * reach or len(arms) >= 4:
+            continue
+        if all(
+            abs(math.remainder(float(ang[j] - ang[a]), 2 * math.pi)) > math.radians(50)
+            for a in arms
+        ):
+            arms.append(j)
+    if len(arms) < 2:
+        return [], {}
+    cost_graph, _hop = _system_graph(rows, cols, rel, cell)
+    _d, pred = dijkstra(cost_graph, indices=knot, return_predecessors=True)
+    built = []
+    taper: dict = {}
+    hw = params.range_half_width_km
+    for a_idx, target in enumerate(arms):
+        path = _path(pred, target, {knot})[::-1]
+        if len(path) < 3:
+            continue
+        guide = np.column_stack([px[path], py[path]])
+        jit = (stream.random(2 * len(guide)).reshape(-1, 2) - 0.5) * 0.5 * cell
+        jit[0] = 0.0
+        guide = resample(chaikin(guide + jit, 4), step)
+        if len(guide) < 4:
+            continue
+        g_s, g_t, g_n = _frame(guide)
+        span = float(g_s[-1])
+        u = stream.random(12)
+        n_ranges = 2 + int(round(u[0] * 2 * max(variety, 0.5)))
+        # virgation: the ridges of a bundle spread apart away from the knot
+        spacing = 2.4 * hw * (1.0 + 1.3 * g_s / max(span, 1.0))
+        for k in range(n_ranges):
+            off = (k - 0.5 * (n_ranges - 1)) * spacing
+            pts = guide + g_n * off[:, None]
+            keep = inside_at(pts[:, 0], pts[:, 1])
+            start = 0.08 + 0.2 * u[1 + k % 10] if abs(k - 0.5 * (n_ranges - 1)) > 0.6 else 0.0
+            keep &= g_s >= start * span
+            for lo, hi in _runs(keep):
+                if g_s[hi - 1] - g_s[lo] < max(1.6 * cell, 110.0):
+                    continue
+                central = abs(k - 0.5 * (n_ranges - 1)) < 0.6
+                spec = RangeSpec(
+                    0.0,
+                    1.0 if central else 0.66 + 0.2 * u[(k + 5) % 12],
+                    0.55,
+                    1.2,
+                    "core" if central and a_idx == 0 else "fold",
+                )
+                rid = _add_range(plan, sid, pts[lo:hi], spec, params, m, front, step)
+                taper[rid] = (kx, ky, reach)
+                built.append((spec, [rid]))
+    plan.knots.append(
+        {
+            "id": len(plan.knots),
+            "system": sid,
+            "x_km": kx,
+            "y_km": ky,
+            "ridges": [ids[0] for _spec, ids in built[: len(arms)]],
+            "kind": "orogenic_knot",
+            "arms": len(arms),
+        }
+    )
+    return built, taper
 
 
 def _lobes(specs, stream: Stream) -> list:
@@ -852,7 +1126,8 @@ def _crest_and_peaks(plan, ridge: Ridge, local, params, m, stream: Stream):
         if k > 0:
             saddle = 0.5 * (peak_s[k - 1] + peak_s[k])
             deep = u[2 * n_peaks + k] < 0.14
-            depth = (0.4 if deep else 0.55 + 0.2 * u[n_peaks + k]) + 0.12 * m
+            # saddles stay high (a crest, not a string of beads); a few passes cut deep
+            depth = (0.55 if deep else 0.72 + 0.16 * u[n_peaks + k]) + 0.08 * m
             nodes_s.append(saddle)
             nodes_v.append(min(peak_v[k - 1], peak_v[k]) * min(depth, 0.9))
         nodes_s.append(peak_s[k])
@@ -902,36 +1177,18 @@ def _flank_field(ridges, grid, relief, rel_max, seed, sid):
     the flanks, bend with them and stop at the foot instead of crossing each other.
     """
     from ..noise import FractalNoise
-    from .backend import ReferenceSampler, _Group, _groups, _point_normals
+    from .backend import ReferenceSampler, ridge_groups
 
-    groups = []
-    for group in _groups(list(ridges), lambda r: r.half_width_km):
-        parts = {
-            k: [] for k in ("px", "py", "crest", "hw", "sharp", "sysid", "plat", "asym", "nx", "ny")
-        }
-        for r in group:
-            n = len(r.points)
-            normals = _point_normals(r.points)
-            parts["px"].append(r.points[:, 0])
-            parts["py"].append(r.points[:, 1])
-            parts["crest"].append(r.crest)
-            parts["hw"].append(np.full(n, r.half_width_km))
-            parts["sharp"].append(np.full(n, r.sharpness if r.sharpness else 1.2))
-            parts["sysid"].append(np.full(n, r.system))
-            parts["plat"].append(np.full(n, min(r.plateau, 0.9)))
-            parts["asym"].append(np.full(n, r.asymmetry))
-            parts["nx"].append(normals[:, 0])
-            parts["ny"].append(normals[:, 1])
-        arrays = {k: np.concatenate(v) for k, v in parts.items()}
-        arrays["sysid"] = arrays["sysid"].astype(np.int32)
-        groups.append(_Group(arrays))
+    groups = ridge_groups(ridges, lambda r: r.sharpness if r.sharpness else 1.2)
     noise = FractalNoise(Stream(seed, f"mountains/v3/flanks/{sid}"), [190.0, 95.0], [1.0, 0.5])
 
     def exact(x, y):
         pts = np.column_stack([np.ravel(x), np.ravel(y)])
         structure = np.zeros(len(pts))
         for g in groups:
-            structure = np.maximum(structure, ReferenceSampler._ridge_values(g, pts)[0])
+            structure = np.maximum(
+                structure, ReferenceSampler._ridge_values(g, pts, exact=False)[0]
+            )
         belt = grid.bilinear(relief, pts[:, 0], pts[:, 1]) / rel_max
         return structure + 0.35 * belt + 0.05 * noise(pts[:, 0], pts[:, 1])
 

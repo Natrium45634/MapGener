@@ -346,6 +346,10 @@ class MapView(QWidget):
                     f"  |  кора (prior): {info['crust']}  |  граница: {info['boundary']}"
                     "\nматерики, высоты, геоистория: данных нет"
                 )
+            if info.get("seafloor_province_title"):
+                text += (
+                    f"\nдно: {info['seafloor_province_title']}, глубина {info['depth_m']:,.0f} м"
+                )
             if "temperature_mean_c" in info:
                 text += (
                     f"\nT {info['temperature_mean_c']:+.1f} °C  |  осадки "
@@ -361,6 +365,17 @@ class MapView(QWidget):
                     from ..stages.coasts import COAST_TITLES, COAST_TYPES
 
                     text += f"\nберег: {COAST_TITLES[COAST_TYPES[info['coast_type']]]}"
+            if info.get("soil_present") is not None and info.get("land_mask"):
+                from ..stages.environment import PARENT_MATERIALS, PARENT_TITLES
+
+                pm = PARENT_TITLES[PARENT_MATERIALS[int(info.get("parent_material_class", 0))]]
+                awc = info.get("awc_mm")
+                wet = info.get("wetness_potential")
+                text += (
+                    f"\nпочва (оценка): {pm}; AWC {0 if awc is None else awc:.0f} мм; "
+                    f"переувлажнение {0 if wet is None else wet:.2f}; сухих месяцев "
+                    f"{info.get('dry_month_count', 0)}"
+                )
             self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):

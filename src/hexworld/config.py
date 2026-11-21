@@ -28,6 +28,8 @@ MOUNTAIN_STYLES = (
     "broad_upland",
     "mixed",
     "block",
+    "highland",
+    "composite",
 )
 ROUTING_MODES = ("stochastic", "steepest")
 EDGE_OUTLET_MODES = ("world", "all")
@@ -277,6 +279,31 @@ class ErosionParams:
 
 
 @dataclass(frozen=True)
+class EnvironmentParams:
+    """v4.5 ecological foundation (months, soils, monthly water, wetness, indices).
+
+    The numbers are starting engineering values, not natural constants (TZ 4.5, 11).
+    """
+
+    enabled: bool = True
+    #: Reference root zone for the available water (no vegetation types yet), m.
+    reference_root_depth_m: float = 1.0
+    max_soil_depth_m: float = 3.0
+    #: FAO-56 "p": share of the available water used before the reference cover is stressed.
+    depletion_fraction: float = 0.5
+    #: Rain days per month that use the daily infiltration capacity.
+    rain_days_per_month: float = 6.0
+    baseflow_timescale_yr: float = 1.0
+    #: Melt per positive degree-day, mm/(degC day).
+    degree_day_mm: float = 3.0
+    spinup_max_years: int = 40
+    water_balance_tolerance_mm: float = 1e-4
+    #: A dry month: P < ratio * PET.
+    dry_month_ratio: float = 0.5
+    gdd_base_c: float = 5.0
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -303,6 +330,7 @@ class Config:
     climate: ClimateParams = field(default_factory=ClimateParams)
     hydrology: HydrologyParams = field(default_factory=HydrologyParams)
     erosion: ErosionParams = field(default_factory=ErosionParams)
+    environment: EnvironmentParams = field(default_factory=EnvironmentParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -425,6 +453,19 @@ class Config:
             raise ConfigError("erosion.diffusivity_m2_yr must be within [0, 1e6]")
         if not 10.0 <= er.reference_runoff_mm_yr <= 5000.0:
             raise ConfigError("erosion.reference_runoff_mm_yr must be within [10, 5000]")
+        en = self.environment
+        if not 0.1 <= en.reference_root_depth_m <= 5.0 or not 0.2 <= en.max_soil_depth_m <= 10.0:
+            raise ConfigError("environment root / soil depths out of range")
+        if not 0.05 <= en.depletion_fraction <= 0.95:
+            raise ConfigError("environment.depletion_fraction must be within [0.05, 0.95]")
+        if not 0.5 <= en.rain_days_per_month <= 31.0:
+            raise ConfigError("environment.rain_days_per_month must be within [0.5, 31]")
+        if not 0.05 <= en.baseflow_timescale_yr <= 20.0:
+            raise ConfigError("environment.baseflow_timescale_yr must be within [0.05, 20]")
+        if not 0.5 <= en.degree_day_mm <= 10.0:
+            raise ConfigError("environment.degree_day_mm must be within [0.5, 10]")
+        if not isinstance(en.spinup_max_years, int) or not 1 <= en.spinup_max_years <= 200:
+            raise ConfigError("environment.spinup_max_years must be an integer within [1, 200]")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -456,6 +497,7 @@ class Config:
             "climate": ClimateParams,
             "hydrology": HydrologyParams,
             "erosion": ErosionParams,
+            "environment": EnvironmentParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

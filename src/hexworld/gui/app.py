@@ -153,6 +153,16 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.mode_box = QComboBox()
         self.mode_box.currentIndexChanged.connect(self._on_mode_changed)
+        # month of the views that show one month (v4.5): a display choice only
+        self.month_box = QComboBox()
+        for k, name in enumerate(
+            ("январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
+             "сентябрь", "октябрь", "ноябрь", "декабрь")
+        ):  # fmt: skip
+            self.month_box.addItem(name, k)
+        self.month_box.setCurrentIndex(6)
+        self.month_box.setVisible(False)
+        self.month_box.currentIndexChanged.connect(lambda _i: self._apply_view())
         self.overlay_row = QHBoxLayout()
         self.note = QLabel()
         self.note.setStyleSheet("font-weight: bold;")
@@ -162,6 +172,7 @@ class MainWindow(QMainWindow):
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Режим:"))
         controls.addWidget(self.mode_box)
+        controls.addWidget(self.month_box)
         controls.addLayout(self.overlay_row)
         controls.addStretch(1)
         controls.addWidget(self.v2_button)
@@ -235,6 +246,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("Проект / выбранный гекс")
         inner = QVBoxLayout(box)
         self.info = QPlainTextEdit()
+        self.info.setStyleSheet("font-family: 'DejaVu Sans Mono', Consolas, monospace;")
         self.info.setReadOnly(True)
         self.info.setMinimumHeight(200)
         inner.addWidget(self.info)
@@ -527,6 +539,7 @@ class MainWindow(QMainWindow):
             box.toggled.connect(lambda on, oid=option.id: self._on_overlay_toggled(oid, on))
             self.overlay_row.addWidget(box)
         self.note.setText(spec.note)
+        self.month_box.setVisible(bool(getattr(spec, "months", False)))
         self._apply_view()
 
     def _on_mode_changed(self, _index):
@@ -544,6 +557,8 @@ class MainWindow(QMainWindow):
     def _apply_view(self):
         spec = self.current_view()
         mode, overlays = self._view_state[spec.id]
+        if getattr(spec, "months", False):
+            overlays = set(overlays) | {f"month:{int(self.month_box.currentData() or 0)}"}
         self.view.set_view(spec.id, mode, overlays)
         ok, reason = spec.availability(self.project)
         needs_v2 = self.project is not None and spec.stage == "v2" and self.project.geo is None
@@ -725,7 +740,7 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous, through="v4"),
+            lambda progress: generate(config, progress=progress, reuse=previous, through="v45"),
             lambda project: self._show_project(project, "Климат, реки и эрозия пересчитаны"),
         )
 
@@ -1051,6 +1066,8 @@ class MainWindow(QMainWindow):
             ]
         if p.hydro is not None:
             lines += ["", *self._v4_hex_lines(info)]
+        if p.env is not None:
+            lines += ["", *self._v45_hex_lines(info)]
         lines += ["", "— проект —", self._project_text()]
         self.info.setPlainText("\n".join(lines))
 
@@ -1077,6 +1094,63 @@ class MainWindow(QMainWindow):
             f"эрозия v4: {s['erosion_duration_ma']:g} млн лет, средний размыв "
             f"{s['mean_denudation_m_ma']:.0f} м/млн лет",
         ]
+
+    @staticmethod
+    def _v45_hex_lines(info: dict) -> list[str]:
+        from ..pipeline_v45 import QUALITY
+        from ..stages.environment import DRAINAGE_TITLES, PARENT_MATERIALS, PARENT_TITLES
+
+        if not info.get("land_mask", False) or info.get("lake_id", -1) >= 0:
+            return [
+                "— экологические параметры (v4.5) —",
+                "вода: почвы и водный баланс суши не считаются",
+            ]
+
+        def f(key, spec=".0f", unit=""):
+            v = info.get(key)
+            return "нет данных" if v is None else f"{v:{spec}}{unit}"
+
+        pm = PARENT_MATERIALS[int(info.get("parent_material_class", 0))]
+        dc = int(info.get("drainage_class", 255))
+        quality = [k for k, bit in QUALITY.items() if int(info.get("quality_flags", 0)) & bit]
+        lines = [
+            "— экологические параметры (v4.5), оценки —",
+            f"порода: {PARENT_TITLES[pm]}; почва "
+            + (
+                f"песок {f('sand_frac', '.0%')}, пыль {f('silt_frac', '.0%')}, глина "
+                f"{f('clay_frac', '.0%')}; мощность {f('soil_depth_m', '.1f', ' м')}, камни "
+                f"{f('coarse_fragment_frac', '.0%')}"
+                if info.get("soil_present")
+                else "нет (скала или лёд)"
+            ),
+            f"FC {f('field_capacity_vol', '.2f')}, PWP {f('wilting_point_vol', '.2f')}, AWC "
+            f"{f('awc_mm', '.0f', ' мм')}; дренаж: "
+            f"{DRAINAGE_TITLES[dc] if dc < len(DRAINAGE_TITLES) else '—'}",
+            f"GDD5 {f('gdd5_proxy_c_day', ',.0f')} °C·сут (оценка); сухих месяцев "
+            f"{f('dry_month_count', 'd')}, холодных {f('cold_month_count', 'd')}; P/PET "
+            f"{f('aridity_p_over_pet', '.2f')}",
+            f"TWI {f('twi', '.1f')}, HAND {f('hand_m', ',.0f', ' м')}; переувлажнение "
+            f"{f('wetness_potential', '.2f')}, пойма {f('floodplain_potential', '.2f')}; "
+            f"мерзлота (потенциал) {f('permafrost_potential', '.2f')}",
+            "качество: " + (", ".join(quality) if quality else "обычное"),
+        ]
+        monthly = info.get("monthly") or {}
+        rows = (
+            ("T, °C", "temperature_monthly_c", "{:+5.0f}"),
+            ("P, мм", "precip_monthly_mm", "{:5.0f}"),
+            ("PET", "pet_monthly_mm", "{:5.0f}"),
+            ("AET", "aet_monthly_mm", "{:5.0f}"),
+            ("снег", "snowpack_monthly_swe_mm", "{:5.0f}"),
+            ("почва", "soil_storage_monthly_mm", "{:5.0f}"),
+            ("сток", "runoff_monthly_mm", "{:5.0f}"),
+        )
+        if monthly:
+            lines.append("мес.    " + "".join(f"{m:>5}" for m in "ЯФМАМИИАСОНД"))
+            for title, key, fmt in rows:
+                vals = monthly.get(key) or []
+                cells = "".join("    —" if v is None else fmt.format(v) for v in vals)
+                lines.append(f"{title:<8}{cells}")
+        return lines
 
     @staticmethod
     def _v4_hex_lines(info: dict) -> list[str]:
