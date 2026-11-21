@@ -78,12 +78,18 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3", "v4", "v45") and project.geo is None:
+        if self.stage in ("v2", "v3", "v46", "v4", "v45") and project.geo is None:
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
         if self.stage == "v4" and project.hydro is None:
             return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
         if self.stage in ("v3", "v4") and project.hist is None:
             return False, f"«{self.title}»: геоистория ещё не сгенерирована для этого проекта"
+        if self.stage == "v46" and (
+            project.hist is None
+            or getattr(project, "terrain", None) is None
+            or project.hydro is None
+        ):
+            return False, f"«{self.title}»: v4.6 (массивы, бассейны, дно) ещё не рассчитан"
         if self.stage == "v45" and project.env is None:
             return False, f"«{self.title}»: экологические параметры (v4.5) не рассчитаны"
         return True, ""
@@ -170,12 +176,19 @@ _HYPSO_RGB = np.array(
 )
 
 
-def hypsometric(relative_m: np.ndarray) -> np.ndarray:
+#: dry land below the sea level (an atlas convention: dark green depressions)
+DEPRESSION_RGB = np.array([[58, 132, 72], [26, 82, 44]], dtype=np.float64)
+LAKE_RGB = (96, 176, 214)
+
+
+def hypsometric(relative_m: np.ndarray, ocean=None, lake=None) -> np.ndarray:
     """Hypsometric tint for heights relative to sea level (metres).
 
     Land: a continuous ramp. Sea: the stepped depth tints of a physical atlas (shelf to
     200 m, then 1000, 2000, ... m; deeper than 6 km - trenches - almost black), so shelves,
-    slopes, abyssal plains and trenches read at a glance.
+    slopes, abyssal plains and trenches read at a glance. With the v4.6 water masks the sea
+    is the world ocean only: land below the sea level is a dark-green depression, a lake is
+    lake-blue - never ocean blue just because it is low.
     """
     from .stages.ocean import depth_tint
 
@@ -183,10 +196,25 @@ def hypsometric(relative_m: np.ndarray) -> np.ndarray:
     out = np.empty(rel.shape + (3,), dtype=np.uint8)
     for c in range(3):
         out[..., c] = np.interp(rel, _HYPSO_STOPS, _HYPSO_RGB[:, c]).astype(np.uint8)
-    sea = rel < 0.0
+    sea = rel < 0.0 if ocean is None else np.asarray(ocean, dtype=bool)
     if sea.any():
-        out[sea] = depth_tint(-rel[sea])
+        out[sea] = depth_tint(np.maximum(-rel[sea], 0.0))
+    if ocean is not None:
+        dep = ~sea & (rel < 0.0)
+        if dep.any():
+            t = np.clip(-rel[dep] / 500.0, 0.0, 1.0)[:, None]
+            out[dep] = (DEPRESSION_RGB[0] * (1 - t) + DEPRESSION_RGB[1] * t).astype(np.uint8)
+    if lake is not None:
+        out[np.asarray(lake, dtype=bool)] = LAKE_RGB
     return out
+
+
+def water_masks(project: Project):
+    """(ocean, lake) of the final surface (v4.6), or (None, None) for older projects."""
+    if project.hydro is not None and "ocean_mask" in project.hydro.layers:
+        L = project.hydro.layers
+        return L["ocean_mask"], L["inland_water_mask"]
+    return None, None
 
 
 def contour_rim(relative_m: np.ndarray, layout, land_step=500.0, sea_step=1000.0) -> np.ndarray:
@@ -445,6 +473,31 @@ def _height_source(project: Project, mode: str):
     return g.layers["macro_elevation_m"], g.layers["land_mask"], label
 
 
+WATER_CLASSES = (
+    ("мировой океан", (40, 90, 170)),
+    ("озеро / внутреннее море (свой уровень)", LAKE_RGB),
+    ("суша ниже уровня моря (сухая)", (40, 110, 55)),
+    ("суша выше уровня моря", (215, 205, 175)),
+    ("ниже уровня моря, но не океан: расчёт v3 без связности", (150, 150, 150)),
+)
+
+
+def _water_rgb(project: Project, rel) -> np.ndarray:
+    ocean, lake = water_masks(project)
+    rgb = np.empty(np.shape(rel) + (3,), dtype=np.uint8)
+    if ocean is None:
+        rgb[:] = WATER_CLASSES[3][1]
+        rgb[rel <= 0] = WATER_CLASSES[4][1]
+        return rgb
+    rgb[:] = WATER_CLASSES[3][1]
+    rgb[~ocean & (rel < 0)] = WATER_CLASSES[2][1]
+    rgb[lake] = WATER_CLASSES[1][1]
+    deep = np.clip(-rel / 6000.0, 0.0, 1.0)[..., None]
+    sea = (np.array(WATER_CLASSES[0][1]) * (1.15 - 0.6 * deep)).clip(0, 255).astype(np.uint8)
+    rgb[ocean] = sea[ocean]
+    return rgb
+
+
 def hex_gradient(values: np.ndarray, layout):
     """Least-squares gradient (per km) of a hex layer from its six neighbours."""
     flat = values.ravel().astype(np.float64)
@@ -476,8 +529,13 @@ def _render_heights(project: Project, mode: str, overlays: frozenset) -> np.ndar
     elev = source.astype(np.float64)
     sea = project.current_sea_level_m
     rel = elev - sea
-    if mode in ("hypsometric", "baseline"):
+    if mode == "hypsometric":
+        ocean, lake = water_masks(project)
+        rgb = hypsometric(rel, ocean, lake)
+    elif mode == "baseline":
         rgb = hypsometric(rel)
+    elif mode == "water":
+        rgb = _water_rgb(project, rel)
     elif mode == "gray":
         lo, hi = float(elev.min()), float(elev.max())
         g = ((elev - lo) / max(1e-6, hi - lo) * 255.0).astype(np.uint8)
@@ -516,6 +574,23 @@ def _legend_heights(project: Project, mode: str) -> list[LegendItem]:
         LegendItem(f"источник: {label}"),
         LegendItem(f"уровень моря {sea:+.0f} м (0 м - нуль модели)"),
     ]
+    if mode == "water":
+        ocean, _lake = water_masks(project)
+        items = [LegendItem(t, tuple(int(c) for c in rgb)) for t, rgb in WATER_CLASSES[:4]]
+        if ocean is not None:
+            L = project.hydro.layers
+            items += [
+                LegendItem(
+                    f"озёр: {int(L['inland_water_mask'].sum())} гексов; суши ниже моря: "
+                    f"{int(L['below_sea_level_land_mask'].sum())} гексов"
+                ),
+                LegendItem("океан — только связное с мировым океаном (не знак высоты)"),
+            ]
+        else:
+            items.append(
+                LegendItem("проект без v4.6: связность не рассчитана", WATER_CLASSES[4][1])
+            )
+        return head + items
     if mode in ("hypsometric", "baseline"):
         steps = [
             (-7500, "глубже 7000 м (дно желобов)"),
@@ -560,6 +635,7 @@ register_view(
         layers=("elevation_m", "macro_elevation_m", "tectonic_relief_m", "land_mask"),
         modes=(
             Option("hypsometric", "Текущая высота (итог v3 или v2)"),
+            Option("water", "Вода: океан, озёра, суша ниже уровня моря"),
             Option("baseline", "Исходная макровысота v2"),
             Option("gray", "Абсолютная высота (серая шкала)"),
             Option("tectonic", "Тектонический вклад v2"),
@@ -823,7 +899,8 @@ def _render_relief(project: Project, mode: str, overlays: frozenset) -> np.ndarr
     elev = L["elevation_m"].astype(np.float64)
     if mode == "shaded":
         shade = hillshade(elev, layout)
-        rgb = (hypsometric(elev - h.sea_level_m) * (0.45 + 0.75 * shade[..., None])).clip(0, 255)
+        rgb = hypsometric(elev - h.sea_level_m, ~L["land_mask"])
+        rgb = (rgb * (0.45 + 0.75 * shade[..., None])).clip(0, 255)
         rgb = rgb.astype(np.uint8)
     elif mode == "slope":
         rgb = render.ramp(np.clip(L["slope_m_per_km"] / 60.0, 0.0, 1.0) ** 0.6).copy()
@@ -1031,6 +1108,268 @@ register_view(
         render=_render_relief,
         legend=_legend_relief,
         vectors=_vectors_relief,
+    )
+)
+
+
+# -- Mountain massifs and basins (v4.6) -----------------------------------------------------
+def _final_relief_rgb(project: Project, k_shade: float = 0.75) -> np.ndarray:
+    L = project.hydro.layers
+    z = L["elevation_m"].astype(np.float64)
+    ocean, lake = water_masks(project)
+    shade = hillshade(z, project.layout)
+    rgb = hypsometric(z - project.hydro.sea_level_m, ocean, lake)
+    return (rgb * (0.45 + k_shade * shade[..., None])).clip(0, 255).astype(np.uint8)
+
+
+def _render_massifs(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    T = project.terrain.layers
+    H = project.hist.layers
+    L = project.hydro.layers
+    layout = project.layout
+    inside = H["mountain_system_id"] >= 0
+    if mode == "structure":
+        rgb = _final_relief_rgb(project)
+    elif mode == "dissection":
+        rgb = _ramp_rgb(T["dissection_index"], 0.0, 1.0, 0.8)
+        rgb[~inside] = (215, 210, 200)
+    elif mode == "prominence":
+        rgb = _final_relief_rgb(project, 0.5)
+        _shade(rgb, ~inside, 0.55, (255, 255, 255))
+    elif mode == "slope":
+        rgb = _ramp_rgb(L["slope_m_per_km"], 0.0, 40.0, 0.6)
+        rgb[~inside] = (215, 210, 200)
+    elif mode == "valleys":
+        rgb = _final_relief_rgb(project, 0.6)
+        _shade(rgb, ~inside, 0.5, (255, 255, 255))
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'massifs'")
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(~L["ocean_mask"], layout), 0.4)
+    if "outlines" in overlays:
+        rgb[id_rim(H["mountain_system_id"], layout) & inside] = (90, 30, 90)
+    return rgb
+
+
+def _vectors_massifs(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    out = _vectors_relief(project, mode, overlays - {"peaks"})
+    massifs = project.terrain.plans.get("massifs", [])
+    if "peaks" in overlays and massifs:
+        pts = [p for m in massifs for p in m["peaks"] if p["prominence_m"] >= 300.0]
+        for lo, size, color in (
+            (300.0, 2.4, (255, 255, 255)),
+            (1000.0, 4.0, (255, 235, 120)),
+            (2500.0, 6.0, (255, 120, 60)),
+        ):
+            sel = [p for p in pts if p["prominence_m"] >= lo]
+            if sel:
+                arr = np.array([[p["x_km"], p["y_km"]] for p in sel])
+                out.append(
+                    VectorLayer(
+                        "points", arr[:, 0], arr[:, 1], color, size, True, f"prominence_{int(lo)}"
+                    )
+                )
+    if ("rivers" in overlays or mode == "valleys") and project.hydro is not None:
+        ids = project.hist.layers["mountain_system_id"]
+        xs, ys = [], []
+        for seg in project.hydro.rivers:
+            if len(seg["x_km"]) < 2:
+                continue
+            col, row = project.layout.world_to_offset(seg["x_km"][0], seg["y_km"][0])
+            col, row = int(col), int(row)
+            if project.layout.inside(col, row) and ids[row, col] >= 0:
+                xs.append(np.asarray(seg["x_km"]))
+                ys.append(np.asarray(seg["y_km"]))
+        if xs:
+            out.append(VectorLayer("lines", xs, ys, (40, 110, 220), 1.6, True, "massif_valleys"))
+    return out
+
+
+def _legend_massifs(project: Project, mode: str) -> list[LegendItem]:
+    s = project.terrain.summary.get("massifs", {})
+    head = [
+        LegendItem(
+            f"массивов в окне: {s.get('count', 0)}; перевалов ниже своих вершин: "
+            f"{s.get('passes_below_peaks', 0)} из {s.get('passes_total', 0)}"
+        ),
+        LegendItem(f"гексов, где река идёт по гребню: {s.get('rivers_on_crest_hexes', 0)}"),
+    ]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "structure":
+        return head + [
+            LegendItem("главный хребет", (30, 18, 12)),
+            LegendItem("ветвь", (70, 44, 30)),
+            LegendItem("отрог", (120, 84, 60)),
+            LegendItem("перевал", (240, 190, 60)),
+            LegendItem("вершины по относительной высоте: ≥ 300 м", (255, 255, 255)),
+            LegendItem("≥ 1000 м", (255, 235, 120)),
+            LegendItem("≥ 2500 м", (255, 120, 60)),
+        ]
+    if mode == "dissection":
+        return head + [
+            LegendItem("0: слабо расчленено", lo),
+            LegendItem("1: сильно расчленено", hi),
+            LegendItem("эвристика [А]: площадь водосбора × возраст × податливость породы × сток"),
+        ]
+    if mode == "slope":
+        return head + [LegendItem("0 м/км", lo), LegendItem("40 м/км и круче", hi)]
+    if mode == "prominence":
+        return head + [LegendItem("точки — вершины с относительной высотой ≥ 300 м")]
+    return head + [LegendItem("синим — речные долины v4 внутри массивов", (40, 110, 220))]
+
+
+_BASIN_RGB = {
+    "intracratonic_sag": (230, 190, 90),
+    "foreland_foredeep": (120, 170, 220),
+    "rift_graben": (220, 90, 70),
+    "strike_slip_pull_apart": (170, 60, 170),
+}
+_BASIN_TITLES = {
+    "intracratonic_sag": "внутриплатформенная впадина (прогиб платформы)",
+    "foreland_foredeep": "предгорный прогиб (изгиб плиты под горами)",
+    "rift_graben": "рифтовый грабен (полуграбены, плечи)",
+    "strike_slip_pull_apart": "бассейн растяжения на сдвиге (pull-apart)",
+}
+
+
+def _render_basins(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    T = project.terrain.layers
+    L = project.hydro.layers
+    layout = project.layout
+    bid = T["basin_id"]
+    plans = project.terrain.plans.get("basins", [])
+    if mode == "types":
+        rgb = _final_relief_rgb(project, 0.6).astype(np.float64)
+        for i, p in enumerate(plans):
+            m = bid == i
+            if m.any():
+                rgb[m] = 0.45 * rgb[m] + 0.55 * np.array(_BASIN_RGB[p["basin_type"]])
+        rgb = rgb.clip(0, 255).astype(np.uint8)
+    elif mode == "subsidence":
+        rgb = _ramp_rgb(T["basin_subsidence_m"], 0.0, 5000.0, 0.6)
+        rgb[T["basin_subsidence_m"] <= 0] = (225, 220, 210)
+    elif mode == "fill":
+        rgb = _ramp_rgb(T["basin_fill_m"], 0.0, 4000.0, 0.6)
+        rgb[T["basin_fill_m"] <= 0] = (225, 220, 210)
+    elif mode == "surface":
+        rgb = diverging(T["basin_delta_m"].astype(np.float64), 600.0)
+    elif mode == "water":
+        rgb = _water_rgb(project, L["elevation_m"].astype(np.float64) - project.hydro.sea_level_m)
+    elif mode == "closed":
+        z = L["elevation_m"].astype(np.float64)
+        closed = np.where(L["ocean_mask"], 0.0, T["spill_level_m"] - z)
+        rgb = _ramp_rgb(closed, 0.0, 400.0, 0.6)
+        rgb[closed <= 0.5] = (225, 220, 210)
+        rgb[L["ocean_mask"]] = (60, 90, 150)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'basins'")
+    if "outlines" in overlays:
+        rgb[id_rim(bid, layout) & (bid >= 0)] = (40, 20, 40)
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(~L["ocean_mask"], layout), 0.4)
+    if "lakes" in overlays:
+        rgb[L["inland_water_mask"]] = LAKE_RGB
+    return rgb
+
+
+def _vectors_basins(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    if "rivers" not in overlays:
+        return []
+    return _river_vectors(project, 300.0)
+
+
+def _legend_basins(project: Project, mode: str) -> list[LegendItem]:
+    s = project.terrain.summary.get("basins", {})
+    seen = s.get("in_window", {})
+    w = project.terrain.summary.get("water", {})
+    head = [
+        LegendItem(
+            "в окне: "
+            + ", ".join(
+                f"{_BASIN_TITLES.get(k, k).split(' (')[0]} {v}" for k, v in seen.items() if v
+            )
+        ),
+        LegendItem(
+            f"суши ниже уровня моря: {w.get('below_sea_level_dry_hexes', 0)} гексов; "
+            f"озёр: {w.get('lake_hexes', 0)} гексов"
+        ),
+    ]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "types":
+        return head + [LegendItem(t, _BASIN_RGB[k]) for k, t in _BASIN_TITLES.items()]
+    if mode == "subsidence":
+        return head + [
+            LegendItem("0 м", lo),
+            LegendItem("5000 м опускания фундамента", hi),
+            LegendItem("фундамент, не поверхность: поверхность = фундамент + осадки"),
+        ]
+    if mode == "fill":
+        return head + [LegendItem("0 м", lo), LegendItem("4000 м осадков в бассейне", hi)]
+    if mode == "surface":
+        return head + [
+            LegendItem("опускание поверхности", (25, 60, 150)),
+            LegendItem("подъём (плечи рифтов, краевой вал)", (150, 30, 30)),
+        ]
+    if mode == "water":
+        return head + [LegendItem(t, tuple(int(c) for c in rgb)) for t, rgb in WATER_CLASSES[:4]]
+    return head + [
+        LegendItem("0 м: сток есть", lo),
+        LegendItem("400 м и больше до порога перелива", hi),
+        LegendItem("замкнутые понижения: озеро или сухое дно — по балансу воды"),
+    ]
+
+
+register_view(
+    ViewSpec(
+        id="massifs",
+        title="Горные массивы",
+        stage="v46",
+        layers=("dissection_index", "prominence_m", "mountain_system_id", "slope_m_per_km"),
+        modes=(
+            Option("structure", "Хребты, перевалы, вершины"),
+            Option("valleys", "Долины (реки v4) внутри массивов"),
+            Option("dissection", "Расчленённость"),
+            Option("slope", "Уклоны"),
+            Option("prominence", "Вершины по относительной высоте"),
+        ),
+        overlays=(
+            Option("coast", "Берег", True),
+            Option("ridges", "Оси хребтов", True),
+            Option("peaks", "Вершины", True),
+            Option("passes", "Перевалы"),
+            Option("rivers", "Реки"),
+            Option("outlines", "Контуры массивов"),
+        ),
+        note="Граф хребтов и долин массивов; вершины с относительной высотой; v4.6",
+        render=_render_massifs,
+        legend=_legend_massifs,
+        vectors=_vectors_massifs,
+    )
+)
+register_view(
+    ViewSpec(
+        id="basins",
+        title="Низменности и бассейны",
+        stage="v46",
+        layers=("basin_id", "basin_subsidence_m", "basin_fill_m", "spill_level_m"),
+        modes=(
+            Option("types", "Типы бассейнов"),
+            Option("water", "Вода и суша ниже уровня моря"),
+            Option("closed", "Замкнутые понижения (глубина до порога)"),
+            Option("subsidence", "Опускание фундамента"),
+            Option("fill", "Осадочное заполнение"),
+            Option("surface", "Изменение поверхности"),
+        ),
+        overlays=(
+            Option("coast", "Берег", True),
+            Option("outlines", "Контуры бассейнов", True),
+            Option("lakes", "Озёра"),
+            Option("rivers", "Реки"),
+        ),
+        note="Рифты, pull-apart, предгорные прогибы, прогибы платформ; v4.6",
+        render=_render_basins,
+        legend=_legend_basins,
+        vectors=_vectors_basins,
     )
 )
 
@@ -1614,7 +1953,8 @@ def _render_erosion(project: Project, mode: str, overlays: frozenset) -> np.ndar
     if mode in ("after", "before"):
         z = L["elevation_m" if mode == "after" else "pre_erosion_elevation_m"].astype(np.float64)
         shade = hillshade(z, layout)
-        rgb = (hypsometric(z - sea) * (0.45 + 0.75 * shade[..., None])).clip(0, 255)
+        ocean, lake = water_masks(project) if mode == "after" else (None, None)
+        rgb = (hypsometric(z - sea, ocean, lake) * (0.45 + 0.75 * shade[..., None])).clip(0, 255)
         rgb = rgb.astype(np.uint8)
         if mode == "before":
             land = z > sea
@@ -1832,29 +2172,57 @@ def _ocean_sea_level(project: Project) -> float:
     return 0.0 if sea is None else float(sea)
 
 
+def _sea_mask(project: Project, z, sea_level):
+    ocean, _lake = water_masks(project)
+    return (sea_level - z > 0.0) if ocean is None else ocean
+
+
 def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .geomorph import classify as v46
     from .stages import ocean
 
     layout = project.layout
     z = project.layer("elevation_m").astype(np.float64)
     sea_level = _ocean_sea_level(project)
     depth = sea_level - z
-    sea = depth > 0.0
+    sea = _sea_mask(project, z, sea_level)
+    T = project.terrain.layers if getattr(project, "terrain", None) is not None else None
     shade = hillshade(z, layout)
     land_rgb = (np.array([168.0, 164.0, 150.0]) * (0.55 + 0.6 * shade[..., None])).clip(0, 255)
     if mode == "bathymetry":
-        rgb = ocean.depth_tint(depth).astype(np.float64)
-        rgb = rgb * (0.78 + 0.32 * shade[..., None])
+        rgb = ocean.depth_tint(np.maximum(depth, 0.0)).astype(np.float64)
+        rgb = rgb * (0.7 + 0.45 * shade[..., None])
+    elif mode == "shaded":
+        # continuous depth ramp + strong hillshade: the structure of the floor at a glance
+        d = np.clip(depth / 7000.0, 0.0, 1.0)
+        rgb = np.stack([np.interp(d, _SHADED_STOPS, _SHADED_RGB[:, c]) for c in range(3)], -1)
+        rgb = rgb * (0.35 + 0.9 * hillshade(z, layout, 30.0)[..., None])
     elif mode == "provinces":
-        rgb = ocean.RGB[ocean.project_provinces(project)].astype(np.float64)
+        if T is not None and "marine_province" in T:
+            codes = T["marine_province"]
+            rgb = np.array([v46.RGB[name] for name in v46.PROVINCES], dtype=np.float64)[codes]
+        else:
+            rgb = ocean.RGB[ocean.project_provinces(project)].astype(np.float64)
         rgb = rgb * (0.85 + 0.2 * shade[..., None])
     elif mode == "age":
-        age = np.nan_to_num(project.layer("crust_age_ma").astype(np.float64), nan=200.0)
+        src = "oceanic_crust_age_ma" if T is not None else "crust_age_ma"
+        age = np.nan_to_num(project.layer(src).astype(np.float64), nan=200.0)
         rgb = np.stack([np.interp(age, _AGE_STOPS, _AGE_RGB[:, c]) for c in range(3)], axis=-1)
-        cont = project.layer("continental_fraction") >= 0.5
-        rgb[cont] = (200.0, 200.0, 200.0)
+        if T is not None:
+            rgb[~T["marine_floor_mask"]] = (200.0, 200.0, 200.0)
+        else:
+            rgb[project.layer("continental_fraction") >= 0.5] = (200.0, 200.0, 200.0)
+        if "isochrons" in overlays:
+            band = np.floor(age / 10.0).astype(np.int32)
+            rgb[id_rim(band, layout) & sea] *= 0.55
+    elif mode == "margins" and T is not None:
+        colors = np.array([[150, 150, 150], [90, 170, 120], [210, 80, 70], [230, 190, 60]])
+        rgb = colors[T["margin_type"]].astype(np.float64)
+        rgb[T["margin_type"] == 0] = ocean.depth_tint(np.maximum(depth, 0.0))[T["margin_type"] == 0]
+        rgb = rgb * (0.75 + 0.35 * shade[..., None])
     elif mode == "sediment":
-        rgb = _ramp_rgb(project.layer("sediment_thickness_m"), 0.0, 2000.0, 0.5).astype(np.float64)
+        src = "marine_sediment_thickness_m" if T is not None else "sediment_thickness_m"
+        rgb = _ramp_rgb(project.layer(src), 0.0, 2000.0, 0.5).astype(np.float64)
     else:
         raise KeyError(f"Unknown mode {mode!r} of view 'ocean'")
     rgb = np.where(sea[..., None], rgb, land_rgb).clip(0, 255).astype(np.uint8)
@@ -1865,6 +2233,13 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
         _shade(rgb, rim, 0.6)
     if "coast" in overlays:
         _shade(rgb, mask_rim(~sea, layout), 0.35)
+    if T is not None and "faults" in overlays:
+        rgb[T["fracture_zone_mask"] & sea] = (235, 225, 150)
+        rgb[T["trench_axis_mask"] & sea] = (0, 0, 0)
+    if T is not None and "canyons" in overlays and "submarine_canyon_mask" in T:
+        rgb[T["submarine_canyon_mask"] & sea] = (255, 255, 255)
+        fan = (T["submarine_fan_m"] > 50.0) & sea
+        _shade(rgb, fan, 0.55, (215, 180, 110))
     if "plate_boundaries" in overlays:
         kind = project.layer("boundary_class")
         rgb[(kind == 2) & sea] = (250, 250, 250)  # subduction: trench side
@@ -1872,9 +2247,40 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
     return rgb
 
 
+_SHADED_STOPS = np.array([0.0, 0.03, 0.15, 0.35, 0.55, 0.72, 0.86, 1.0])
+_SHADED_RGB = np.array(
+    [
+        [200, 235, 250],
+        [150, 210, 240],
+        [100, 170, 225],
+        [60, 125, 200],
+        [40, 90, 175],
+        [30, 60, 140],
+        [18, 35, 95],
+        [5, 10, 35],
+    ],
+    dtype=np.float64,
+)
+
+
+def _vectors_ocean(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    T = getattr(project, "terrain", None)
+    if T is None or "canyons" not in overlays:
+        return []
+    xs, ys = [], []
+    for c in T.plans.get("canyons", []):
+        if c.get("is_canyon") and len(c["path_km"]) >= 2:
+            arr = np.asarray(c["path_km"])
+            xs.append(arr[:, 0])
+            ys.append(arr[:, 1])
+    return [VectorLayer("lines", xs, ys, (255, 255, 255), 1.4, True, "canyons")] if xs else []
+
+
 def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
+    from .geomorph import classify as v46
     from .stages import ocean
 
+    T = getattr(project, "terrain", None)
     head = [LegendItem(f"уровень моря {_ocean_sea_level(project):+.0f} м; поверхность — итоговая")]
     if mode == "bathymetry":
         names = (
@@ -1892,6 +2298,26 @@ def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
             LegendItem(t, tuple(int(c) for c in rgb))
             for t, rgb in zip(names, ocean.DEPTH_RGB, strict=True)
         ]
+    if mode == "shaded":
+        return head + [
+            LegendItem("0 м", tuple(int(c) for c in _SHADED_RGB[0])),
+            LegendItem("3500 м", tuple(int(c) for c in _SHADED_RGB[4])),
+            LegendItem("7000 м и глубже", tuple(int(c) for c in _SHADED_RGB[-1])),
+            LegendItem("непрерывная шкала + отмывка: хребты, разломы, холмы, желоба"),
+        ]
+    if mode == "provinces" and T is not None and "marine_province" in T.layers:
+        shares = T.summary.get("marine_province_shares", {})
+        return (
+            head
+            + [
+                LegendItem(
+                    f"{v46.TITLES[name]}: {100 * shares.get(name, 0.0):.1f} %", v46.RGB[name]
+                )
+                for name in v46.PROVINCES
+                if name not in ("land", "inland_water") and shares.get(name, 0.0) > 0
+            ]
+            + [LegendItem("по геологии + форме + соседству; доли — от площади моря")]
+        )
     if mode == "provinces":
         codes = ocean.project_provinces(project)
         sea = codes > 0
@@ -1914,10 +2340,17 @@ def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
                 for a, rgb in zip(_AGE_STOPS, _AGE_RGB, strict=True)
             ]
             + [
-                LegendItem("молодая кора у срединных хребтов, древняя — у окраин"),
+                LegendItem("молодая кора у осей спрединга, древняя — у окраин"),
+                LegendItem("ступени возраста поперёк — зоны разломов (трансформы)"),
                 LegendItem("серым — континентальная кора", (200, 200, 200)),
             ]
         )
+    if mode == "margins":
+        return head + [
+            LegendItem("пассивная окраина: широкий склон и подножие", (90, 170, 120)),
+            LegendItem("активная: узкий крутой склон к желобу, без подножия", (210, 80, 70)),
+            LegendItem("трансформная: крутой уступ, короткое подножие", (230, 190, 60)),
+        ]
     lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
     return head + [LegendItem("0 м", lo), LegendItem("2000 м осадков и больше", hi)]
 
@@ -1925,23 +2358,29 @@ def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
 register_view(
     ViewSpec(
         id="ocean",
-        title="Дно океана",
+        title="Подводный рельеф",
         stage="v3",
         layers=("elevation_m", "crust_age_ma", "continental_fraction", "boundary_class"),
         modes=(
             Option("bathymetry", "Глубины (ступени атласа)"),
-            Option("provinces", "Формы дна"),
+            Option("shaded", "Рельеф дна с отмывкой"),
+            Option("provinces", "Формы дна (геоморфология)"),
             Option("age", "Возраст океанической коры"),
+            Option("margins", "Типы окраин"),
             Option("sediment", "Толщина осадков"),
         ),
         overlays=(
             Option("coast", "Берег", True),
             Option("isobaths", "Изобаты 200, 1000, 2000 … м", True),
+            Option("faults", "Зоны разломов и оси желобов"),
+            Option("canyons", "Каньоны и конусы выноса"),
+            Option("isochrons", "Изохроны (10 млн лет)"),
             Option("plate_boundaries", "Оси спрединга и зоны субдукции"),
         ),
-        note="Шельф, склон, подножие, абиссаль, срединные хребты, желоба, подводные горы",
+        note="Шельф, склон, подножие, абиссаль, хребты, разломы, желоба, каньоны, гайоты",
         render=_render_ocean,
         legend=_legend_ocean,
+        vectors=_vectors_ocean,
     )
 )
 

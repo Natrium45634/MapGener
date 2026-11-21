@@ -757,6 +757,53 @@ def cmd_months(args) -> int:
     return 0
 
 
+def cmd_terrain(args) -> int:
+    """Print the v4.6 summary of a project: sea floor, basins, water, massifs."""
+    project = load_project(args.project)
+    t = getattr(project, "terrain", None)
+    if t is None:
+        print("v4.6 is not calculated for this project (generate it again with v4 on).")
+        return 1
+    s = t.summary
+    sf = s.get("sea_floor", {})
+    print(
+        f"sea floor: {sf.get('marine_hexes', 0)} hexes, ridge pieces {sf.get('ridge_pieces')}, "
+        f"crust age p5..p95 {sf.get('age_ma_percentiles')}"
+    )
+    print(
+        f"  margins {sf.get('margin_hexes')}, trench axis hexes {sf.get('trench_axis_hexes')}, "
+        f"deepest trench {sf.get('max_trench_depth_m')} m, guyots {sf.get('guyots')}"
+    )
+    print(f"  provinces: {s.get('marine_province_shares')}")
+    b = s.get("basins", {})
+    print(
+        f"basins in window: {b.get('in_window')}, "
+        f"flexural parameter {b.get('flexural_parameter_km')} km"
+    )
+    print(f"water: {s.get('water')}")
+    print(f"massifs: {s.get('massifs')}")
+    print(f"submarine sediment: {s.get('submarine_sediment')}")
+    return 0
+
+
+def cmd_section(args) -> int:
+    """Cross-section along a line (world km) as CSV."""
+    from .api import cross_section, export_cross_section_csv
+
+    project = load_project(args.project)
+    start, end = (args.x0, args.y0), (args.x1, args.y1)
+    if args.csv:
+        print(export_cross_section_csv(project, start, end, args.csv, args.step))
+        return 0
+    for r in cross_section(project, start, end, args.step):
+        water = "" if r["water_surface_m"] is None else f" water {r['water_surface_m']:+.0f}"
+        print(
+            f"{r['distance_km']:9.1f} km  {r['height_m']:+9.1f} m{water}  {r['material_type']:>21}"
+            f"  {r['province']}"
+        )
+    return 0
+
+
 def cmd_gui(args) -> int:
     try:
         from .gui.app import run
@@ -945,6 +992,18 @@ def build_parser() -> argparse.ArgumentParser:
     mo.add_argument("row", type=int)
     mo.add_argument("--csv", help="write CSV instead of printing")
     mo.set_defaults(func=cmd_months)
+
+    te = sub.add_parser("terrain", help="v4.6 summary: sea floor, basins, water, massifs")
+    te.add_argument("project")
+    te.set_defaults(func=cmd_terrain)
+
+    se = sub.add_parser("section", help="vertical cross-section along a line (v4.6)")
+    se.add_argument("project")
+    for name in ("x0", "y0", "x1", "y1"):
+        se.add_argument(name, type=float, help="world km")
+    se.add_argument("--step", type=float, default=None, help="sample step, km")
+    se.add_argument("--csv", help="write CSV instead of printing")
+    se.set_defaults(func=cmd_section)
 
     u = sub.add_parser("gui", help="open the viewer")
     u.add_argument("project", nargs="?", help="project directory to open")

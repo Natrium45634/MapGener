@@ -22,6 +22,8 @@ _MAX_OVERLAY_EDGES = 60000
 class MapView(QWidget):
     hexHovered = Signal(str)
     hexClicked = Signal(int, int)
+    #: A cross-section line drawn with the right mouse button: x0, y0, x1, y1 in world km.
+    sectionDrawn = Signal(float, float, float, float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +45,8 @@ class MapView(QWidget):
         self._coarse = False
         self._drag = None
         self._moved = False
+        self._section = None  # [x0, y0, x1, y1] world km while / after drawing
+        self._section_live = False
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(140)
@@ -162,6 +166,12 @@ class MapView(QWidget):
         if self.view_id == "plates" and "motion" in self.overlays:
             self._paint_arrows(painter)
         self._paint_vectors(painter)
+        if self._section is not None:
+            ax, ay = self.to_screen(self._section[0], self._section[1])
+            bx, by = self.to_screen(self._section[2], self._section[3])
+            for pen in (QPen(QColor(0, 0, 0), 4.0), QPen(QColor(255, 230, 80), 2.0)):
+                painter.setPen(pen)
+                painter.drawLine(QPointF(ax, ay), QPointF(bx, by))
         if self.selected_hex is not None:
             wx, wy = self.project.layout.center(*self.selected_hex)
             sx, sy = self.to_screen(float(wx), float(wy))
@@ -296,9 +306,18 @@ class MapView(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag = event.position()
             self._moved = False
+        elif event.button() == Qt.MouseButton.RightButton and self.project is not None:
+            wx, wy = self.to_world(event.position().x(), event.position().y())
+            self._section = [wx, wy, wx, wy]
+            self._section_live = True
+            self.update()
 
     def mouseMoveEvent(self, event):
         pos = event.position()
+        if self._section_live and self._section is not None:
+            self._section[2], self._section[3] = self.to_world(pos.x(), pos.y())
+            self.update()
+            return
         if self._drag is not None:
             delta = pos - self._drag
             if abs(delta.x()) + abs(delta.y()) > 2:
@@ -350,6 +369,19 @@ class MapView(QWidget):
                 text += (
                     f"\nдно: {info['seafloor_province_title']}, глубина {info['depth_m']:,.0f} м"
                 )
+            if info.get("below_sea_level_land_mask"):
+                text += (
+                    f"\nсуша ниже уровня моря: {info['elevation_m'] - info['sea_level_m']:+,.0f} м"
+                    " (не связана с океаном)"
+                )
+            elif info.get("inland_water_mask"):
+                lvl = info.get("lake_surface_level_m")
+                text += f"\nозеро: уровень {lvl:+,.0f} м" if lvl is not None else "\nозеро"
+            if info.get("basin"):
+                from ..views import _BASIN_TITLES
+
+                b = info["basin"]
+                text += f"\nбассейн: {_BASIN_TITLES.get(b['basin_type'], b['basin_type'])}"
             if "temperature_mean_c" in info:
                 text += (
                     f"\nT {info['temperature_mean_c']:+.1f} °C  |  осадки "
@@ -379,6 +411,15 @@ class MapView(QWidget):
             self.hexHovered.emit(text)
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton and self._section_live:
+            self._section_live = False
+            x0, y0, x1, y1 = self._section
+            if np.hypot(x1 - x0, y1 - y0) > 2.0 * self._km_per_px:
+                self.sectionDrawn.emit(float(x0), float(y0), float(x1), float(y1))
+            else:
+                self._section = None
+            self.update()
+            return
         if event.button() != Qt.MouseButton.LeftButton:
             return
         moved = self._moved

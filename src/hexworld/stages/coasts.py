@@ -107,7 +107,11 @@ def coast_fields(layout, layers: dict, hist_layers: dict, ridges, sea_level_m: f
     z = np.asarray(layers["elevation_m"], dtype=np.float64)
     shape = z.shape
     lake = np.asarray(layers["lake_id"]) >= 0
-    land = z > sea_level_m
+    # the world ocean (v4.6: connectivity, not the sign of the height) when known
+    if "ocean_mask" in layers:
+        land = ~np.asarray(layers["ocean_mask"], dtype=bool)
+    else:
+        land = z > sea_level_m
     sea = ~land & ~lake
     nbrs = _hex_neighbors(layout)
     touches_sea = np.zeros(shape, dtype=bool)

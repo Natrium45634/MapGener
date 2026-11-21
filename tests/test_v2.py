@@ -120,7 +120,11 @@ def test_land_comes_only_from_elevation_and_sea_level(small_project):
     assert len(geo.landmasses) == sizes.size
     assert sum(m["hexes"] for m in geo.landmasses) == int(land.sum())
     info = small_project.hex_info(50, 50)
-    assert info["depth_m"] == max(0.0, info["sea_level_m"] - info["macro_elevation_m"])
+    # the inspector reports the final surface; the v2 baseline keeps its own sign rule
+    if small_project.hydro is None:
+        assert info["depth_m"] == max(0.0, info["sea_level_m"] - info["macro_elevation_m"])
+    else:
+        assert info["depth_m"] == (info["water_depth_m"] if info["ocean_mask"] else 0.0)
     assert info["height_above_sea_m"] * info["depth_m"] == 0.0
 
 

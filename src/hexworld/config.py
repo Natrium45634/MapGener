@@ -304,6 +304,51 @@ class EnvironmentParams:
 
 
 @dataclass(frozen=True)
+class TerrainParams:
+    """v4.6 geomorphology: massifs, basins, sea floor, water connectivity (TZ 4.6, 11).
+
+    Starting engineering ranges for an Earth-like world, not geological constants.
+    """
+
+    enabled: bool = True
+    #: Parsons-Sclater (1977) hybrid: 2500 + 350 sqrt(t) / 6400 - 3200 exp(-t/62.8), m.
+    ridge_depth_m: float = 2500.0
+    age_depth_transition_ma: tuple = (60.0, 80.0)
+    #: Mean length of an orthogonal ridge segment between transform offsets, km.
+    ridge_piece_length_km: float = 200.0
+    #: Calibration [А]: the baseline crust ages are scaled down so that the median oceanic
+    #: age of the model area is at most this (Earth: ~60-65 Ma); 0 = no calibration.
+    target_median_age_ma: float = 65.0
+    #: Below-sea areas of the world raster at least this large are the world ocean, km^2.
+    min_ocean_area_km2: float = 1.5e6
+    #: Trench depth below the local basement for 100 Ma crust at 50 mm/yr, m.
+    trench_depth_m: float = 3000.0
+    pelagic_rate_m_per_ma: float = 4.0
+    #: Amplitude of the abyssal fabric on medium-rate crust without sediment, m.
+    abyssal_relief_m: float = 300.0
+    fracture_zone_depth_m: float = 800.0
+    transform_fracture_history: bool = True
+    subduction_trenches: bool = True
+    submarine_canyons: bool = True
+    sediment_cover: bool = True
+    oceanic_plateaus: bool = True
+    #: Continental basin families to generate.
+    basins: tuple = ("intracratonic_sag", "rift_graben", "foreland_foredeep", "pull_apart")
+    #: Effective elastic thickness of the lithosphere for the foreland flexure, km.
+    elastic_thickness_km: float = 25.0
+    #: Share of the foreland deflection filled by sediment (0 = starved, 1 = overfilled).
+    foreland_fill: float = 0.9
+    #: Intracratonic sag basins per 10 million km^2 of continental interior.
+    sag_density: float = 1.5
+    massif_graphs: bool = True
+
+    def __post_init__(self):
+        # JSON gives lists: keep tuples, so a loaded config equals the saved one
+        object.__setattr__(self, "age_depth_transition_ma", tuple(self.age_depth_transition_ma))
+        object.__setattr__(self, "basins", tuple(self.basins))
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -331,6 +376,7 @@ class Config:
     hydrology: HydrologyParams = field(default_factory=HydrologyParams)
     erosion: ErosionParams = field(default_factory=ErosionParams)
     environment: EnvironmentParams = field(default_factory=EnvironmentParams)
+    terrain: TerrainParams = field(default_factory=TerrainParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -466,6 +512,38 @@ class Config:
             raise ConfigError("environment.degree_day_mm must be within [0.5, 10]")
         if not isinstance(en.spinup_max_years, int) or not 1 <= en.spinup_max_years <= 200:
             raise ConfigError("environment.spinup_max_years must be an integer within [1, 200]")
+        te = self.terrain
+        if not 1000.0 <= te.ridge_depth_m <= 4500.0:
+            raise ConfigError("terrain.ridge_depth_m must be within [1000, 4500]")
+        tr = tuple(te.age_depth_transition_ma)
+        if len(tr) != 2 or not 0.0 <= tr[0] < tr[1] <= 200.0:
+            raise ConfigError(
+                "terrain.age_depth_transition_ma must be [lo, hi] with 0 <= lo < hi <= 200"
+            )
+        if not 0.0 <= te.target_median_age_ma <= 200.0:
+            raise ConfigError("terrain.target_median_age_ma must be within [0, 200]")
+        if not 20.0 <= te.ridge_piece_length_km <= 1000.0:
+            raise ConfigError("terrain.ridge_piece_length_km must be within [20, 1000]")
+        if not 1e4 <= te.min_ocean_area_km2 <= 1e8:
+            raise ConfigError("terrain.min_ocean_area_km2 must be within [1e4, 1e8]")
+        if not 0.0 <= te.trench_depth_m <= 8000.0:
+            raise ConfigError("terrain.trench_depth_m must be within [0, 8000]")
+        if not 0.0 <= te.pelagic_rate_m_per_ma <= 50.0:
+            raise ConfigError("terrain.pelagic_rate_m_per_ma must be within [0, 50]")
+        if (
+            not 0.0 <= te.abyssal_relief_m <= 1500.0
+            or not 0.0 <= te.fracture_zone_depth_m <= 3000.0
+        ):
+            raise ConfigError("terrain fabric / fracture-zone amplitudes out of range")
+        allowed = {"intracratonic_sag", "rift_graben", "foreland_foredeep", "pull_apart"}
+        if not set(te.basins) <= allowed:
+            raise ConfigError(f"terrain.basins must be a subset of {sorted(allowed)}")
+        if not 2.0 <= te.elastic_thickness_km <= 150.0:
+            raise ConfigError("terrain.elastic_thickness_km must be within [2, 150]")
+        if not 0.0 <= te.foreland_fill <= 1.0:
+            raise ConfigError("terrain.foreland_fill must be within [0, 1]")
+        if not 0.0 <= te.sag_density <= 20.0:
+            raise ConfigError("terrain.sag_density must be within [0, 20]")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -498,6 +576,7 @@ class Config:
             "hydrology": HydrologyParams,
             "erosion": ErosionParams,
             "environment": EnvironmentParams,
+            "terrain": TerrainParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

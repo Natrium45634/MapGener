@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         self.view = MapView()
         self.view.hexHovered.connect(self._on_hover)
         self.view.hexClicked.connect(self._on_hex_clicked)
+        self.view.sectionDrawn.connect(self._on_section)
 
         # -- tabs + per-view controls above the map ---------------------------
         self.tabs = QTabBar()
@@ -1066,6 +1067,8 @@ class MainWindow(QMainWindow):
             ]
         if p.hydro is not None:
             lines += ["", *self._v4_hex_lines(info)]
+        if getattr(p, "terrain", None) is not None:
+            lines += ["", *self._v46_hex_lines(info)]
         if p.env is not None:
             lines += ["", *self._v45_hex_lines(info)]
         lines += ["", "— проект —", self._project_text()]
@@ -1151,6 +1154,96 @@ class MainWindow(QMainWindow):
                 cells = "".join("    —" if v is None else fmt.format(v) for v in vals)
                 lines.append(f"{title:<8}{cells}")
         return lines
+
+    def _on_section(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """Right-button line on the map: show the vertical profile along it."""
+        from ..geomorph.sections import cross_section
+        from .section_dialog import SectionDialog
+
+        if self.project is None or self.project.hist is None:
+            self.statusBar().showMessage("Разрез: нужна хотя бы геоистория (v3)")
+            return
+        rows = cross_section(self.project, (x0, y0), (x1, y1))
+        self._section_dialog = SectionDialog(rows, self)
+        self._section_dialog.show()
+
+    @staticmethod
+    def _v46_hex_lines(info: dict) -> list[str]:
+        from ..geomorph.margins import MARGIN_NAMES
+        from ..views import _BASIN_TITLES
+
+        def num(key, digits=0, unit=""):
+            v = info.get(key)
+            return "—" if v is None else f"{v:,.{digits}f}{unit}"
+
+        out = ["— v4.6: поверхность, бассейны, дно —"]
+        surf = info.get("surface_elevation_m")
+        bed = info.get("bedrock_elevation_m")
+        out.append(
+            f"поверхность до эрозии v4: {num('surface_elevation_m', 0, ' м')}; фундамент "
+            f"{num('bedrock_elevation_m', 0, ' м')}; рыхлый чехол "
+            f"{(surf - bed) if surf is not None and bed is not None else 0:,.0f} м"
+        )
+        if info.get("ocean_mask"):
+            out.append(f"мировой океан: глубина {num('water_depth_m', 0, ' м')}")
+        elif info.get("inland_water_mask"):
+            out.append(
+                f"озеро: уровень {num('lake_surface_level_m', 0, ' м')}, глубина "
+                f"{num('water_depth_m', 0, ' м')}"
+            )
+        elif info.get("below_sea_level_land_mask"):
+            out.append("сухая суша НИЖЕ уровня моря: впадина не связана с океаном")
+        spill = info.get("spill_level_m")
+        z = info.get("elevation_m")
+        if spill is not None and z is not None and spill - z > 0.5 and not info.get("ocean_mask"):
+            out.append(f"замкнутое понижение: до порога перелива {spill - z:,.0f} м")
+        b = info.get("basin")
+        if b:
+            w = b.get("water") or {}
+            out.append(
+                f"бассейн {b['basin_id']}: {_BASIN_TITLES.get(b['basin_type'], b['basin_type'])}"
+            )
+            out.append(
+                f"  опускание фундамента {num('basin_subsidence_m', 0, ' м')}, осадки "
+                f"{num('basin_fill_m', 0, ' м')}; z_min {w.get('z_min_m', '—')} м, порог "
+                f"{w.get('z_spill_m', '—')} м, озеро {w.get('lake_level_m') or 'нет'}"
+            )
+            out.append(f"  причина: {b.get('cause', '')}")
+        if info.get("marine_floor_mask"):
+            out.append(
+                f"дно: возраст коры {num('oceanic_crust_age_ma', 1, ' млн лет')}, глубина "
+                f"фундамента по возрасту {num('basement_depth_m', 0, ' м')}, осадки "
+                f"{num('marine_sediment_thickness_m', 0, ' м')}"
+            )
+            mt = info.get("margin_type", 0) or 0
+            if mt:
+                out.append(f"окраина: {MARGIN_NAMES[mt]}")
+            if info.get("fracture_zone_mask"):
+                out.append(
+                    "зона разломов: скачок возраста "
+                    f"{num('fracture_zone_offset_ma', 1, ' млн лет')}"
+                )
+            if info.get("trench_axis_mask"):
+                out.append("ось глубоководного желоба")
+            st = info.get("seamount_type", 0) or 0
+            if st:
+                out.append(
+                    (
+                        "",
+                        "подводная гора",
+                        "гайот (срезан у уровня моря, погружён)",
+                        "вулканический остров",
+                    )[st]
+                )
+            if info.get("submarine_canyon_mask"):
+                out.append(f"подводный каньон, глубина ~{num('canyon_depth_m', 0, ' м')} (подгекс)")
+            if (info.get("submarine_fan_m") or 0) > 1:
+                out.append(f"конус выноса: {num('submarine_fan_m', 0, ' м')} осадков")
+        if (info.get("prominence_m") or 0) > 0:
+            out.append(f"вершина: относительная высота {num('prominence_m', 0, ' м')}")
+        if (info.get("dissection_index") or 0) > 0:
+            out.append(f"расчленённость (эвристика): {num('dissection_index', 2)}")
+        return out
 
     @staticmethod
     def _v4_hex_lines(info: dict) -> list[str]:

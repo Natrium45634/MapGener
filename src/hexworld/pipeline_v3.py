@@ -21,10 +21,11 @@ from dataclasses import asdict
 
 import numpy as np
 from scipy import ndimage
-from scipy.spatial import cKDTree
 
 from .config import Config
 from .geometry import WorldGeometry
+from .geomorph.ocean_age import baseline_age_scale, build_ridge_pieces, flowline_age
+from .geomorph.surface_water import ocean_mask, sources_from_world
 from .mountains import MountainRequest, build_plan, get_backend, limit_elevation
 from .mountains.backend import (
     CLASS_CREST,
@@ -41,7 +42,6 @@ from .pipeline_v2 import _component_table, _names
 from .project import ROCK_TYPES, HistoryData
 from .rng import Stream
 from .stages import raster as raster_stage
-from .stages.boundaries import TYPE_DIVERGENT
 from .stages.continents import build_continents, smoothstep
 from .stages.history import (
     Baseline,
@@ -51,6 +51,7 @@ from .stages.history import (
     MaterialState,
     run_history,
 )
+from .stages.hydrology import hex_graph
 from .stages.relief import build_relief
 from .stages.sea import derive_land
 from .stages.skeleton import build_skeleton
@@ -86,7 +87,11 @@ def resolve_epoch(config: Config, epochs: list[float]) -> float:
 def v3_stage_keys(config: Config, v2_keys: dict, layout, epoch_time: float | None) -> dict:
     hist = asdict(config.history)
     hist.pop("epoch")
-    history = _key("geo_history", HISTORY_ALGORITHM_VERSION, v2_keys["macro_elevation"], hist)
+    # the baseline crust age comes from the ridge pieces (terrain parameters, v4.6)
+    ages = (config.terrain.ridge_piece_length_km, config.terrain.target_median_age_ma)
+    history = _key(
+        "geo_history", HISTORY_ALGORITHM_VERSION, v2_keys["macro_elevation"], hist, ages
+    )
     mountains = asdict(config.mountains)
     # the backend that will really be used: "auto" must not hide a change of backend
     mountains["backend"] = resolve_backend_name(config.mountains.backend)
@@ -134,14 +139,13 @@ def build_baseline(config: Config, skeleton, relief_model) -> Baseline:
     inherited = np.where(fraction > 0.3, np.clip(tectonic, 0.0, None), 0.0)
     noise = FractalNoise(Stream(config.seed, "rocks/v3/craton"), [3200.0, 1600.0], [1.0, 0.5])
     craton = np.clip(0.5 + 0.42 * noise(x, y), 0.0, 1.0) * smoothstep((world_c - 150.0) / 700.0)
-    div = skeleton.kind == TYPE_DIVERGENT
-    if div.any():
-        d, _ = cKDTree(np.column_stack([skeleton.bx[div], skeleton.by[div]])).query(
-            np.column_stack([x.ravel(), y.ravel()])
-        )
-        ocean_age = np.clip(d.reshape(x.shape) / 35.0, 0.0, 170.0)
-    else:
-        ocean_age = np.full(x.shape, 90.0)
+    # oceanic crust: age along the spreading direction from the ridge pieces of its own
+    # plate (segmented ridges, fracture zones; geomorph.ocean_age, TZ 4.6 4.2)
+    pieces = build_ridge_pieces(skeleton, config.seed, config.terrain.ridge_piece_length_km)
+    scale = baseline_age_scale(
+        skeleton, pieces, relief_model.continents, config.terrain.target_median_age_ma
+    )
+    ocean_age = scale * flowline_age(pieces, x, y, skeleton.plate).age_ma.reshape(x.shape)
     age = fraction * (550.0 + 1900.0 * craton) + (1.0 - fraction) * ocean_age
     # Ancient sutures: where v2 welded two continental blocks, an old collision belt
     # runs across the weld. It is unrelated to today's boundaries, long extinct and worn.
@@ -293,6 +297,9 @@ def sample_epoch(
         c = relief_model.continents.continentality(qx[cov], qy[cov])
         continentality[cov] = c
         macro[cov] = relief_model.elevation(qx[cov], qy[cov], continentality=c)
+    # the v2 baseline part of the surface, kept apart so that v4.6 can replace it on the
+    # sea floor (age-depth) without counting it twice
+    base_component = macro.copy()
     if report:
         report(0.6)
 
@@ -317,7 +324,9 @@ def sample_epoch(
         sediment[gap] = np.clip(
             grid.bilinear(_fill_from(gap_mask, state.gap_sediment), px[gap], py[gap]), 0.0, None
         )
-    macro += grid.bilinear(sim.trench_relief(snap), px, py)
+        base_component[gap] = macro[gap] - sediment[gap]
+    trench_part = grid.bilinear(sim.trench_relief(snap), px, py)
+    macro += trench_part
 
     # -- mountains: structural relief inside the systems, coast protected ----------
     relief_field = grid.bilinear(world["relief"], px, py)
@@ -504,6 +513,19 @@ def sample_epoch(
     def grid2(a, dtype):
         return np.ascontiguousarray(np.asarray(a).reshape(shape).astype(dtype))
 
+    # geometry of the epoch's subduction zones and ridges at the hexes (inputs of v4.6)
+    trench_d = np.minimum(snap.trench_distance[ri, ci], 1.0e4)
+    side = np.zeros(n, dtype=np.int8)
+    side[owner == snap.trench_under[ri, ci]] = 1
+    side[owner == snap.trench_over[ri, ci]] = -1
+    side[trench_d >= 1.0e4] = 0
+    if snap.ridge.any():
+        ridge_d = ndimage.distance_transform_edt(~snap.ridge) * grid.cell
+    else:
+        ridge_d = np.full(grid.shape, 1.0e4)
+    ridge_dist_km = np.minimum(grid.bilinear(ridge_d, px, py), 1.0e4)
+    cont_km = np.where(continentality > -9000.0, continentality, np.nan)
+
     return {
         "elevation_m": elev_grid,
         "delta_elevation_m": (elev_grid - base_macro).astype(np.float32),
@@ -528,6 +550,15 @@ def sample_epoch(
         "volcano_summit_m": grid2(summit, np.float32),
         "slope_m_per_km": grid2(slope, np.float32),
         "local_relief_m": grid2(local, np.float32),
+        "material_x_km": grid2(qx, np.float32),
+        "material_y_km": grid2(qy, np.float32),
+        "continentality_km": grid2(cont_km, np.float32),
+        "base_component_m": grid2(base_component, np.float32),
+        "trench_relief_m": grid2(trench_part, np.float32),
+        "trench_distance_km": grid2(trench_d, np.float32),
+        "trench_side": grid2(side, np.int8),
+        "trench_rate_mm_yr": grid2(snap.trench_rate[ri, ci], np.float32),
+        "spreading_axis_distance_km": grid2(ridge_dist_km, np.float32),
     }
 
 
@@ -748,8 +779,12 @@ def run_v3(
     layers = dict(raster_entry["layers"])
     elev = layers["elevation_m"]
     sea = geo.sea_level_m
+    # the world ocean floods only the low ground connected to it (v4.6, package A)
+    graph = hex_graph(layout)
+    sources = sources_from_world(layout, raster_entry["world"], elev, sea)
+    ocean = ocean_mask(elev, sea, graph.nbr, sources)
     land, landmass_id, land_sizes, shelf = derive_land(
-        elev, layers["continental_fraction"], sea, layout, config.sea
+        elev, layers["continental_fraction"], sea, layout, config.sea, ocean=ocean
     )
     layers["land_mask"], layers["landmass_id"], layers["shelf_mask"] = land, landmass_id, shelf
     hx, hy = layout.centers()

@@ -51,9 +51,18 @@ def label_mask(mask: np.ndarray, layout: HexLayout) -> tuple[np.ndarray, np.ndar
     return ids, counts[order]
 
 
-def derive_land(elevation_m, continental_fraction, sea_level_m, layout, params: SeaParams):
-    """Land mask, landmass ids and shelf mask from elevation + sea level."""
-    land = elevation_m > np.float32(sea_level_m)
+def derive_land(
+    elevation_m, continental_fraction, sea_level_m, layout, params: SeaParams, ocean=None
+):
+    """Land mask, landmass ids and shelf mask from elevation + sea level.
+
+    ``ocean`` (v4.6): the world-ocean mask; land is everything else, including dry ground
+    below the sea level. ``None`` keeps the v2 rule ``elevation > sea level``.
+    """
+    if ocean is None:
+        land = elevation_m > np.float32(sea_level_m)
+    else:
+        land = ~np.asarray(ocean, dtype=bool)
     landmass_id, sizes = label_mask(land, layout)
     depth = np.float32(sea_level_m) - elevation_m
     shelf = ~land & (continental_fraction >= 0.5) & (depth <= params.shelf_max_depth_m)

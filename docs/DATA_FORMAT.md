@@ -391,6 +391,51 @@ PNG — только изображение. Оно никогда не чита
 Морозные дни по месячным средним не считаются (`frost_days_exact` = not calculated); GDD,
 мерзлота, поймы, засоление — оценки и потенциалы.
 
+## Данные v4.6 (массивы, бассейны, дно, вода)
+
+Файлы `terrain_fields.npz` (слои гексов, `[row, col]`) и `terrain.json` (планы, сводка,
+ключи стадии, единицы). Раздел манифеста `v46` хранит `terrain_hash` и хэши массивов.
+Проект без них открывается, вкладки v4.6 говорят «не рассчитан».
+
+**Порядок стадий:** v3 (только чтение) → v4.6 terrain (поверхность до эрозии) → v4 (климат,
+эрозия, реки, озёра) → v4.6 finish (каньоны и конусы, вода бассейнов, графы массивов,
+формы дна) → v4.5.
+
+**Вертикаль.** Метры от нуля модели; уровень моря — параметр сценария.
+`surface_elevation_m = bedrock_elevation_m + sediment_thickness_m` (осадок не добавляется
+дважды). Итоговая поверхность после эрозии и каньонов — `hydro_fields.npz -> elevation_m`.
+
+| Слой (v4) | Тип | Смысл |
+|---|---|---|
+| `ocean_mask` | bool | ниже уровня моря **и** связано с мировым океаном |
+| `inland_water_mask` | bool | озеро / внутреннее море со своим уровнем |
+| `dry_land_mask` | bool | ни то, ни другое; три маски взаимоисключающие |
+| `below_sea_level_land_mask` | bool | сухая суша ниже уровня моря |
+| `above_sea_level_mask` | bool | только диагностика: `elevation_m > sea_level_m` |
+| `lake_surface_level_m`, `water_surface_level_m` | float32, м | уровень воды; NaN на суше |
+| `water_depth_m` | float32, м | вода над твёрдой поверхностью, 0 на суше |
+
+`land_mask` = `~ocean_mask` (раньше было `elevation_m > sea_level_m`).
+
+Слои `terrain_fields.npz` перечислены с единицами в `terrain.json -> layers`. Главные:
+`surface_elevation_m`, `bedrock_elevation_m`, `oceanic_crust_age_ma`, `basement_depth_m`,
+`marine_province` (имена — `terrain.json -> province_names`), `margin_type`,
+`fracture_zone_mask`, `trench_axis_mask`, `seamount_type` (1 гора, 2 гайот, 3 остров),
+`basin_id` (индекс в `plans.basins`), `basin_subsidence_m`, `basin_fill_m`,
+`spill_level_m`, `prominence_m`, `dissection_index`, `submarine_fan_m`, `canyon_depth_m`.
+
+`terrain.json -> plans`:
+- `basins` — тип, причина, геометрия (центр, ось, ширины), опускание и доля заполнения, вода (`z_min_m`, `z_spill_m`, `lake_level_m`, сухие гексы ниже моря);
+- `massifs` — `ridge_graph` (узлы, рёбра с id хребтов), `valley_graph` (сегменты рек v4 с выходами), вершины с относительной высотой, перевалы, качество;
+- `canyons` — путь каньона (км), источник, расход наносов, объём конуса.
+
+Новые слои v3 (`history_fields.npz`): `material_x_km`, `material_y_km`,
+`continentality_km`, `base_component_m`, `trench_relief_m`, `trench_distance_km`,
+`trench_side`, `trench_rate_mm_yr`, `spreading_axis_distance_km`.
+
+Разрез: `hexworld section PROJECT X0 Y0 X1 Y1 --csv f.csv` → колонки
+`distance_km,x_km,y_km,height_m,bedrock_m,water_surface_m,material_type,province`.
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от

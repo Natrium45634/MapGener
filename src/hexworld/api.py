@@ -190,11 +190,13 @@ def derive_landmasses(
 
 
 def stage_depth(project: Project) -> str:
-    """The last stage a project holds ("v1".."v45"): re-derivations keep that depth."""
+    """The last stage a project holds ("v1".."v45"; "v46" = v3 + terrain without v4)."""
     if project.env is not None:
         return "v45"
     if project.hydro is not None:
         return "v4"
+    if getattr(project, "terrain", None) is not None:
+        return "v46"
     if project.hist is not None:
         return "v3"
     return "v2" if project.geo is not None else "v1"
@@ -403,3 +405,32 @@ def export_hex_months_csv(project: Project, col: int, row: int, path) -> str:
         writer.writeheader()
         writer.writerows(rows)
     return str(out)
+
+
+def generate_terrain(project: Project, config: Config | None = None, progress=None) -> Project:
+    """Add (or update) the v4.6 terrain and everything after it; v1-v3 are reused."""
+    if project.hist is None:
+        raise LookupError("v4.6 needs the v3 geological history; run v3 first")
+    cfg = config or project.config
+    return generate(
+        cfg,
+        progress=progress,
+        reuse=project,
+        through=stage_depth(project) if stage_depth(project) in ("v4", "v45") else "v45",
+    )
+
+
+def cross_section(project: Project, start, end, step_km: float | None = None) -> list[dict]:
+    """Vertical profile along a line (world km); one metre scale for land and sea floor."""
+    from .geomorph.sections import cross_section as _section
+
+    return _section(project, start, end, step_km)
+
+
+def export_cross_section_csv(project: Project, start, end, path, step_km=None) -> str:
+    """CSV with distance_km,x_km,y_km,height_m,bedrock_m,water_surface_m,material_type,province."""
+    from .geomorph.sections import write_csv
+
+    rows = cross_section(project, start, end, step_km)
+    write_csv(rows, path)
+    return str(path)

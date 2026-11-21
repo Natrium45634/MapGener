@@ -628,6 +628,7 @@ def hex_climate(
     elevation_m: np.ndarray,
     sea_level_m: float,
     lake_mask: np.ndarray | None = None,
+    ocean: np.ndarray | None = None,
 ) -> dict:
     """Climate layers on the hex grid of the window for the given surface.
 
@@ -642,8 +643,14 @@ def hex_climate(
     g = world.grid
     shape = np.shape(hx)
     height = np.asarray(elevation_m, dtype=np.float64) - sea_level_m
-    sea = height <= 0.0
-    land_h = np.maximum(height, 0.0)
+    # the world ocean (v4.6: connected to it, not just below the datum); land below the
+    # sea level keeps its negative height, so a deep dry depression is warmer (lapse rate)
+    if ocean is None:
+        sea = height <= 0.0
+        land_h = np.maximum(height, 0.0)
+    else:
+        sea = np.asarray(ocean, dtype=bool).reshape(height.shape)
+        land_h = np.where(sea, 0.0, height)
     lat = _bilinear(world.lat, g, hx, hy)
     t_sl = _bilinear(world.t_sea_level, g, hx, hy)
     amp = _bilinear(world.seasonal_amplitude, g, hx, hy)

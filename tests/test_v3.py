@@ -222,7 +222,11 @@ def test_history_disabled_gives_stable_layers(hist_config):
     assert hist.epochs == [0.0] and hist.events == [] and not hist.volcanoes
     assert np.allclose(hist.layers["elevation_m"], flat.geo.layers["macro_elevation_m"], atol=0.01)
     assert float(np.abs(hist.layers["delta_elevation_m"]).max()) < 0.01
-    assert np.array_equal(hist.layers["land_mask"], flat.geo.layers["land_mask"])
+    # v4.6: the sea floods only low ground connected to the world ocean, so the epoch
+    # may keep closed depressions as land; it never turns land into sea
+    land3, land2 = hist.layers["land_mask"], flat.geo.layers["land_mask"]
+    assert not np.any(land2 & ~land3)
+    assert np.all(hist.layers["elevation_m"][land3 & ~land2] <= flat.geo.sea_level_m)
     assert not hist.layers["new_crust"].any()
 
 
@@ -499,14 +503,17 @@ def test_sea_level_changes_only_the_masks_of_the_selected_surface(hist_project):
         )
         assert [v["id"] for v in h.volcanoes] == [v["id"] for v in hist_project.hist.volcanoes]
         land = h.layers["land_mask"]
-        assert np.array_equal(land, h.layers["elevation_m"] > np.float32(level))
+        # land: everything not flooded by the world ocean (closed lows stay land)
+        assert np.all(land[h.layers["elevation_m"] > np.float32(level)])
+        assert np.all(h.layers["elevation_m"][~land] <= np.float32(level))
         if previous is not None:
             assert not np.any(land & ~previous)
         previous = land
         # v4 is recomputed for the new sea level; its coast comes from the eroded surface
         hydro_land = p.hydro.layers["land_mask"]
         assert p.hydro.sea_level_m == level and p.hydro.validation["ok"]
-        assert np.array_equal(hydro_land, p.hydro.layers["elevation_m"] > level)
+        assert np.array_equal(hydro_land, ~p.hydro.layers["ocean_mask"])
+        assert np.all(p.hydro.layers["elevation_m"][~hydro_land] <= level)
     assert hist_project.layer("land_mask") is hist_project.hydro.layers["land_mask"]
     assert hist_project.stage_layer("v3", "land_mask") is hist_project.hist.layers["land_mask"]
     assert hist_project.baseline_layer("land_mask") is hist_project.geo.layers["land_mask"]
@@ -600,11 +607,14 @@ def test_history_api_and_inspector(hist_project):
     x, y = hist_project.layout.center(40, 60)
     got = sample_points(hist_project, [x, -1e7], [y, 0.0], fields=("elevation_m", "rock_type"))
     assert got["inside"].tolist() == [True, False]
-    assert got["elevation_m"][0] == hist.layers["elevation_m"][60, 40]
+    assert got["elevation_m"][0] == hist_project.layer("elevation_m")[60, 40]
     assert np.isnan(got["elevation_m"][1]) and got["rock_type"][1] == -1
     info = hist_project.hex_info(40, 60)
     assert info["epoch_time_ma"] == 16.0 and "baseline_land_mask" in info
-    assert info["depth_m"] == max(0.0, info["sea_level_m"] - info["elevation_m"])
+    if info["ocean_mask"]:
+        assert info["depth_m"] == pytest.approx(info["sea_level_m"] - info["elevation_m"])
+    else:
+        assert info["depth_m"] == 0.0
     assert info["rock"] in hist.summary["rock_types"]
     for v in hist.volcanoes:
         assert v["kind"] in ("arc", "hotspot") and v["age_ma"] >= 0.0

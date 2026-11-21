@@ -202,7 +202,13 @@ def validate_history(project) -> dict:
             errors.append(f"layer {name} has shape {arr.shape}, expected {shape}")
     if errors:
         return {"ok": False, "errors": errors, "warnings": warnings, "checks": checks}
-    nan_ok = {"orogen_age_ma", "last_tectonic_ma", "volcanic_age_ma", "volcano_summit_m"}
+    nan_ok = {
+        "orogen_age_ma",
+        "last_tectonic_ma",
+        "volcanic_age_ma",
+        "volcano_summit_m",
+        "continentality_km",
+    }
     for name, arr in hist.layers.items():
         if np.issubdtype(arr.dtype, np.floating) and name not in nan_ok:
             if not np.isfinite(arr).all():
@@ -211,8 +217,10 @@ def validate_history(project) -> dict:
     land = hist.layers["land_mask"]
     ids = hist.layers["landmass_id"]
     cap = project.config.mountains.max_elevation_m
-    if not np.array_equal(land, elev > np.float32(hist.sea_level_m)):
-        errors.append("land_mask is not (elevation_m > sea_level_m)")
+    # v4.6: the ocean is the below-datum ground connected to the world ocean, so land may
+    # lie below the sea level; the sea may never lie above it
+    if (~land & (elev > np.float32(hist.sea_level_m))).any():
+        errors.append("a sea hex lies above the sea level")
     if not np.array_equal(ids >= 0, land):
         errors.append("landmass_id must be >= 0 exactly on land hexes")
     if not np.array_equal(label_mask(land, layout)[0], ids):
@@ -278,6 +286,8 @@ def validate_hydro(project) -> dict:
         "tidal_range_m",
         "shelf_width_km",
         "sea_surface_temperature_c",
+        "lake_surface_level_m",
+        "water_surface_level_m",
     }
     for name, arr in L.items():
         if arr.shape != shape:
@@ -293,8 +303,18 @@ def validate_hydro(project) -> dict:
     z = L["elevation_m"]
     if L["post_erosion_elevation_m"] is not z:
         errors.append("post_erosion_elevation_m and elevation_m are different arrays")
-    if not np.array_equal(L["land_mask"], z > np.float32(h.sea_level_m)):
-        errors.append("land_mask is not (final elevation_m > sea_level_m)")
+    if (~L["land_mask"] & (z > np.float32(h.sea_level_m))).any():
+        errors.append("a sea hex of the final surface lies above the sea level")
+    if "ocean_mask" in L:
+        parts = L["ocean_mask"].astype(int) + L["inland_water_mask"] + L["dry_land_mask"]
+        if not np.array_equal(parts, np.ones_like(parts)):
+            errors.append("ocean / inland water / dry land are not mutually exclusive and complete")
+        if not np.array_equal(L["land_mask"], ~L["ocean_mask"]):
+            errors.append("land_mask is not the complement of ocean_mask")
+        wd = L["water_depth_m"]
+        if not np.isfinite(wd).all() or float(wd.min()) < 0.0:
+            errors.append("water_depth_m must be finite and >= 0")
+        checks["below_sea_level_land_hexes"] = int(L["below_sea_level_land_mask"].sum())
     if not np.array_equal(label_mask(L["land_mask"], layout)[0], L["landmass_id"]):
         errors.append("landmass_id is not the set of edge-connected land components")
     for name in (
@@ -403,4 +423,37 @@ def validate_env(project) -> dict:
     checks.update(mc)
     if mc["max_rel_precip_sum_error"] > 1e-6 or mc["max_abs_annual_temperature_error_c"] > 1e-3:
         errors.append("the months do not add up to the seasons / the annual mean")
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
+def validate_terrain(project) -> dict:
+    """Invariants of v4.6: one finite surface, bedrock under sediment, kept continents."""
+    t = project.terrain
+    L = t.layers
+    hist = project.hist
+    errors: list[str] = []
+    checks: dict = {}
+    z = L["surface_elevation_m"]
+    if not np.isfinite(z).all():
+        errors.append("surface_elevation_m has non-finite values")
+    sed = L["sediment_thickness_m"]
+    if float(sed.min()) < -1e-3:
+        errors.append("sediment_thickness_m is negative")
+    if float((L["bedrock_elevation_m"] - z).max()) > 1e-2:
+        errors.append("bedrock lies above the surface")
+    marine = L["marine_floor_mask"]
+    in_basin = L["basin_subsidence_m"] > 0.0
+    untouched = ~marine & ~in_basin & (np.abs(L["basin_delta_m"]) < 1e-6)
+    diff = np.abs(z - hist.layers["elevation_m"])[untouched]
+    checks["continental_max_change_m"] = float(diff.max()) if diff.size else 0.0
+    if diff.size and checks["continental_max_change_m"] > 0.01:
+        errors.append("v4.6 changed continental hexes outside its basins")
+    sea = np.float32(hist.sea_level_m)
+    if (L["ocean_mask_pre_v4"] & (z > sea)).any():
+        errors.append("an ocean hex lies above the sea level")
+    age = L["oceanic_crust_age_ma"][marine]
+    if age.size and (not np.isfinite(age).all() or float(age.min()) < 0.0):
+        errors.append("oceanic_crust_age_ma must be finite and >= 0 on the sea floor")
+    checks["marine_hexes"] = int(marine.sum())
+    checks["below_sea_not_ocean_hexes"] = int(((z <= sea) & ~L["ocean_mask_pre_v4"]).sum())
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}

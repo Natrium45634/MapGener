@@ -211,19 +211,22 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
     old_geo_warnings |= old_hist_warnings
     if base.hydro is not None:
         old_geo_warnings |= set(base.hydro.warnings)
+    if base.terrain is not None:
+        old_geo_warnings |= set(base.terrain.warnings)
     project = replace(
         base,
         config=config,
         geometry=geometry,
         geo=None,
         hist=None,
+        terrain=None,
         hydro=None,
         warnings=[w for w in base.warnings if w not in old_geo_warnings],
         timings={},
         stats=dict(base.stats, reused_stages=list(STAGES)),
         cache=dict(base.cache),
     )
-    if through in ("v2", "v3", "v4", "v45"):
+    if through in ("v2", "v3", "v46", "v4", "v45"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -244,8 +247,10 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         report("validate", 0.79)
         geo.validation = validate_geo(project)
         project.warnings.extend(geo.warnings)
-    if through in ("v3", "v4", "v45"):
+    if through in ("v3", "v46", "v4", "v45"):
         _add_history(config, geometry, project, base, report)
+    if through in ("v46", "v4", "v45") and config.terrain.enabled:
+        _add_terrain(config, geometry, project, base, report)
     if through in ("v4", "v45"):
         _add_hydro(config, geometry, project, base, report)
     if through == "v45" and config.environment.enabled:
@@ -269,6 +274,22 @@ def _add_history(config, geometry, project: Project, previous: Project | None, r
     project.warnings.extend(hist.warnings)
 
 
+def _add_terrain(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v4.6 terrain composition on a project that holds v3 data (in place)."""
+    from .pipeline_v46 import run_terrain
+    from .stages.validate import validate_terrain
+
+    old_keys = previous.terrain.stage_keys if previous is not None and previous.terrain else {}
+    old_cache = previous.cache if previous is not None else {}
+    terrain, cache, reused = run_terrain(config, geometry, project, old_keys, old_cache, report)
+    project.terrain = terrain
+    project.cache.update(cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
+    project.timings.update(terrain.timings)
+    terrain.validation = validate_terrain(project)
+    project.warnings.extend(terrain.warnings)
+
+
 def _add_hydro(config, geometry, project: Project, previous: Project | None, report) -> None:
     """Run the v4 stages on a project that holds v3 data (in place)."""
     old_keys = previous.hydro.stage_keys if previous is not None and previous.hydro else {}
@@ -277,6 +298,11 @@ def _add_hydro(config, geometry, project: Project, previous: Project | None, rep
         config, geometry, project, old_keys, old_cache, report
     )
     project.hydro = hydro
+    if project.terrain is not None:
+        from .pipeline_v46 import finish_terrain
+
+        finish_terrain(config, project)
+        project.timings["v46_finish"] = project.terrain.timings["v46_finish"]
     project.cache.update(hydro_cache)
     project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + hydro_reused
     project.timings.update(hydro.timings)
@@ -312,8 +338,8 @@ def generate(
     A ``progress`` callback may raise :class:`GenerationCancelled` to abort; the
     project passed as ``reuse`` is never modified.
     """
-    if through not in ("v1", "v2", "v3", "v4", "v45"):
-        raise ValueError('through must be "v1", "v2", "v3", "v4" or "v45"')
+    if through not in ("v1", "v2", "v3", "v46", "v4", "v45"):
+        raise ValueError('through must be "v1", "v2", "v3", "v46", "v4" or "v45"')
     report = progress or (lambda stage, fraction: None)
     timings: dict[str, float] = {}
     t_total = time.perf_counter()
@@ -521,7 +547,7 @@ def generate(
     )
     timed("assemble", t0)
 
-    if through in ("v2", "v3", "v4", "v45"):
+    if through in ("v2", "v3", "v46", "v4", "v45"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -548,8 +574,10 @@ def generate(
         project.geo.validation = validate_geo(project)
         project.warnings.extend(project.geo.warnings)
     timed("validate", t0)
-    if through in ("v3", "v4", "v45"):
+    if through in ("v3", "v46", "v4", "v45"):
         _add_history(config, geometry, project, reuse, report)
+    if through in ("v46", "v4", "v45") and config.terrain.enabled:
+        _add_terrain(config, geometry, project, reuse, report)
     if through in ("v4", "v45"):
         _add_hydro(config, geometry, project, reuse, report)
     if through == "v45" and config.environment.enabled:

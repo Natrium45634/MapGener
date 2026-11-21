@@ -20,6 +20,7 @@ from dataclasses import asdict
 
 import numpy as np
 
+from .geomorph.surface_water import ocean_mask, water_layers, world_ocean_hexes
 from .pipeline_v2 import _component_table, _names
 from .project import HydroData
 from .stages import raster as raster_stage
@@ -61,6 +62,15 @@ _EVOLVED_FIELDS = (
     "sediment_flux_m3_yr",
     "sediment_delivery_m3_yr",
 )
+
+
+def upstream_keys(hist, terrain) -> dict:
+    """Keys of the surface v4 runs on: the v3 epoch, refined by v4.6 when it exists."""
+    upstream = dict(hist.stage_keys)
+    if terrain is not None:
+        # v4 runs on the v4.6 surface: a changed terrain re-runs v4
+        upstream["v3_raster"] = _key(upstream.get("v3_raster"), terrain.stage_keys)
+    return upstream
 
 
 def v4_stage_keys(config, hist_keys: dict, sea_level_m: float) -> dict:
@@ -194,10 +204,11 @@ def _slope(z, layout):
 
 def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
     hist = project.hist
+    terrain = getattr(project, "terrain", None)
     layout = geometry.layout
     shape = (layout.height, layout.width)
     sea_level = float(hist.sea_level_m)
-    keys = v4_stage_keys(config, hist.stage_keys, sea_level)
+    keys = v4_stage_keys(config, upstream_keys(hist, terrain), sea_level)
     timings: dict[str, float] = {}
     reused: list[str] = []
     cache: dict = {}
@@ -259,7 +270,16 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
     t0 = time.perf_counter()
     report("v4_evolution", 0.988)
     graph = hex_graph(layout)
-    z0 = hist.layers["elevation_m"].astype(np.float64)
+    if terrain is not None:
+        z0 = terrain.layers["surface_elevation_m"].astype(np.float64)
+        sediment0 = terrain.layers["sediment_thickness_m"]
+    else:
+        z0 = hist.layers["elevation_m"].astype(np.float64)
+        sediment0 = hist.layers["sediment_thickness_m"]
+    # world-ocean hexes (v4.6): the sea is the low ground connected to them
+    ocean_world = world_ocean_hexes(
+        layout, hist.world, sea_level, config.terrain.min_ocean_area_km2
+    )
     evo = cached("v4_evolution")
     if evo is None:
         evo = evolve(
@@ -269,12 +289,13 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
             z0,
             sea_level,
             hist.layers["rock_resistance"],
-            hist.layers["sediment_thickness_m"],
+            sediment0,
             hist.layers["uplift_rate_mm_yr"],
             wc,
             climate_entry["inflow"],
             report=lambda f: report("v4_evolution", 0.988 + 0.008 * f),
             edge_outlet=climate_entry.get("edge_outlet"),
+            ocean_sources=ocean_world.ravel(),
         )
         # the stored layers are float32: round the fresh result the same way, so a project
         # loaded from disk and one generated now feed the identical surface to the network
@@ -288,10 +309,11 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
     report("v4_network", 0.996)
     z = np.asarray(evo["elevation"], dtype=np.float64).reshape(shape)
     net = cached("v4_network")
+    ocean_final = ocean_mask(z, sea_level, graph.nbr, ocean_world)
     if net is None:
-        sea = (z <= sea_level).ravel()
+        sea = ocean_final.ravel()
         area = layout.hex_area_km2 * 1e6
-        clim = hex_climate(config.climate, wc, layout, z, sea_level)
+        clim = hex_climate(config.climate, wc, layout, z, sea_level, ocean=ocean_final)
         hyd = hydrology(
             z.ravel(),
             sea,
@@ -308,7 +330,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         )
         # open water: recompute the climate fields of lake hexes with lakes as water
         lakes_mask = (hyd["lake_id"] >= 0).reshape(shape)
-        clim = hex_climate(config.climate, wc, layout, z, sea_level, lakes_mask)
+        clim = hex_climate(config.climate, wc, layout, z, sea_level, lakes_mask, ocean=ocean_final)
         slope = _slope(z, layout)
         river, strahler, segments, mouths = river_network(
             hyd,
@@ -342,7 +364,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         hit = valid.ravel() & (nb.ravel() == rc) & (rc != np.arange(n))
         direction[hit] = d
     q = hyd["discharge_m3_s"]
-    sea = z <= sea_level
+    sea = ocean_final
     mouths = net["mouths"]
     coastal = np.zeros(n)
     for seg in net["segments"]:
@@ -372,7 +394,11 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
     layers = {
         "elevation_m": z32,
         "post_erosion_elevation_m": z32,
-        "pre_erosion_elevation_m": hist.layers["elevation_m"],
+        "pre_erosion_elevation_m": (
+            terrain.layers["surface_elevation_m"]
+            if terrain is not None
+            else hist.layers["elevation_m"]
+        ),
         "v4_delta_elevation_m": g(z - z0),
         **{k: g(v, np.asarray(v).dtype) for k, v in clim.items()},
         "flow_receiver": g(rc, np.int64),
@@ -405,6 +431,13 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "landmass_id": landmass_id,
         "shelf_mask": shelf.astype(np.bool_),
     }
+    # mutually exclusive water / land of the final surface (v4.6, package A)
+    layers.update(
+        {
+            k: (v if v.dtype != np.float64 else v.astype(np.float32))
+            for k, v in water_layers(z, sea_level, sea, layers["lake_level_m"]).items()
+        }
+    )
     # coast types from the final surface, climate, rivers, rock and tectonics
     coast_layers, coast_summary = coast_fields(
         layout, layers, hist.layers, hist.plan.get("ridges", []), sea_level, 0

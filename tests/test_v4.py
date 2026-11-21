@@ -280,6 +280,8 @@ def test_v4_project_layers_are_consistent(hist_project):
         "tidal_range_m": L["coast_type"] > 0,
         "shelf_width_km": L["coast_type"] > 0,
         "sea_surface_temperature_c": L["coast_type"] > 0,
+        "lake_surface_level_m": L["inland_water_mask"],
+        "water_surface_level_m": ~L["dry_land_mask"],
     }
     for name, arr in L.items():
         if not np.issubdtype(arr.dtype, np.floating):
@@ -287,8 +289,11 @@ def test_v4_project_layers_are_consistent(hist_project):
         where = defined_where.get(name, np.ones(arr.shape, dtype=bool))
         assert np.isfinite(arr[where]).all(), name
     assert L["elevation_m"] is L["post_erosion_elevation_m"]
-    assert L["pre_erosion_elevation_m"] is p.hist.layers["elevation_m"]  # v3 is untouched
-    assert np.array_equal(L["land_mask"], L["elevation_m"] > h.sea_level_m)
+    # the input of v4: the v4.6 surface (v3 is untouched), else the v3 epoch
+    source = p.terrain.layers["surface_elevation_m"] if p.terrain else p.hist.layers["elevation_m"]
+    assert L["pre_erosion_elevation_m"] is source
+    assert np.array_equal(L["land_mask"], ~L["ocean_mask"])
+    assert np.all(L["elevation_m"][L["ocean_mask"]] <= h.sea_level_m)
     assert (L["sediment_thickness_m"] >= 0).all() and (L["v4_erosion_m"] >= 0).all()
     assert np.allclose(
         L["v4_delta_elevation_m"], L["elevation_m"] - L["pre_erosion_elevation_m"], atol=1e-2

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..geomorph.surface_water import flood as ocean_flood
 from .climate import SECONDS_PER_YEAR, hex_climate
 from .hydrology import Graph, hydrology, routing_choice
 
@@ -88,7 +89,11 @@ def evolve(
     external_inflow_m3_s,
     report=None,
     edge_outlet=None,
+    ocean_sources=None,
 ):
+    # ``ocean_sources``: hexes of the world ocean (v4.6). The sea is the below-datum ground
+    # connected to them; a closed depression below the datum stays land (lake or dry).
+    # ``None`` keeps the legacy rule ``z <= sea level``.
     params = config.erosion
     cp = config.climate
     n = z0.size
@@ -129,9 +134,19 @@ def evolve(
         if report:
             report(step / max(steps, 1))
         grid_shape = (layout.height, layout.width)
+        if ocean_sources is None:
+            sea = z <= sea_level_m
+        else:
+            sea = ocean_flood(z <= sea_level_m, ocean_sources, graph.nbr)
         if climate is None or params.update_climate:
-            climate = hex_climate(cp, world_climate, layout, z.reshape(grid_shape), sea_level_m)
-        sea = z <= sea_level_m
+            climate = hex_climate(
+                cp,
+                world_climate,
+                layout,
+                z.reshape(grid_shape),
+                sea_level_m,
+                ocean=sea.reshape(grid_shape),
+            )
         hyd = hydrology(
             z,
             sea,

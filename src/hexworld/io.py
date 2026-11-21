@@ -56,6 +56,7 @@ from .version import (
     PRNG_VERSION,
     SCHEMA_VERSION,
     SUPPORTED_SCHEMAS,
+    TERRAIN_ALGORITHM_VERSION,
 )
 
 DATA_FILES = ("config.json", "plates.json", "fields.npz", "boundaries.npz", "boundaries.json")
@@ -66,6 +67,7 @@ V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 #: v3.0 data: selected epoch, checkpoints, event log, mountain plan.
 V4_DATA_FILES = ("hydro_fields.npz", "hydrology.json", "rivers.geojson")
 V45_DATA_FILES = ("environment_fields.npz", "environment_monthly.npz", "environment.json")
+V46_DATA_FILES = ("terrain_fields.npz", "terrain.json")
 V3_DATA_FILES = (
     "history_fields.npz",
     "history.json",
@@ -192,7 +194,8 @@ def _write_v4_data(project: Project, path: Path) -> None:
             "provenance": {
                 "input_surface": f"v3 elevation_m of epoch t = {h.epoch_time_ma:g} Ma",
                 "elevation_m": "post_erosion_elevation_m (v4 final surface)",
-                "pre_erosion_elevation_m": "history_fields.npz -> elevation_m (reference)",
+                "pre_erosion_elevation_m": "terrain_fields.npz -> surface_elevation_m (v4.6) or "
+                "history_fields.npz -> elevation_m (reference)",
             },
             "sea_level_m": h.sea_level_m,
             "epoch_time_ma": h.epoch_time_ma,
@@ -365,6 +368,50 @@ def _write_v45_data(project: Project, path: Path) -> None:
     )
 
 
+def _terrain_hash(terrain) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(terrain.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    h.update(json.dumps(terrain.plans, sort_keys=True, default=str).encode())
+    return h.hexdigest()
+
+
+def _write_v46_data(project: Project, path: Path) -> None:
+    from .geomorph.classify import PROVINCES, TITLES
+    from .project import TERRAIN_LAYER_SPECS
+
+    t = project.terrain
+    np.savez_compressed(path / "terrain_fields.npz", **t.layers)
+    _write_json(
+        path / "terrain.json",
+        {
+            "world_id": project.world_id,
+            "stage": "geomorphology_4_6",
+            "algorithm_version": TERRAIN_ALGORITHM_VERSION,
+            "source_snapshot": f"v3 epoch t = {project.hist.epoch_time_ma:g} Ma",
+            "vertical_datum": "metres, model datum 0; sea level is a scenario parameter",
+            "composition": {
+                "continental_crust": "keep (v3 surface) + basin deltas",
+                "sea_floor": "replace v2 baseline + v3 trench by age-depth basement, margins, "
+                "fabric, fracture zones, trenches, plateaus, pelagic sediment; keep residual",
+            },
+            "layers": {
+                k: {
+                    "unit": TERRAIN_LAYER_SPECS.get(k, ("", ""))[0],
+                    "description": TERRAIN_LAYER_SPECS.get(k, ("", ""))[1],
+                }
+                for k in t.layers
+            },
+            "province_names": {name: TITLES[name] for name in PROVINCES},
+            "plans": t.plans,
+            "summary": t.summary,
+            "stage_keys": t.stage_keys,
+            "warnings": t.warnings,
+            "timings_s": t.timings,
+        },
+    )
+
+
 def save_project(project: Project, path: str | Path, overwrite: bool = True) -> Path:
     """Save ``project`` into directory ``path``.
 
@@ -402,6 +449,11 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         env_same = project.env is None or (existing.get("v45") or {}).get("env_hash") == (
             _env_hash(project.env)
         )
+        terrain_now = getattr(project, "terrain", None)
+        env_same = env_same and (
+            terrain_now is None
+            or (existing.get("v46") or {}).get("terrain_hash") == _terrain_hash(terrain_now)
+        )
         nothing_new = (
             (project.geo is None or geo_same)
             and (project.hist is None or hist_same)
@@ -423,7 +475,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
 
     if not same_geology:
         _write_v1_data(project, path)
-        stale = V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES
+        stale = V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES + V46_DATA_FILES
         for name in stale:  # no stale data of another world
             (path / name).unlink(missing_ok=True)
     _write_json(path / "config.json", project.config.to_dict())
@@ -451,6 +503,27 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         }
     else:
         for name in V45_DATA_FILES:  # an ecological layer of another v4 state would be stale
+            (path / name).unlink(missing_ok=True)
+    v46_manifest = None
+    terrain = getattr(project, "terrain", None)
+    if terrain is not None:
+        t_hash = _terrain_hash(terrain)
+        stored_t = (existing.get("v46") or {}).get("terrain_hash")
+        if not (
+            same_geology and stored_t == t_hash
+            and all((path / n).exists() for n in V46_DATA_FILES)
+        ):  # fmt: skip
+            _write_v46_data(project, path)
+        files += list(V46_DATA_FILES)
+        v46_manifest = {
+            "algorithm_version": TERRAIN_ALGORITHM_VERSION,
+            "files": list(V46_DATA_FILES),
+            "terrain_hash": t_hash,
+            "content_hashes": terrain.content_hashes(),
+            "stage_keys": terrain.stage_keys,
+        }
+    else:
+        for name in V46_DATA_FILES:
             (path / name).unlink(missing_ok=True)
     if project.hydro is not None:
         if not (same_geology and hydro_same and all((path / n).exists() for n in V4_DATA_FILES)):
@@ -578,6 +651,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v3": v3_manifest,
         "v4": v4_manifest,
         "v45": v45_manifest,
+        "v46": v46_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -749,6 +823,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
                 "tectonic_relief_m": arrays["tectonic_relief_m"],
             }
     _load_history(project, path, manifest, config, geometry, verify)
+    _load_terrain(project, path, manifest, config, verify)
     _load_hydro(project, path, manifest, config, verify)
     _load_env(project, path, manifest, config, verify)
     return project
@@ -893,9 +968,67 @@ def _load_env(project: Project, path: Path, manifest: dict, config, verify) -> N
     project.cache["v45_environment"] = env
 
 
+def _load_terrain(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v4.6 data, or say why not (never stale)."""
+    from .pipeline_v46 import terrain_stage_keys
+    from .project import TerrainData
+    from .stages.validate import validate_terrain
+
+    v46 = manifest.get("v46")
+    if not v46 or project.hist is None:
+        return
+    if not all((path / name).exists() for name in V46_DATA_FILES):
+        project.warnings.append("The manifest lists v4.6 data, but its files are missing.")
+        return
+    doc = json.loads((path / "terrain.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != TERRAIN_ALGORITHM_VERSION:
+        project.warnings.append(
+            f"The stored v4.6 terrain was produced by {doc.get('algorithm_version')}, this "
+            f"build uses {TERRAIN_ALGORITHM_VERSION}: NOT loaded (not calculated)."
+        )
+        return
+    keys = terrain_stage_keys(config, project.hist.stage_keys)
+    if keys["v46_terrain"] != doc["stage_keys"].get("v46_terrain"):
+        project.warnings.append(
+            "The stored v4.6 terrain belongs to another v3 epoch or configuration: "
+            "NOT loaded (not calculated)."
+        )
+        return
+    with np.load(path / "terrain_fields.npz") as data:
+        layers = {name: data[name] for name in data.files}
+    terrain = TerrainData(
+        layers=layers,
+        plans=doc["plans"],
+        summary=doc["summary"],
+        stage_keys=dict(doc["stage_keys"]),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = terrain.content_hashes()
+        for key, expected in v46["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.terrain = terrain
+    terrain.validation = validate_terrain(project)
+    # the composed surface can be reused (the water part is recomputed on demand)
+    pre = ("ocean_source_mask", "ocean_mask_pre_v4")
+    post = (
+        "submarine_canyon_mask", "canyon_depth_m", "canyon_incision_m", "submarine_fan_m",
+        "canyon_fan_delta_m", "spill_level_m", "prominence_m", "dissection_index",
+        "marine_province",
+    )  # fmt: skip
+    project.cache["v46_terrain"] = {
+        "layers": {k: v for k, v in layers.items() if k not in pre + post},
+        "plans": {k: v for k, v in doc["plans"].items() if k in ("basins", "ridge_pieces")},
+        "summary": {k: v for k, v in doc["summary"].items() if k in ("sea_floor", "basins")},
+        "timings": {},
+    }
+
+
 def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) -> None:
     """Attach stored v4 data, or say why not. Never silently stale."""
-    from .pipeline_v4 import v4_stage_keys
+    from .pipeline_v4 import upstream_keys, v4_stage_keys
 
     v4 = manifest.get("v4")
     if not v4 or project.hist is None:
@@ -912,7 +1045,8 @@ def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) ->
             f"{current}. It was NOT loaded; compute v4 again (v1-v3 are intact)."
         )
         return
-    keys = v4_stage_keys(config, project.hist.stage_keys, project.hist.sea_level_m)
+    terrain = getattr(project, "terrain", None)
+    keys = v4_stage_keys(config, upstream_keys(project.hist, terrain), project.hist.sea_level_m)
     if keys["v4_climate"] != doc["stage_keys"].get("v4_climate"):
         project.warnings.append(
             "The stored climate / hydrology does not match the stored geological epoch or "
@@ -922,7 +1056,11 @@ def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) ->
     with np.load(path / "hydro_fields.npz") as data:
         layers = {name: data[name] for name in data.files}
     layers["elevation_m"] = layers["post_erosion_elevation_m"]
-    layers["pre_erosion_elevation_m"] = project.hist.layers["elevation_m"]
+    layers["pre_erosion_elevation_m"] = (
+        terrain.layers["surface_elevation_m"]
+        if terrain is not None
+        else project.hist.layers["elevation_m"]
+    )
     hydro = HydroData(
         layers=layers,
         sea_level_m=float(doc["sea_level_m"]),
@@ -949,8 +1087,12 @@ def _load_hydro(project: Project, path: Path, manifest: dict, config, verify) ->
     hydro.validation = validate_hydro(project)
     # the evolved surface can be reused: a new river threshold re-runs only the network
     if keys["v4_evolution"] == hydro.stage_keys.get("v4_evolution"):
+        evolved = layers["post_erosion_elevation_m"].astype(np.float64)
+        if terrain is not None and "canyon_fan_delta_m" in terrain.layers:
+            # the v4.6 canyons and fans were applied after the evolution: take them off
+            evolved = evolved - terrain.layers["canyon_fan_delta_m"]
         project.cache["v4_evolution"] = {
-            "elevation": layers["post_erosion_elevation_m"].astype(np.float64).ravel(),
+            "elevation": evolved.astype(np.float32).astype(np.float64).ravel(),
             "erosion_total_m": layers["v4_erosion_m"].astype(np.float64).ravel(),
             "deposition_total_m": layers["v4_deposition_m"].astype(np.float64).ravel(),
             "sediment_thickness_m": layers["sediment_thickness_m"].astype(np.float64).ravel(),

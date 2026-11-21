@@ -107,7 +107,20 @@ HIST_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     ),
     "slope_m_per_km": ("float32", "m/km", "steepest slope to a neighbouring hex"),
     "local_relief_m": ("float32", "m", "height range of the continuous surface within the hex"),
-    "land_mask": ("bool", "bool", "elevation_m > sea_level_m"),
+    "material_x_km": ("float32", "km", "position of the rock at t = 0 (plate frame), x"),
+    "material_y_km": ("float32", "km", "position of the rock at t = 0 (plate frame), y"),
+    "continentality_km": (
+        "float32",
+        "km",
+        "signed distance to the continental crust edge at t = 0, NaN = new crust",
+    ),
+    "base_component_m": ("float32", "m", "v2 baseline part of elevation_m (new floor in gaps)"),
+    "trench_relief_m": ("float32", "m", "instantaneous trench / outer-rise part of elevation_m"),
+    "trench_distance_km": ("float32", "km", "distance to the nearest trench cell (1e4 = none)"),
+    "trench_side": ("int8", "enum", "+1 subducting plate, -1 overriding plate, 0 none"),
+    "trench_rate_mm_yr": ("float32", "mm/yr", "convergence rate of that trench"),
+    "spreading_axis_distance_km": ("float32", "km", "distance to the spreading axis cells"),
+    "land_mask": ("bool", "bool", "not connected to the world ocean (v4.6; was z > sea)"),
     "landmass_id": ("int32", "id", "connected land of the epoch, -1 = under water"),
     "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
     "coast_type": ("uint8", "enum", "coast type of a land hex at the sea, 0 = not coast"),
@@ -178,7 +191,7 @@ class HistoryData:
 HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "elevation_m": ("float32", "m", "final surface after v4 erosion (= post_erosion_elevation_m)"),
     "post_erosion_elevation_m": ("float32", "m", "surface after climate-driven erosion"),
-    "pre_erosion_elevation_m": ("float32", "m", "v3 surface of the selected epoch (input)"),
+    "pre_erosion_elevation_m": ("float32", "m", "input surface of v4 (v4.6 terrain or v3 epoch)"),
     "v4_delta_elevation_m": ("float32", "m", "post_erosion minus pre_erosion elevation"),
     "latitude_deg": ("float32", "deg", "conditional latitude, north positive"),
     "temperature_mean_c": ("float32", "degC", "annual mean air temperature"),
@@ -239,8 +252,16 @@ HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "sediment_thickness_m": ("float32", "m", "loose sediment cover after v4 (>= 0)"),
     "sediment_flux_m3_yr": ("float32", "m3/yr", "sediment passing through the hex (last step)"),
     "slope_m_per_km": ("float32", "m/km", "steepest slope to a neighbouring hex"),
-    "land_mask": ("bool", "bool", "elevation_m > sea_level_m (final surface)"),
+    "land_mask": ("bool", "bool", "not world ocean (v4.6 connectivity; was z > sea)"),
     "landmass_id": ("int32", "id", "connected land of the final surface"),
+    "ocean_mask": ("bool", "bool", "below the sea level AND connected to the world ocean"),
+    "inland_water_mask": ("bool", "bool", "lake / inland sea with its own level"),
+    "dry_land_mask": ("bool", "bool", "neither ocean nor inland water"),
+    "below_sea_level_land_mask": ("bool", "bool", "dry land lower than the sea level"),
+    "above_sea_level_mask": ("bool", "bool", "legacy diagnostic: elevation_m > sea_level_m"),
+    "lake_surface_level_m": ("float32", "m", "free surface of a lake, NaN elsewhere"),
+    "water_surface_level_m": ("float32", "m", "sea level / lake level / NaN on dry land"),
+    "water_depth_m": ("float32", "m", "water surface minus solid surface, 0 on dry land"),
     "shelf_mask": ("bool", "bool", "submerged continental crust shallower than the shelf limit"),
     "coast_type": ("uint8", "enum", "coast type of a land hex at the sea, 0 = not coast"),
     "wave_exposure": ("float32", "0..1", "open water and storms facing the coast (proxy)"),
@@ -248,6 +269,52 @@ HYDRO_LAYER_SPECS: dict[str, tuple[str, str, str]] = {
     "shelf_width_km": ("float32", "km", "distance from the coast to water deeper than 200 m"),
     "sea_surface_temperature_c": ("float32", "degC", "mean temperature of the adjacent sea"),
     "lgm_ice_mask": ("bool", "bool", "under ice at the last glacial maximum (estimate)"),
+}
+
+
+#: v4.6 layers (terrain_fields.npz): unit, description.
+TERRAIN_LAYER_SPECS: dict[str, tuple[str, str]] = {
+    "surface_elevation_m": ("m", "v4.6 solid surface, input of v4 (sediment included)"),
+    "bedrock_elevation_m": ("m", "surface minus sediment_thickness_m"),
+    "sediment_thickness_m": ("m", "loose cover: v3 sediment + basin fill / marine sediment"),
+    "terrain_delta_m": ("m", "surface_elevation_m minus the v3 elevation_m"),
+    "marine_floor_mask": ("bool", "sea floor seaward of the continental crust edge"),
+    "oceanic_crust_age_ma": ("Ma", "crust age from ridge pieces (approx), NaN off the floor"),
+    "basement_depth_m": ("m", "Parsons-Sclater depth of that age, NaN off the floor"),
+    "bathymetry_delta_m": ("m", "change of the sea floor against v3"),
+    "marine_sediment_thickness_m": ("m", "pelagic + v3 sediment on the sea floor"),
+    "abyssal_fabric_m": ("m", "isochron-parallel fabric (hex mean, buried under the rise)"),
+    "ridge_piece_id": ("id", "ridge segment that made the crust, -1 = none"),
+    "fracture_zone_mask": ("bool", "older side of a ridge-piece age jump"),
+    "fracture_zone_offset_ma": ("Ma", "age jump across that fracture zone"),
+    "trench_m": ("m", "v4.6 trench / outer-rise relief"),
+    "trench_axis_mask": ("bool", "axis of a deep-sea trench"),
+    "outer_rise_mask": ("bool", "flexural bulge before a trench"),
+    "margin_type": ("enum", "0 none, 1 passive, 2 active, 3 transform"),
+    "crust_edge_distance_km": ("km", "signed distance to the continental crust edge"),
+    "slope_width_km": ("km", "continental slope width of the local margin"),
+    "rise_width_km": ("km", "continental rise width of the local margin"),
+    "oceanic_plateau_m": ("m", "height of an oceanic plateau"),
+    "seamount_type": ("enum", "0 none, 1 seamount, 2 guyot, 3 volcanic island"),
+    "spreading_half_rate_mm_yr": ("mm/yr", "half-rate of the ridge piece"),
+    "marine_local_relief_m": ("m", "sub-hex range of the abyssal fabric"),
+    "basin_subsidence_m": ("m", "bedrock subsidence of a basin (+ down)"),
+    "basin_fill_m": ("m", "sediment fill of that subsidence"),
+    "basin_id": ("id", "index into terrain.json -> plans.basins, -1 = none"),
+    "basin_delta_m": ("m", "surface change from basins (fill and shoulders included)"),
+    "bedrock_basin_delta_m": ("m", "bedrock change from basins"),
+    "foreland_deflection_m": ("m", "flexural deflection outside the mountain load (+ down)"),
+    "ocean_source_mask": ("bool", "hexes of the world ocean on the world raster, below sea"),
+    "ocean_mask_pre_v4": ("bool", "world ocean on the v4.6 surface (before v4)"),
+    "submarine_canyon_mask": ("bool", "path of a submarine canyon"),
+    "canyon_depth_m": ("m", "depth of that canyon (sub-hex feature)"),
+    "canyon_incision_m": ("m", "hex-mean incision of the canyon"),
+    "submarine_fan_m": ("m", "turbidite fan thickness"),
+    "canyon_fan_delta_m": ("m", "change of the final surface by canyons and fans"),
+    "spill_level_m": ("m", "priority-flood level: lowest spill of the closed depression"),
+    "prominence_m": ("m", "topographic prominence of hex summits (0 elsewhere)"),
+    "dissection_index": ("0..1", "heuristic dissection of the mountains [А]"),
+    "marine_province": ("enum", "see terrain.json -> province_names"),
 }
 
 
@@ -307,6 +374,22 @@ class EnvData:
         return out
 
 
+@dataclass
+class TerrainData:
+    """Results of v4.6: the composed solid surface, its plans and the derived water."""
+
+    layers: dict[str, np.ndarray]  # (rows, cols)
+    plans: dict  # basins, massifs, sea-floor objects (JSON-able)
+    summary: dict
+    stage_keys: dict[str, str]
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    def content_hashes(self) -> dict[str, str]:
+        return {f"terrain/{k}": array_hash(v) for k, v in self.layers.items()}
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -342,6 +425,8 @@ class Project:
     hydro: HydroData | None = None
     #: v4.5 data (months, soils, monthly water, ecological indices); ``None`` if not run.
     env: EnvData | None = None
+    #: v4.6 terrain (sea floor, basins, water connectivity, massif graphs).
+    terrain: TerrainData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -359,6 +444,8 @@ class Project:
             names += [n for n in self.hydro.layers if n not in names]
         if self.env is not None:
             names += [n for n in self.env.layers if n not in names]
+        if self.terrain is not None:
+            names += [n for n in self.terrain.layers if n not in names]
         return names
 
     @property
@@ -403,6 +490,8 @@ class Project:
             return self.env.layers[name]  # v4.5 fields have their own names
         if self.hydro is not None and name in self.hydro.layers:
             return self.hydro.layers[name]  # v4 (after erosion) wins over everything older
+        if self.terrain is not None and name in self.terrain.layers:
+            return self.terrain.layers[name]  # v4.6 composition (before v4) over v3
         if self.hist is not None and name in self.hist.layers:
             return self.hist.layers[name]  # the selected v3 epoch wins over the baseline
         if name in self.layers:
@@ -496,7 +585,14 @@ class Project:
             sea = self.hydro.sea_level_m
             info["sea_level_m"] = sea
             info["height_above_sea_m"] = max(0.0, info["elevation_m"] - sea)
-            info["depth_m"] = max(0.0, sea - info["elevation_m"])
+            if "ocean_mask" in self.hydro.layers:
+                # depth of the world ocean only; a dry depression has no depth
+                info["depth_m"] = info["water_depth_m"] if info["ocean_mask"] else 0.0
+                info["height_above_sea_m"] = (
+                    info["elevation_m"] - sea if not info["ocean_mask"] else 0.0
+                )
+            else:
+                info["depth_m"] = max(0.0, sea - info["elevation_m"])
             info["v4_source"] = (
                 f"v4 after erosion of the t = {self.hydro.epoch_time_ma:g} Ma surface"
             )
@@ -513,7 +609,29 @@ class Project:
                 name: [None if np.isnan(x) else float(x) for x in arr[:, row, col]]
                 for name, arr in self.env.monthly.items()
             }
-        if self.hist is not None and info.get("depth_m", 0.0) > 0.0:
+        terrain = getattr(self, "terrain", None)
+        if terrain is not None:
+            for name, arr in terrain.layers.items():
+                key = name if name not in info else f"v46_{name}"
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[key] = bool(v)
+                elif np.issubdtype(arr.dtype, np.integer):
+                    info[key] = int(v)
+                else:
+                    info[key] = None if np.isnan(v) else float(v)
+            b = info.get("basin_id", -1)
+            plans = terrain.plans.get("basins", [])
+            if b is not None and 0 <= b < len(plans):
+                info["basin"] = {k: v for k, v in plans[b].items() if k != "polarity"}
+        if terrain is not None and "marine_province" in terrain.layers:
+            from .geomorph.classify import PROVINCES, TITLES
+
+            code = int(terrain.layers["marine_province"][row, col])
+            if PROVINCES[code] != "land":
+                info["seafloor_province"] = PROVINCES[code]
+                info["seafloor_province_title"] = TITLES[PROVINCES[code]]
+        elif self.hist is not None and info.get("depth_m", 0.0) > 0.0:
             from .stages.ocean import PROVINCES, TITLES
 
             code = int(self.seafloor_provinces()[row, col])

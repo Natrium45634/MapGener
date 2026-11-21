@@ -105,4 +105,8 @@ def test_ocean_view_and_hex_info(hist_project):
     z = hist_project.layer("elevation_m")
     row, col = np.unravel_index(int(np.argmin(z)), z.shape)
     info = hist_project.hex_info(int(col), int(row))
-    assert info["seafloor_province"] in ocean.PROVINCES[1:]
+    # v4.6 classes the floor by geology + morphology (geomorph.classify) when it exists
+    from hexworld.geomorph import classify
+
+    names = classify.PROVINCES if hist_project.terrain is not None else ocean.PROVINCES
+    assert info["seafloor_province"] in names[1:]
