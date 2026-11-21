@@ -554,8 +554,9 @@ def water_balance(p_m, t_m, pet_m, awc, icap_day, drainage, w: WaterParams) -> W
     gain = state["SWE"] - start["SWE"]
     annual["snow_accumulation"] = np.where(persistent, gain, 0.0)
     # perennial snow has no meaningful absolute amount (it is spin-up length x yearly
-    # gain): report the snow of the year itself, counted from the start of that year
-    monthly["snowpack"][:, persistent] -= start["SWE"][persistent]
+    # gain): report the seasonal snow above the year's lowest pack (the perennial base)
+    base = monthly["snowpack"][:, persistent].min(axis=0)
+    monthly["snowpack"][:, persistent] -= base
     annual["storage_change"] = state["S"] - start["S"] + state["GW"] - start["GW"] + gain
     p_year = p_m.sum(axis=0)
     resid = (

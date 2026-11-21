@@ -227,3 +227,16 @@ def test_a_v4_project_without_v45_opens_and_says_not_calculated(tmp_path, hist_p
     assert not ok and "не рассчитаны" in reason
     with pytest.raises(LookupError):
         hex_months(loaded, 1, 1)
+
+
+def test_perennial_snow_is_reported_without_negative_packs():
+    t = np.array([[-20.0], [-15.0], [-8.0], [-2.0], [1.0], [3.0], [4.0], [2.0], [-3.0], [-9.0],
+                  [-15.0], [-19.0]])  # fmt: skip
+    t = t - 8.0  # summer peaks at -4 degC: a little melt, never all of the year's snow
+    p = np.full((12, 1), 40.0)
+    pet = np.full((12, 1), 5.0)
+    res = env.water_balance(p, t, pet, np.array([50.0]), np.array([30.0]), np.array([0.2]),
+                            env.WaterParams())  # fmt: skip
+    assert res.persistent_snow[0]
+    assert (res.monthly["snowpack"] >= 0).all() and res.monthly["snowpack"].min() == 0.0
+    assert res.annual["snow_accumulation"][0] > 0 and res.max_residual_mm < 1e-6

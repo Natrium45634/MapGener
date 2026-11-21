@@ -205,13 +205,24 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     t_m = env.monthly_temperature(seasons["t"], L["temperature_mean_c"])
     p_m = env.monthly_precipitation(seasons["p"])
     pet_m = env.monthly_pet(seasons["pet"], t_m, lat)
-    doy = env.MONTH_MID_DOY.reshape(12, 1, 1)
-    ra_m, day_len = env.extraterrestrial_radiation(lat[None], doy)
+    # radiation and day length month by month: only their annual summaries are kept
+    ra_mean = np.zeros(shape)
+    day_max = np.full(shape, -np.inf)
+    day_min = np.full(shape, np.inf)
+    for doy in env.MONTH_MID_DOY:
+        ra, day = env.extraterrestrial_radiation(lat, doy)
+        ra_mean += ra / 12.0
+        np.maximum(day_max, day, out=day_max)
+        np.minimum(day_min, day, out=day_min)
     days = env.MONTH_DAYS.reshape(12, 1, 1)
     t_weighted = (t_m * days).sum(axis=0) / env.YEAR_DAYS
     p_year = seasons["p"].astype(np.float64).sum(axis=0)
     p_check = float((np.abs(p_m.sum(axis=0) - p_year) / np.maximum(p_year, 1.0)).max())
     t_check = float(np.abs(t_weighted - L["temperature_mean_c"]).max())
+    # checked in float64; kept as float32 (12 full grids: 38 MB each at 1000 x 800 instead
+    # of 77); the water balance works on land hexes in float64
+    t_m, p_m, pet_m = (a.astype(np.float32) for a in (t_m, p_m, pet_m))
+    del t_weighted
     timings["v45_months"] = round(time.perf_counter() - t0, 4)
 
     # -- Gate 2: soils ------------------------------------------------------------------------
@@ -280,7 +291,7 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
         tolerance_mm=ep.water_balance_tolerance_mm,
     )
     idx = np.flatnonzero(wet_land)
-    flat = lambda a: a.reshape(12, -1)[:, idx]  # noqa: E731
+    flat = lambda a: a.reshape(12, -1)[:, idx].astype(np.float64)  # noqa: E731
     wb = env.water_balance(
         flat(p_m), flat(t_m), flat(pet_m), awc[idx], icap[idx], drainage[idx], wp
     )
@@ -290,8 +301,8 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
         out[idx] = values
         return out.reshape(shape)
 
-    def to_grid12(values):
-        out = np.full((12, z.size), np.nan, dtype=np.float64)
+    def to_grid12(values):  # float32: 12 full grids of float64 cost 77 MB each at 1000x800
+        out = np.full((12, z.size), np.nan, dtype=np.float32)
         out[:, idx] = values
         return out.reshape((12,) + shape)
 
@@ -301,7 +312,10 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     runoff_m = to_grid12(wb.monthly["runoff"])
     recharge_m = to_grid12(wb.monthly["recharge"])
     liquid_m = to_grid12(wb.monthly["rain"] + wb.monthly["melt"])
+    saturation_m = to_grid12(wb.monthly["saturation_excess"])
+    gw_mean = to_grid(wb.monthly["groundwater"].mean(axis=0))
     runoff_year = to_grid(wb.annual["runoff"])
+    wb.monthly.clear()  # the monthly land arrays (float64) are no longer needed
     v4_runoff = L["runoff_mm_yr"].astype(np.float64)
     timings["v45_water"] = round(time.perf_counter() - t0, 4)
 
@@ -318,7 +332,8 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     hand_m = env.hand(z, rc, reference).reshape(shape)
     steps_to_river = env.path_steps(rc, river.ravel(), limit=8).reshape(shape)
     # a saturated month: the soil bucket overflowed while the water supply exceeded PET
-    saturated_m = (to_grid12(wb.monthly["saturation_excess"]) > 1.0) & (liquid_m > pet_m)
+    saturated_m = (saturation_m > 1.0) & (liquid_m > pet_m)
+    del saturation_m
     surplus_months = saturated_m.sum(axis=0).astype(np.float64)
     drain_grid = drainage.reshape(shape)
     # centred on a valley-floor hex: 10 hexes upstream on a 0.2 % slope (TWI anomaly 3.9)
@@ -427,12 +442,12 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
         "aspect_deg": land_only(aspect),
         "coastal_marine_influence": land_only(coastal_marine),
         "lake_shore_influence": land_only(lake_influence),
-        "solar_radiation_toa_mj_day": ra_m.mean(axis=0).astype(np.float32),
-        "day_length_range_h": (day_len.max(axis=0) - day_len.min(axis=0)).astype(np.float32),
+        "solar_radiation_toa_mj_day": ra_mean.astype(np.float32),
+        "day_length_range_h": (day_max - day_min).astype(np.float32),
         "local_runoff_annual_mm": land_only(runoff_year),
         "runoff_difference_vs_v4_mm": land_only(runoff_year - v4_runoff),
         "groundwater_recharge_annual_mm": land_only(to_grid(wb.annual["recharge"])),
-        "groundwater_storage_proxy_mm": land_only(to_grid(wb.monthly["groundwater"].mean(axis=0))),
+        "groundwater_storage_proxy_mm": land_only(gw_mean),
         "persistent_snow_accumulation_mm_yr": land_only(
             to_grid(wb.annual["snow_accumulation"], 0.0)
         ),

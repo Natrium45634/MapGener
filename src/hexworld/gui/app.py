@@ -655,7 +655,7 @@ class MainWindow(QMainWindow):
         )
 
     def _through(self) -> str:
-        return "v4" if self.v4_on.isChecked() else "v3"
+        return "v45" if self.v4_on.isChecked() else "v3"  # v4 + the v4.5 ecological layers
 
     def _sea_params(self, base: SeaParams) -> SeaParams:
         return replace(
