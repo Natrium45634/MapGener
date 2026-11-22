@@ -390,6 +390,33 @@ class TerrainData:
         return {f"terrain/{k}": array_hash(v) for k, v in self.layers.items()}
 
 
+@dataclass
+class TopoData:
+    """Results of v4.7: hex layers, hex monthly maps, terrain units (ragged by hex)."""
+
+    layers: dict[str, np.ndarray]  # (rows, cols)
+    monthly: dict[str, np.ndarray]  # (12, rows, cols)
+    units: dict[str, np.ndarray]  # (U,), (12, U) or (U, K); CSR by ``hex_offsets``
+    summary: dict
+    massifs: list[dict]
+    provenance: dict
+    stage_keys: dict[str, str]
+    warnings: list[str] = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict[str, float] = field(default_factory=dict)
+
+    def content_hashes(self) -> dict[str, str]:
+        out = {f"topo/{k}": array_hash(v) for k, v in self.layers.items()}
+        out.update({f"topo_monthly/{k}": array_hash(v) for k, v in self.monthly.items()})
+        out.update({f"topo_units/{k}": array_hash(v) for k, v in self.units.items()})
+        return out
+
+    def units_of_hex(self, flat_index: int) -> np.ndarray:
+        """Indices of the terrain units of one hex (``row * width + col``)."""
+        off = self.units["hex_offsets"]
+        return np.arange(int(off[flat_index]), int(off[flat_index + 1]))
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -427,6 +454,8 @@ class Project:
     env: EnvData | None = None
     #: v4.6 terrain (sea floor, basins, water connectivity, massif graphs).
     terrain: TerrainData | None = None
+    #: v4.7 topoclimate (terrain units, local climate, thermal belts); ``None`` if not run.
+    topo: TopoData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -446,6 +475,8 @@ class Project:
             names += [n for n in self.env.layers if n not in names]
         if self.terrain is not None:
             names += [n for n in self.terrain.layers if n not in names]
+        if getattr(self, "topo", None) is not None:
+            names += [n for n in self.topo.layers if n not in names]
         return names
 
     @property
@@ -486,6 +517,9 @@ class Project:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
         if name == "base_macro_elevation_m" and self.geo is not None:
             return self.geo.layers["macro_elevation_m"]  # a reference, not a copy
+        topo = getattr(self, "topo", None)
+        if topo is not None and name in topo.layers:
+            return topo.layers[name]  # v4.7 fields have their own names
         if self.env is not None and name in self.env.layers:
             return self.env.layers[name]  # v4.5 fields have their own names
         if self.hydro is not None and name in self.hydro.layers:
@@ -637,7 +671,68 @@ class Project:
             code = int(self.seafloor_provinces()[row, col])
             info["seafloor_province"] = PROVINCES[code]
             info["seafloor_province_title"] = TITLES[PROVINCES[code]]
+        topo = getattr(self, "topo", None)
+        if topo is not None:
+            from .topoclimate.thermal import BELTS
+
+            for name, arr in topo.layers.items():
+                v = arr[row, col]
+                if arr.dtype == np.bool_:
+                    info[name] = bool(v)
+                elif np.issubdtype(arr.dtype, np.integer):
+                    info[name] = int(v)
+                else:
+                    info[name] = None if np.isnan(v) else round(float(v), 4)
+            info["dominant_thermal_belt_name"] = BELTS[int(info["dominant_thermal_belt"])]
+            info["topo_monthly"] = {
+                name: [None if np.isnan(x) else round(float(x), 3) for x in arr[:, row, col]]
+                for name, arr in topo.monthly.items()
+            }
+            info["terrain_units"] = self.terrain_units(col, row)
         return info
+
+    def terrain_units(self, col: int, row: int) -> list[dict]:
+        """The v4.7 terrain units of one hex: weights, landform, height, climate summary.
+
+        Units are statistical strata (no placement inside the hex is invented).
+        """
+        topo = getattr(self, "topo", None)
+        if topo is None:
+            return []
+        from .topoclimate.thermal import BELTS
+        from .topoclimate.units import LANDFORMS, SURFACE
+
+        U = topo.units
+        out = []
+        for i in topo.units_of_hex(row * self.layout.width + col).tolist():
+
+            def num(name, i=i):
+                v = float(U[name][i])
+                return None if np.isnan(v) else round(v, 3)
+
+            out.append(
+                {
+                    "unit": i,
+                    "surface": SURFACE[int(U["unit_surface_type"][i])],
+                    "landform": LANDFORMS[int(U["unit_landform"][i])],
+                    "weight_hex": num("unit_weight_hex"),
+                    "weight_land": num("unit_weight_land"),
+                    "z_m": num("z_surface_m"),
+                    "slope_deg": num("slope_deg"),
+                    "aspect_deg": num("aspect_deg"),
+                    "svf": num("svf_slope"),
+                    "t_jan_c": round(float(U["temperature_c"][0, i]), 2),
+                    "t_jul_c": round(float(U["temperature_c"][6, i]), 2),
+                    "precip_mm_yr": round(float(U["precip_mm"][:, i].sum()), 1),
+                    "swe_max_mm": round(float(U["swe_mm"][:, i].max()), 1),
+                    "gsl_days": num("gsl_t_days"),
+                    "gst_c": num("gst_t_c"),
+                    "thermal_margin": num("thermal_margin"),
+                    "belt": BELTS[int(U["thermal_belt"][i])],
+                    "cap_static": num("cap_static"),
+                }
+            )
+        return out
 
     def seafloor_provinces(self) -> np.ndarray:
         """Sea-floor province codes of the current surface (cached per surface and sea level)."""

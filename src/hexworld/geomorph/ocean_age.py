@@ -200,6 +200,9 @@ class FlowlineAge:
     tx: np.ndarray  # unit isochron direction (ridge-parallel) at the point
     ty: np.ndarray
     half_rate: np.ndarray  # km/Ma of the piece (NaN without a piece)
+    #: km beyond the lateral end of the chosen piece (0 = in front of the piece); crust far
+    #: beyond every piece was made by ridges that no longer exist
+    overshoot_km: np.ndarray | None = None
 
 
 def flowline_age(
@@ -221,6 +224,7 @@ def flowline_age(
     tx = np.zeros(n)
     ty = np.zeros(n)
     rate = np.full(n, np.nan)
+    overshoot = np.full(n, 1.0e4)
     orphan = np.zeros(0, dtype=np.int64)
     if pieces.plate.size:
         groups = [
@@ -269,7 +273,8 @@ def flowline_age(
                 # (their ridges are gone); a linear tie between remote pieces would draw a
                 # straight artificial edge there, so blend into a smooth distance-age
                 ov = over[k_, best]
-                w = np.clip((ov - 100.0) / 300.0, 0.0, 1.0)
+                overshoot[sel] = ov
+                w = np.clip((ov - 30.0) / 220.0, 0.0, 1.0)
                 w = w * w * (3.0 - 2.0 * w)
                 if (w > 0).any():
                     dist = np.sqrt(dx * dx + dy * dy).min(axis=1)
@@ -292,6 +297,7 @@ def flowline_age(
         tx=tx,
         ty=ty,
         half_rate=rate,
+        overshoot_km=overshoot,
     )
 
 

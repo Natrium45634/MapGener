@@ -96,6 +96,28 @@ class ProfileWidget(QWidget):
             p.setPen(QPen(QColor(150, 130, 115), 1.2))
             p.setBrush(QBrush(QColor(150, 130, 115)))
             p.drawPolygon(rock)
+        # v4.7: thermal belt strip under the axis and every crossing of the thermal tree
+        # limit (several where the profile goes up and down - never one forced line)
+        if any(r.get("belt") for r in rows):
+            from ..topoclimate.thermal import BELT_RGB, BELTS
+
+            for k in range(len(rows) - 1):
+                belt = rows[k].get("belt")
+                if not belt:
+                    continue
+                c = BELT_RGB[BELTS.index(belt)]
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QBrush(QColor(int(c[0]), int(c[1]), int(c[2]))))
+                p.drawRect(QRectF(X(d[k]), b_px - 8, X(d[k + 1]) - X(d[k]) + 0.5, 8))
+            m = np.array([np.nan if r.get("thermal_margin") is None else r["thermal_margin"]
+                          for r in rows])  # fmt: skip
+            p.setPen(QPen(QColor(30, 120, 40), 1.4, Qt.PenStyle.DashLine))
+            for k in range(len(rows) - 1):
+                if np.isfinite(m[k]) and np.isfinite(m[k + 1]) and m[k] * m[k + 1] < 0:
+                    f = m[k] / (m[k] - m[k + 1])
+                    xk = X(d[k] + f * (d[k + 1] - d[k]))
+                    zk = h[k] + f * (h[k + 1] - h[k])
+                    p.drawLine(QPointF(xk - 9, Y(zk)), QPointF(xk + 9, Y(zk)))
         path = QPainterPath(QPointF(X(d[0]), Y(h[0])))
         for k in range(1, len(rows)):
             path.lineTo(QPointF(X(d[k]), Y(h[k])))
@@ -149,6 +171,12 @@ class SectionDialog(QDialog):
             f"длина {rows[-1]['distance_km']:,.0f} км; от {h.min():,.0f} до {h.max():,.0f} м; "
             "жёлтым — рыхлые отложения, серым — фундамент; "
             + ("пересекает: " + ", ".join(kinds[:8]) if kinds else "")
+            + (
+                "; полоса внизу — термические пояса (v4.7), зелёные штрихи — пересечения "
+                "термической границы деревьев (их может быть несколько)"
+                if any(r.get("belt") for r in rows)
+                else ""
+            )
         )
         info.setWordWrap(True)
         layout.addWidget(info)

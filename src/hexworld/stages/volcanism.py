@@ -47,6 +47,9 @@ class Volcano:
     height_m: float  # edifice height when fully grown
     radius_km: float
     partner: int = -1  # subducting plate for arcs
+    #: built on continental crust: a broad swell that subsides once the plate carries it
+    #: off the hotspot (the Snake River Plain sinks behind Yellowstone)
+    continental: bool = False
 
     def to_dict(self) -> dict:
         return dict(vars(self))  # full precision: the record must reproduce exactly
@@ -76,7 +79,12 @@ class VolcanoSet:
             active_span = max(0.0, min(t, v.last_active_ma) - v.birth_ma)
             grown = 1.0 - math.exp(-(active_span + 0.6) / 1.2)
             idle = max(0.0, t - v.last_active_ma - _EXTINCT_AFTER_MA)
-            # share lost per Ma once extinct: loose arc cones wear down within ~15 Ma
+            # share lost per Ma once extinct: loose arc cones wear down within ~15 Ma; a
+            # continental swell is thermal uplift that decays (~4 Ma), so old track
+            # segments do not stand as a ruler-straight line of bumps across a continent
+            if v.kind == HOTSPOT and v.continental:
+                out[k] = v.height_m * grown * math.exp(-0.25 * idle)
+                continue
             rate = 0.012 if v.kind == HOTSPOT else 0.05
             out[k] = v.height_m * grown * math.exp(-rate * erosion_intensity * idle)
         return out
@@ -127,7 +135,7 @@ class VolcanoBuilder:
         self._next_pulse = {h.id: h.phase_ma for h in hotspots}
         self._arc_clock = 0.0
 
-    def _add(self, kind, source, plate, x, y, t, height, radius, partner=-1):
+    def _add(self, kind, source, plate, x, y, t, height, radius, partner=-1, continental=False):
         qx, qy = self.kin.inverse(np.array([plate]), np.array([x]), np.array([y]), t)
         self.set.volcanoes.append(
             Volcano(
@@ -142,6 +150,7 @@ class VolcanoBuilder:
                 height_m=float(height),
                 radius_km=float(radius),
                 partner=int(partner),
+                continental=bool(continental),
             )
         )
 
@@ -150,23 +159,36 @@ class VolcanoBuilder:
         for h in self.set.hotspots:
             while self._next_pulse[h.id] <= t + 1e-9:
                 when = self._next_pulse[h.id]
-                self._next_pulse[h.id] = when + h.interval_ma
+                # keep the newest volcano of this hotspot alive instead of stacking
+                serial = len(self.set.volcanoes)
+                stream = Stream(self.seed, f"geohistory/v3/hotspot/{h.id}/{serial}")
+                u = stream.random(6)
+                # irregular pulses and a wandering vent (Loa / Kea trends): a chain, not a
+                # row of identical beads at equal steps
+                self._next_pulse[h.id] = when + h.interval_ma * (0.55 + 0.9 * u[3])
                 ri, ci, ok = grid.nearest(h.x, h.y)
                 if not ok:
                     continue
                 plate = int(snap.owner[ri, ci])
-                # keep the newest volcano of this hotspot alive instead of stacking
-                serial = len(self.set.volcanoes)
-                stream = Stream(self.seed, f"geohistory/v3/hotspot/{h.id}/{serial}")
-                u = stream.random(3)
                 continental = float(cont_at_cell[ri, ci]) > 0.5
                 # on a continent a hotspot builds a broad low volcanic swell (plateau
                 # basalts, the Snake River Plain), not a string of tall cones; in the ocean
                 # the shields are wide enough to merge into a ridge (the Hawaiian Ridge)
-                height = (250.0 + 400.0 * u[0]) if continental else (3300.0 + 2400.0 * u[0])
+                height = (250.0 + 400.0 * u[0]) if continental else (1500.0 + 4200.0 * u[0] ** 1.5)
                 height *= h.strength**0.5 * intensity**0.3
-                radius = (80.0 + 50.0 * u[1]) if continental else (70.0 + 40.0 * u[1])
-                self._add(HOTSPOT, h.id, plate, h.x, h.y, when, height, radius)
+                radius = (80.0 + 50.0 * u[1]) if continental else (55.0 + 55.0 * u[1])
+                off = (u[4] - 0.5) * 0.6 * radius, (u[5] - 0.5) * 0.6 * radius
+                self._add(
+                    HOTSPOT,
+                    h.id,
+                    plate,
+                    h.x + off[0],
+                    h.y + off[1],
+                    when,
+                    height,
+                    radius,
+                    continental=continental,
+                )
         # every volcano still above its hotspot stays active
         for v in self.set.volcanoes:
             if v.kind == HOTSPOT and self.set.is_active(v.id, t):

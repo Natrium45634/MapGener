@@ -426,6 +426,49 @@ def validate_env(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
 
 
+def validate_topo(project) -> dict:
+    """Invariants of v4.7: area closure, conserved precipitation, closed unit water budget."""
+    t = project.topo
+    U, L, s = t.units, t.layers, t.summary
+    errors: list[str] = []
+    warnings: list[str] = []
+    checks: dict = {
+        "area_closure_max_error": s["area_closure_max_error"],
+        "precipitation_conservation_max_rel": s["precipitation_conservation_max_rel"],
+        "water_budget_max_residual_mm": s["water_budget_max_residual_mm"],
+        "spinup_converged_share": s["spinup_converged_share"],
+    }
+    if s["area_closure_max_error"] > 1e-9:
+        errors.append("f_dry + f_lake + f_ocean != 1")
+    if s["precipitation_conservation_max_rel"] > 1e-6:
+        errors.append("the redistributed precipitation of a hex is not conserved")
+    if s["water_budget_max_residual_mm"] > 1e-6:
+        errors.append("the water balance of the terrain units does not close")
+    off = U["hex_offsets"]
+    if off[0] != 0 or off[-1] != U["unit_hex"].size or (np.diff(off) < 0).any():
+        errors.append("hex_offsets is not a valid CSR index of the units")
+    w = np.bincount(U["unit_hex"], weights=U["unit_weight_hex"].astype(np.float64),
+                    minlength=off.size - 1)  # fmt: skip
+    sampled = np.diff(off) > 0
+    checks["unit_weight_max_error"] = float(np.abs(w[sampled] - 1.0).max()) if sampled.any() else 0
+    if checks["unit_weight_max_error"] > 1e-5:
+        errors.append("the unit weights of a hex do not sum to 1")
+    dry = U["unit_surface_type"] == 0
+    for name in ("temperature_c", "precip_mm", "pet_mm", "swe_mm", "radiation_mj_m2_day"):
+        if not np.isfinite(U[name][:, dry]).all():
+            errors.append(f"unit field {name} has non-finite values on dry land")
+        if name != "temperature_c" and U[name].size and float(U[name].min()) < -1e-4:
+            errors.append(f"unit field {name} is negative")
+    share = sum(v for k, v in L.items() if k.startswith("belt_share_"))
+    land = L["topo_dry_fraction"] > 0
+    checks["belt_share_max_error"] = float(np.abs(share[land] - 1.0).max()) if land.any() else 0
+    if checks["belt_share_max_error"] > 1e-4:
+        errors.append("the thermal belt shares of the dry land do not sum to 1")
+    if s["spinup_converged_share"] < 0.99:
+        warnings.append("the water spin-up did not converge on >1% of the dry units")
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
+
+
 def validate_terrain(project) -> dict:
     """Invariants of v4.6: one finite surface, bedrock under sediment, kept continents."""
     t = project.terrain

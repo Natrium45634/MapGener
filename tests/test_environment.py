@@ -156,7 +156,7 @@ def test_hand_follows_the_flow_path_not_the_straight_line():
 # -- the whole stage ------------------------------------------------------------------------------
 def test_environment_stage_on_a_generated_world(hist_project):
     p = hist_project
-    assert stage_depth(p) == "v45" and p.env is not None
+    assert stage_depth(p) in ("v45", "v47") and p.env is not None
     assert p.env.validation["ok"], p.env.validation
     L, M = p.env.layers, p.env.monthly
     land = p.hydro.layers["land_mask"] & (p.hydro.layers["lake_id"] < 0)

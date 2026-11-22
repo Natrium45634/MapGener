@@ -656,7 +656,7 @@ class MainWindow(QMainWindow):
         )
 
     def _through(self) -> str:
-        return "v45" if self.v4_on.isChecked() else "v3"  # v4 + the v4.5 ecological layers
+        return "v47" if self.v4_on.isChecked() else "v3"  # v4 + v4.5 ecology + v4.7 topoclimate
 
     def _sea_params(self, base: SeaParams) -> SeaParams:
         return replace(
@@ -741,7 +741,7 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous, through="v45"),
+            lambda progress: generate(config, progress=progress, reuse=previous, through="v47"),
             lambda project: self._show_project(project, "Климат, реки и эрозия пересчитаны"),
         )
 
@@ -1071,6 +1071,8 @@ class MainWindow(QMainWindow):
             lines += ["", *self._v46_hex_lines(info)]
         if p.env is not None:
             lines += ["", *self._v45_hex_lines(info)]
+        if "terrain_units" in info:
+            lines += ["", *self._v47_hex_lines(info)]
         lines += ["", "— проект —", self._project_text()]
         self.info.setPlainText("\n".join(lines))
 
@@ -1155,6 +1157,54 @@ class MainWindow(QMainWindow):
                 lines.append(f"{title:<8}{cells}")
         return lines
 
+    @staticmethod
+    def _v47_hex_lines(info: dict) -> list[str]:
+        from ..topoclimate.thermal import BELT_TITLES
+
+        def num(key, digits=0, unit=""):
+            v = info.get(key)
+            return "—" if v is None else f"{v:,.{digits}f}{unit}"
+
+        out = ["— v4.7: высотная поясность и топоклимат —"]
+        out.append(
+            f"площадь гекса: суша {100 * (info.get('topo_dry_fraction') or 0):.0f} %, озеро "
+            f"{100 * (info.get('topo_lake_fraction') or 0):.0f} %, море "
+            f"{100 * (info.get('topo_ocean_fraction') or 0):.0f} %"
+        )
+        if not info.get("topo_dry_fraction"):
+            return out
+        out.append(
+            f"высоты суши: 5 % {num('hyps_q05_m', 0, ' м')}, медиана {num('hyps_q50_m', 0, ' м')}"
+            f", 95 % {num('hyps_q95_m', 0, ' м')} (перепад {num('hyps_relief_m', 0, ' м')})"
+        )
+        belt = info.get("dominant_thermal_belt_name", "unknown")
+        out.append(f"преобладает: {BELT_TITLES.get(belt, belt)} (термический класс, не биом)")
+        out.append(
+            f"сезон роста {num('gsl_days_mean', 0, ' сут')}, его T {num('gst_c_mean', 1, ' °C')}; "
+            f"запас тепла {num('thermal_margin_mean', 2)}"
+        )
+        state = info.get("treeline_state", 0)
+        if state == 1:
+            out.append(f"термическая граница деревьев в гексе: ~{num('treeline_proxy_m', 0, ' м')}")
+        elif state == 2:
+            out.append("вся суша гекса выше термической границы деревьев")
+        elif state == 3:
+            out.append("вся суша гекса ниже термической границы деревьев")
+        if (info.get("perennial_snow_fraction") or 0) > 0:
+            out.append(f"многолетний снег: {100 * info['perennial_snow_fraction']:.0f} % суши")
+        units = info.get("terrain_units") or []
+        dry = [u for u in units if u["surface"] == "dry"]
+        out.append(f"участки рельефа (TU): {len(dry)} сухих; доля, высота, склон, T янв/июл, "
+                   "P, сезон, пояс")  # fmt: skip
+        for u in sorted(dry, key=lambda r: r["z_m"] or 0)[:16]:
+            out.append(
+                f"  {100 * (u['weight_land'] or 0):4.0f} % {u['z_m'] or 0:6.0f} м "
+                f"{u['slope_deg'] or 0:4.0f}° {u['landform'][:11]:<11} "
+                f"{u['t_jan_c']:+5.1f}/{u['t_jul_c']:+5.1f} °C {u['precip_mm_yr']:5.0f} мм "
+                f"{u['gsl_days'] or 0:3.0f} сут  {u['belt'].replace('thermal_', '')}"
+            )
+        return out
+
     def _on_section(self, x0: float, y0: float, x1: float, y1: float) -> None:
         """Right-button line on the map: show the vertical profile along it."""
         from ..geomorph.sections import cross_section
@@ -1163,7 +1213,8 @@ class MainWindow(QMainWindow):
         if self.project is None or self.project.hist is None:
             self.statusBar().showMessage("Разрез: нужна хотя бы геоистория (v3)")
             return
-        rows = cross_section(self.project, (x0, y0), (x1, y1))
+        month = int(self.month_box.currentData() or 0)
+        rows = cross_section(self.project, (x0, y0), (x1, y1), month=month)
         self._section_dialog = SectionDialog(rows, self)
         self._section_dialog.show()
 

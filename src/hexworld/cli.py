@@ -757,6 +757,73 @@ def cmd_months(args) -> int:
     return 0
 
 
+def cmd_topoclimate(args) -> int:
+    """Add or update the v4.7 topoclimate of a saved project (needs v4.5)."""
+    from .api import export_terrain_units_csv, generate_topoclimate
+
+    project = load_project(args.project)
+    if project.env is None:
+        print("error: v4.7 needs v4.5 data; run `hexworld environment` first", file=sys.stderr)
+        return 1
+    data = project.config.to_dict()
+    tc = dict(data.get("topoclimate", {}))
+    for arg, key in (
+        ("quality", "quality"),
+        ("temperature_mode", "temperature_mode"),
+        ("tree_gsl_days", "tree_gsl_days"),
+        ("tree_gst", "tree_gst_c"),
+        ("horizon_km", "horizon_max_distance_km"),
+    ):
+        if getattr(args, arg, None) is not None:
+            tc[key] = getattr(args, arg)
+    data["topoclimate"] = tc
+    t0 = time.perf_counter()
+    result = generate_topoclimate(project, Config.from_dict(data))
+    t = result.topo
+    s = t.summary
+    print(
+        f"v4.7            ok {t.validation['ok']}; {s['units']} terrain units "
+        f"({s['units_per_land_hex']} per land hex), {s['detail_hexes']} hexes with the "
+        f"mountain detail"
+    )
+    shares = {k.replace("thermal_", ""): v for k, v in s["belt_land_shares"].items() if v}
+    print(f"belts           {shares}")
+    print(
+        f"budgets         area {s['area_closure_max_error']:.1e}, precipitation "
+        f"{s['precipitation_conservation_max_rel']:.1e} (rel), water "
+        f"{s['water_budget_max_residual_mm']:.1e} mm; spin-up converged "
+        f"{100 * s['spinup_converged_share']:.1f} %"
+    )
+    print(f"treeline        {s['treeline_hexes']} hexes cross the thermal limit; regional "
+          f"medians {s['regional_treelines_m'][:8]} m")  # fmt: skip
+    print(f"time            {time.perf_counter() - t0:.2f} s")
+    if args.hex is not None:
+        col, row = args.hex
+        target = args.csv or f"hex_{col}_{row}_units.csv"
+        print(f"units csv       {export_terrain_units_csv(result, col, row, target)}")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if t.validation["ok"] else 2
+
+
+def cmd_units(args) -> int:
+    """Print (or write as CSV) the terrain units of one hex."""
+    from .api import export_terrain_units_csv, terrain_units
+
+    project = load_project(args.project)
+    if args.csv:
+        print(export_terrain_units_csv(project, args.col, args.row, args.csv))
+        return 0
+    rows = terrain_units(project, args.col, args.row)
+    if not rows:
+        print("no terrain units in this hex (open sea)")
+        return 0
+    keys = list(rows[0])
+    print(" ".join(f"{k[:12]:>12}" for k in keys))
+    for r in rows:
+        print(" ".join(f"{'-' if r[k] is None else r[k]!s:>12.12}" for k in keys))
+    return 0
+
+
 def cmd_terrain(args) -> int:
     """Print the v4.6 summary of a project: sea floor, basins, water, massifs."""
     project = load_project(args.project)
@@ -793,13 +860,16 @@ def cmd_section(args) -> int:
     project = load_project(args.project)
     start, end = (args.x0, args.y0), (args.x1, args.y1)
     if args.csv:
-        print(export_cross_section_csv(project, start, end, args.csv, args.step))
+        print(export_cross_section_csv(project, start, end, args.csv, args.step, args.month))
         return 0
-    for r in cross_section(project, start, end, args.step):
+    for r in cross_section(project, start, end, args.step, args.month):
         water = "" if r["water_surface_m"] is None else f" water {r['water_surface_m']:+.0f}"
+        climate = ""
+        if r.get("t_mean_c") is not None:
+            climate = f"  T {r['t_mean_c']:+5.1f} C  GSL {r['gsl_days']:.0f} d  {r['belt']}"
         print(
             f"{r['distance_km']:9.1f} km  {r['height_m']:+9.1f} m{water}  {r['material_type']:>21}"
-            f"  {r['province']}"
+            f"  {r['province']}{climate}"
         )
     return 0
 
@@ -1003,7 +1073,32 @@ def build_parser() -> argparse.ArgumentParser:
         se.add_argument(name, type=float, help="world km")
     se.add_argument("--step", type=float, default=None, help="sample step, km")
     se.add_argument("--csv", help="write CSV instead of printing")
+    se.add_argument("--month", type=int, choices=range(12), metavar="0..11",
+                    help="also give the temperature of this month (v4.7)")  # fmt: skip
     se.set_defaults(func=cmd_section)
+
+    tc = sub.add_parser(
+        "topoclimate",
+        help="add or update v4.7 data (terrain units, local climate, thermal belts)",
+    )
+    tc.add_argument("project")
+    tc.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    tc.add_argument("--quality", choices=("preview", "balanced", "reference"))
+    tc.add_argument("--temperature-mode", choices=("reference_anchored", "preserve_coarse_mean"))
+    tc.add_argument("--tree-gsl-days", type=float, help="thermal tree limit: season days (94)")
+    tc.add_argument("--tree-gst", type=float, help="thermal tree limit: season mean, degC (6.4)")
+    tc.add_argument("--horizon-km", type=float, help="horizon search distance, km (100)")
+    tc.add_argument("--hex", type=int, nargs=2, metavar=("COL", "ROW"),
+                    help="also write the terrain units of this hex as CSV")  # fmt: skip
+    tc.add_argument("--csv", help="file for --hex (default hex_COL_ROW_units.csv)")
+    tc.set_defaults(func=cmd_topoclimate)
+
+    un = sub.add_parser("units", help="terrain units of one hex (v4.7)")
+    un.add_argument("project")
+    un.add_argument("col", type=int)
+    un.add_argument("row", type=int)
+    un.add_argument("--csv", help="write CSV instead of printing")
+    un.set_defaults(func=cmd_units)
 
     u = sub.add_parser("gui", help="open the viewer")
     u.add_argument("project", nargs="?", help="project directory to open")

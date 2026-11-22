@@ -1,6 +1,6 @@
 """Version identifiers written into every saved project."""
 
-GENERATOR_VERSION = "4.6.0"
+GENERATOR_VERSION = "4.7.0"
 #: Bumped whenever a change alters generated geology for the same seed + config.
 ALGORITHM_VERSION = "tectonics-1"
 #: Seed -> stream derivation and raw number generation scheme.
@@ -19,7 +19,7 @@ CONTINENTS_ALGORITHM_VERSION = "continents-1"
 #: World coordinate / hex conventions (see docs/DATA_FORMAT.md).
 COORDINATE_VERSION = "km-x-east-y-south/flat-top-odd-q-1"
 #: Bumped whenever v3.0 history / volcanism / erosion change their output.
-HISTORY_ALGORITHM_VERSION = "geohistory-4"
+HISTORY_ALGORITHM_VERSION = "geohistory-5"
 #: Bumped whenever the mountain plan or the reference height backend change.
 MOUNTAINS_ALGORITHM_VERSION = "mountains-3"
 #: v4.0 climate, hydrology and landscape evolution.
@@ -27,4 +27,6 @@ CLIMATE_ALGORITHM_VERSION = "climate-2"
 HYDRO_ALGORITHM_VERSION = "hydro-3"
 ENV_ALGORITHM_VERSION = "environment-1"
 #: v4.6 geomorphology: sea floor, basins, water connectivity, massif graphs.
-TERRAIN_ALGORITHM_VERSION = "terrain-1"
+TERRAIN_ALGORITHM_VERSION = "terrain-2"
+#: v4.7 topoclimate: terrain units, local climate, growing season, thermal belts.
+TOPOCLIMATE_ALGORITHM_VERSION = "topoclimate-1"

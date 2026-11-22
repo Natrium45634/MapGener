@@ -57,6 +57,7 @@ from .version import (
     SCHEMA_VERSION,
     SUPPORTED_SCHEMAS,
     TERRAIN_ALGORITHM_VERSION,
+    TOPOCLIMATE_ALGORITHM_VERSION,
 )
 
 DATA_FILES = ("config.json", "plates.json", "fields.npz", "boundaries.npz", "boundaries.json")
@@ -68,6 +69,12 @@ V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 V4_DATA_FILES = ("hydro_fields.npz", "hydrology.json", "rivers.geojson")
 V45_DATA_FILES = ("environment_fields.npz", "environment_monthly.npz", "environment.json")
 V46_DATA_FILES = ("terrain_fields.npz", "terrain.json")
+V47_DATA_FILES = (
+    "topoclimate_fields.npz",
+    "topoclimate_monthly.npz",
+    "topoclimate_units.npz",
+    "topoclimate.json",
+)
 V3_DATA_FILES = (
     "history_fields.npz",
     "history.json",
@@ -368,6 +375,53 @@ def _write_v45_data(project: Project, path: Path) -> None:
     )
 
 
+def _topo_hash(topo) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(topo.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    return h.hexdigest()
+
+
+def _write_v47_data(project: Project, path: Path) -> None:
+    from .pipeline_v47 import HEX_MONTHLY, TOPO_LAYER_SPECS, UNIT_MONTHLY
+    from .topoclimate.thermal import BELT_TITLES, BELTS
+    from .topoclimate.units import LANDFORMS, SURFACE
+
+    t = project.topo
+    np.savez_compressed(path / "topoclimate_fields.npz", **t.layers)
+    np.savez_compressed(path / "topoclimate_monthly.npz", **t.monthly)
+    np.savez_compressed(path / "topoclimate_units.npz", **t.units)
+    _write_json(
+        path / "topoclimate.json",
+        {
+            "world_id": project.world_id,
+            "stage": "topoclimate_4_7",
+            "algorithm_version": TOPOCLIMATE_ALGORITHM_VERSION,
+            "source_snapshot": "v4.6 surface + v4 / v4.5 of the same surface revision",
+            "month_index": "0 = January .. 11 = December",
+            "units_layout": "CSR: units of hex h (= row * width + col) are "
+            "hex_offsets[h] .. hex_offsets[h + 1]; monthly unit fields are (12, U), "
+            "horizon_rad is (U, K) with K azimuth sectors clockwise from north",
+            "unit_monthly_fields": {k: {"unit": u, "description": d}
+                                    for k, (u, d) in UNIT_MONTHLY.items()},
+            "hex_monthly_fields": {k: {"unit": u, "description": d}
+                                   for k, (u, d) in HEX_MONTHLY.items()},
+            "layers": {k: {"unit": u, "description": d} for k, (u, d) in TOPO_LAYER_SPECS.items()},
+            "belts": list(BELTS),
+            "belt_titles": BELT_TITLES,
+            "landforms": list(LANDFORMS),
+            "surface_types": list(SURFACE),
+            "massifs": t.massifs,
+            "provenance": t.provenance,
+            "summary": t.summary,
+            "stage_keys": t.stage_keys,
+            "warnings": t.warnings,
+            "timings_s": t.timings,
+            "nodata": "NaN in float fields where a hex has no dry land / no transition",
+        },
+    )  # fmt: skip
+
+
 def _terrain_hash(terrain) -> str:
     h = hashlib.sha256()
     for key, value in sorted(terrain.content_hashes().items()):
@@ -454,6 +508,12 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             terrain_now is None
             or (existing.get("v46") or {}).get("terrain_hash") == _terrain_hash(terrain_now)
         )
+        topo_now = getattr(project, "topo", None)
+        env_same = env_same and (
+            (topo_now is None and not existing.get("v47"))
+            or (topo_now is not None
+                and (existing.get("v47") or {}).get("topo_hash") == _topo_hash(topo_now))
+        )  # fmt: skip
         nothing_new = (
             (project.geo is None or geo_same)
             and (project.hist is None or hist_same)
@@ -475,7 +535,10 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
 
     if not same_geology:
         _write_v1_data(project, path)
-        stale = V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES + V46_DATA_FILES
+        stale = (
+            V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES + V46_DATA_FILES
+            + V47_DATA_FILES
+        )  # fmt: skip
         for name in stale:  # no stale data of another world
             (path / name).unlink(missing_ok=True)
     _write_json(path / "config.json", project.config.to_dict())
@@ -503,6 +566,28 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         }
     else:
         for name in V45_DATA_FILES:  # an ecological layer of another v4 state would be stale
+            (path / name).unlink(missing_ok=True)
+    v47_manifest = None
+    topo = getattr(project, "topo", None)
+    if topo is not None and project.env is not None:
+        topo_hash = _topo_hash(topo)
+        stored_topo = (existing.get("v47") or {}).get("topo_hash")
+        if not (
+            same_geology and stored_topo == topo_hash
+            and all((path / n).exists() for n in V47_DATA_FILES)
+        ):  # fmt: skip
+            _write_v47_data(project, path)
+        files += list(V47_DATA_FILES)
+        v47_manifest = {
+            "algorithm_version": TOPOCLIMATE_ALGORITHM_VERSION,
+            "files": list(V47_DATA_FILES),
+            "topo_hash": topo_hash,
+            "content_hashes": topo.content_hashes(),
+            "stage_keys": topo.stage_keys,
+            "units": int(topo.units["unit_hex"].size),
+        }
+    else:
+        for name in V47_DATA_FILES:  # a topoclimate of another v4.5 state would be stale
             (path / name).unlink(missing_ok=True)
     v46_manifest = None
     terrain = getattr(project, "terrain", None)
@@ -652,6 +737,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v4": v4_manifest,
         "v45": v45_manifest,
         "v46": v46_manifest,
+        "v47": v47_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -826,6 +912,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_terrain(project, path, manifest, config, verify)
     _load_hydro(project, path, manifest, config, verify)
     _load_env(project, path, manifest, config, verify)
+    _load_topo(project, path, manifest, config, verify)
     return project
 
 
@@ -966,6 +1053,57 @@ def _load_env(project: Project, path: Path, manifest: dict, config, verify) -> N
     project.env = env
     env.validation = validate_env(project)
     project.cache["v45_environment"] = env
+
+
+def _load_topo(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v4.7 data, or say why not (never stale)."""
+    from .pipeline_v47 import topo_stage_keys, upstream_keys
+    from .project import TopoData
+    from .stages.validate import validate_topo
+
+    v47 = manifest.get("v47")
+    if not v47 or project.env is None:
+        return
+    if not all((path / name).exists() for name in V47_DATA_FILES):
+        project.warnings.append("The manifest lists v4.7 data, but its files are missing.")
+        return
+    doc = json.loads((path / "topoclimate.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != TOPOCLIMATE_ALGORITHM_VERSION:
+        project.warnings.append(
+            f"The stored topoclimate was produced by {doc.get('algorithm_version')}, this "
+            f"build uses {TOPOCLIMATE_ALGORITHM_VERSION}: NOT loaded (not calculated)."
+        )
+        return
+    keys = topo_stage_keys(config, upstream_keys(project))
+    if keys["v47_topoclimate"] != doc["stage_keys"].get("v47_topoclimate"):
+        project.warnings.append(
+            "The stored topoclimate belongs to another v4.5 state or configuration: "
+            "NOT loaded (not calculated)."
+        )
+        return
+    loaded = {}
+    for name in ("topoclimate_fields.npz", "topoclimate_monthly.npz", "topoclimate_units.npz"):
+        with np.load(path / name) as data:
+            loaded[name] = {k: data[k] for k in data.files}
+    topo = TopoData(
+        layers=loaded["topoclimate_fields.npz"],
+        monthly=loaded["topoclimate_monthly.npz"],
+        units=loaded["topoclimate_units.npz"],
+        summary=doc["summary"],
+        massifs=doc["massifs"],
+        provenance=doc["provenance"],
+        stage_keys=dict(doc["stage_keys"]),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = topo.content_hashes()
+        for key, expected in v47["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.topo = topo
+    topo.validation = validate_topo(project)
+    project.cache["v47_topoclimate"] = topo
 
 
 def _load_terrain(project: Project, path: Path, manifest: dict, config, verify) -> None:

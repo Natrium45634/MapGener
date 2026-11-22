@@ -26,8 +26,14 @@ COLUMNS = (
 )
 
 
-def cross_section(project, start, end, step_km: float | None = None) -> list[dict]:
-    """Rows of the profile from ``start`` (x, y km) to ``end``."""
+def cross_section(
+    project, start, end, step_km: float | None = None, month: int | None = None
+) -> list[dict]:
+    """Rows of the profile from ``start`` (x, y km) to ``end``.
+
+    With v4.7 every row also carries the local climate at the profile height (see
+    :mod:`hexworld.topoclimate.query`), interpolated in height between the terrain units.
+    """
     layout = project.layout
     step = float(step_km) if step_km else layout.spacing_km / 3.0
     x0, y0 = (float(v) for v in start)
@@ -76,6 +82,7 @@ def cross_section(project, start, end, step_km: float | None = None) -> list[dic
         for k in range(n):
             if province[k] in ("", "land") and 0 <= bid[k] < len(plans):
                 province[k] = plans[bid[k]]["basin_type"]
+    topo = getattr(project, "topo", None)
     rows = []
     for k in range(n):
         if ocean[k]:
@@ -98,12 +105,27 @@ def cross_section(project, start, end, step_km: float | None = None) -> list[dic
                 "province": str(province[k]) or "land",
             }
         )
+        if topo is not None:
+            from ..topoclimate.query import query_environment
+
+            if material in ("ocean", "lake"):
+                rows[-1].update({c: None for c in _topo_columns()})
+                rows[-1]["quality"] = "water"
+            else:
+                rows[-1].update(query_environment(topo, int(near[k]), float(height[k]), month))
     return rows
 
 
+def _topo_columns():
+    from ..topoclimate.query import COLUMNS as TOPO
+
+    return TOPO
+
+
 def write_csv(rows: list[dict], path) -> None:
+    columns = list(COLUMNS) + [k for k in (rows[0] if rows else {}) if k not in COLUMNS]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
+        writer = csv.DictWriter(f, fieldnames=columns)
         writer.writeheader()
         for r in rows:
-            writer.writerow({k: ("" if r[k] is None else r[k]) for k in COLUMNS})
+            writer.writerow({k: ("" if r.get(k) is None else r[k]) for k in columns})

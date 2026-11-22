@@ -325,8 +325,8 @@ class TerrainParams:
     trench_depth_m: float = 3000.0
     pelagic_rate_m_per_ma: float = 4.0
     #: Amplitude of the abyssal fabric on medium-rate crust without sediment, m.
-    abyssal_relief_m: float = 300.0
-    fracture_zone_depth_m: float = 800.0
+    abyssal_relief_m: float = 220.0
+    fracture_zone_depth_m: float = 600.0
     transform_fracture_history: bool = True
     subduction_trenches: bool = True
     submarine_canyons: bool = True
@@ -346,6 +346,46 @@ class TerrainParams:
         # JSON gives lists: keep tuples, so a loaded config equals the saved one
         object.__setattr__(self, "age_depth_transition_ma", tuple(self.age_depth_transition_ma))
         object.__setattr__(self, "basins", tuple(self.basins))
+
+
+@dataclass(frozen=True)
+class TopoclimateParams:
+    """v4.7 topoclimate: terrain units, local climate, belts (TZ 4.7, 11.3).
+
+    [H] starting values for an Earth-like world, not natural constants.
+    """
+
+    enabled: bool = True
+    #: sampling budget: preview (6 / 24 samples per flat / mountain hex), balanced (12 / 48),
+    #: reference (24 / 96)
+    quality: str = "balanced"
+    max_units_per_hex: int = 16
+    horizon_directions: int = 16
+    horizon_max_distance_km: float = 100.0
+    #: "reference_anchored" (coarse T is a value at the hex height) or "preserve_coarse_mean"
+    temperature_mode: str = "reference_anchored"
+    cap_night_max_c: float = 6.0
+    cap_event_frequency: float = 0.25
+    solar_day_anomaly_max_c: float = 2.0
+    #: mass-elevation effect: off until calibrated (TZ 3.4)
+    mass_elevation_effect_max_c: float = 0.0
+    #: synthetic humidity profile (no humidity field exists upstream): RH over the sea / inland
+    rh_marine: float = 0.8
+    rh_inland: float = 0.5
+    sunlight_hours_per_day_samples: int = 12
+    precipitation_factor_bounds: tuple = (0.15, 5.0)
+    snow_mobile_share: float = 0.3
+    cover_swe_threshold_mm: float = 5.0
+    tree_start_temp_c: float = 0.9
+    tree_gsl_days: float = 94.0
+    tree_gst_c: float = 6.4
+    smoothing_days: float = 25.0
+    smoothing_c: float = 1.5
+
+    def __post_init__(self):
+        object.__setattr__(
+            self, "precipitation_factor_bounds", tuple(self.precipitation_factor_bounds)
+        )
 
 
 @dataclass(frozen=True)
@@ -377,6 +417,7 @@ class Config:
     erosion: ErosionParams = field(default_factory=ErosionParams)
     environment: EnvironmentParams = field(default_factory=EnvironmentParams)
     terrain: TerrainParams = field(default_factory=TerrainParams)
+    topoclimate: TopoclimateParams = field(default_factory=TopoclimateParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -544,6 +585,26 @@ class Config:
             raise ConfigError("terrain.foreland_fill must be within [0, 1]")
         if not 0.0 <= te.sag_density <= 20.0:
             raise ConfigError("terrain.sag_density must be within [0, 20]")
+        tc = self.topoclimate
+        if tc.quality not in ("preview", "balanced", "reference"):
+            raise ConfigError("topoclimate.quality must be preview, balanced or reference")
+        if tc.temperature_mode not in ("reference_anchored", "preserve_coarse_mean"):
+            raise ConfigError(
+                "topoclimate.temperature_mode is reference_anchored or preserve_coarse_mean"
+            )
+        if not 4 <= tc.horizon_directions <= 72 or not 1 <= tc.max_units_per_hex <= 24:
+            raise ConfigError("topoclimate horizon directions [4, 72] / units per hex [1, 24]")
+        lo, hi = tuple(tc.precipitation_factor_bounds)
+        if not 0.0 < lo <= 1.0 <= hi:
+            raise ConfigError("topoclimate.precipitation_factor_bounds must contain 1")
+        if not 0.0 <= tc.snow_mobile_share <= 1.0 or not 0.0 <= tc.cap_event_frequency <= 1.0:
+            raise ConfigError("topoclimate shares must be within [0, 1]")
+        if not 0.0 <= tc.mass_elevation_effect_max_c <= 3.0:
+            raise ConfigError("topoclimate.mass_elevation_effect_max_c must be within [0, 3]")
+        if not 0.0 <= tc.rh_inland <= 1.0 or not 0.0 <= tc.rh_marine <= 1.0:
+            raise ConfigError("topoclimate RH must be within [0, 1]")
+        if tc.tree_gsl_days <= 0 or tc.smoothing_days <= 0 or tc.smoothing_c <= 0:
+            raise ConfigError("topoclimate tree-limit thresholds must be positive")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -577,6 +638,7 @@ class Config:
             "erosion": ErosionParams,
             "environment": EnvironmentParams,
             "terrain": TerrainParams,
+            "topoclimate": TopoclimateParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

@@ -121,6 +121,7 @@ def compose_sea_floor(
     # -- 2. crust age, ridge piece, isochron direction ---------------------------------------
     age = np.full(n, np.nan)
     piece = np.full(n, -1, dtype=np.int32)
+    over = np.full(n, 1.0e4)
     tx = np.zeros(n)
     ty = np.zeros(n)
     half = np.full(n, 25.0)
@@ -128,6 +129,8 @@ def compose_sea_floor(
         fa = flowline_age(pieces, mx[m], my[m], plate[m])
         age[m] = np.where(new[m], flat("crust_age_ma")[m], age_scale * fa.age_ma + t_epoch)
         piece[m] = fa.piece
+        if fa.overshoot_km is not None:
+            over[m] = fa.overshoot_km
         tx[m], ty[m] = fa.tx, fa.ty
         half[m] = np.where(np.isfinite(fa.half_rate), fa.half_rate, 25.0)
     age = np.clip(age, 0.0, None)
@@ -156,7 +159,7 @@ def compose_sea_floor(
     stream = Stream(seed, "geomorph_v4_6/sea_floor")
     # ridge-flank fault blocks and abyssal-hill provinces at the scales a hex can show; the
     # 1-10 km hills themselves are sub-hex and enter only the local relief of the hex
-    fabric_noise = FractalNoise(stream.child("fabric"), [220.0, 110.0, 55.0], [1.0, 0.6, 0.35])
+    fabric_noise = FractalNoise(stream.child("fabric"), [240.0, 120.0, 60.0], [1.0, 0.55, 0.3])
     amp = params.abyssal_relief_m * (0.6 + 1.1 * slow) * np.exp(-(pelagic + sed3) / 600.0)
     fabric = np.zeros(n)
     lo = np.full(n, np.inf)
@@ -167,7 +170,7 @@ def compose_sea_floor(
             px, py = mx[m] + r * ox, my[m] + r * oy
             ut = px * tx[m] + py * ty[m]
             us = px * ty[m] - py * tx[m]
-            v = fabric_noise(ut / 3.5, us)
+            v = fabric_noise(ut / 2.2, us)
             fabric[m] += v / len(_RING)
             lo[m] = np.minimum(lo[m], v)
             hi[m] = np.maximum(hi[m], v)
@@ -186,18 +189,25 @@ def compose_sea_floor(
             j = nb[i]
             # mark the older side only: a fracture zone is one line, not a two-hex band
             jump = np.nan_to_num(age[i]) - np.nan_to_num(age[j])
+            # a real fracture zone: the trace of a ridge offset in front of both pieces; a
+            # switch far beyond the ends of the pieces is not one (no fan of lines)
             step = (
                 (plate[i] == plate[j])
                 & (piece[i] != piece[j])
                 & (piece[i] >= 0)
                 & (piece[j] >= 0)
                 & (jump > 1.5)
+                & (over[i] < 25.0)
+                & (over[j] < 25.0)
             )
             fz[i[step]] = True
             fz_jump[i[step]] = np.maximum(fz_jump[i[step]], jump[step])
     # trough of the fracture zone: deeper where the offset (the age jump) is larger
-    fz_amp = params.fracture_zone_depth_m * np.clip(fz_jump / 5.0, 0.35, 1.0)
-    fz_trough = np.where(fz, -fz_amp * footprint(0.0, 10.0, spacing), 0.0)
+    # only major offsets (>= 3 Ma) cut a trough; it is wider than a line and is buried by
+    # sediment on old crust, so the old floor keeps faint traces, not crisp grooves
+    fz_amp = params.fracture_zone_depth_m * np.clip((fz_jump - 3.0) / 5.0, 0.0, 1.0)
+    fz_amp = fz_amp * np.exp(-(pelagic + sed3) / 500.0)
+    fz_trough = np.where(fz, -fz_amp * footprint(0.0, 15.0, spacing), 0.0)
 
     # -- 7. trenches and outer rise on the subducting oceanic plate -------------------------
     side = flat("trench_side", np.int64)

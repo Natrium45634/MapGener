@@ -228,25 +228,47 @@ def _plan_from_edges(mx, my, nx, ny, pi, pj, motion, seed: str, spacing_km: floa
             open_rate = float(np.mean(vn[mem]))
             slip = float(np.mean(np.abs(vt[mem])))
             if kind == RIFT:
-                plans.append(
-                    {
-                        "basin_type": BASIN_TYPES[RIFT],
-                        "center_km": [cx, cy],
-                        "axis": [ax, ay],
-                        "half_length_km": half + 0.5 * spacing_km,
-                        "segment_length_km": 70.0 + 90.0 * u[0],
-                        "half_width_km": 18.0 + 17.0 * u[1],
-                        "subsidence_m": float(np.clip(1200.0 + 60.0 * open_rate, 1200.0, 4000.0))
-                        * (0.8 + 0.4 * u[2]),
-                        "fill_fraction": 0.45 + 0.3 * u[3],
-                        "flank_uplift_fraction": 0.18 + 0.12 * u[4],
-                        # border-fault side of each segment (+1 / -1), drawn from the seed
-                        "polarity": [1 if v < 0.5 else -1 for v in rs.child("polarity").random(64)],
-                        "opening_mm_yr": round(open_rate, 3),
-                        "slip_mm_yr": round(slip, 3),
-                        "cause": "continental divergence at the epoch (normal faults)",
-                    }
-                )
+                # the rift follows the boundary: consecutive segments, each with its own
+                # local axis (no single straight line drawn across a curved boundary)
+                seg_len = 70.0 + 90.0 * u[0]
+                proj = (mx[mem] - cx) * ax + (my[mem] - cy) * ay
+                order = np.argsort(proj, kind="stable")
+                n_seg = max(1, int(round((proj.max() - proj.min()) / seg_len)))
+                bins = np.array_split(order, n_seg)
+                pol = [1 if v < 0.5 else -1 for v in rs.child("polarity").random(64)]
+                depth = float(np.clip(1200.0 + 60.0 * open_rate, 1200.0, 4000.0))
+                for k, part in enumerate(bins):
+                    part = mem[part]
+                    if part.size == 0:
+                        continue
+                    if part.size >= 2:
+                        sx_, sy_, bx_, by_, h_ = _axis(mx[part], my[part])
+                    else:
+                        sx_, sy_, bx_, by_, h_ = float(mx[part][0]), float(my[part][0]), ax, ay, 0.0
+                    if bx_ * ax + by_ * ay < 0.0:
+                        bx_, by_ = -bx_, -by_
+                    v = rs.child(f"segment/{k}").random(4)
+                    plans.append(
+                        {
+                            "basin_type": BASIN_TYPES[RIFT],
+                            "rift_id": f"{int(round(cx))}/{int(round(cy))}",
+                            "segment": k,
+                            "center_km": [sx_, sy_],
+                            "axis": [bx_, by_],
+                            "half_length_km": h_ + 0.5 * spacing_km + 15.0,
+                            "segment_length_km": 2.0 * (h_ + 0.5 * spacing_km + 15.0),
+                            "half_width_km": (18.0 + 17.0 * u[1]) * (0.8 + 0.4 * v[0]),
+                            "subsidence_m": depth * (0.75 + 0.5 * v[1]),
+                            "fill_fraction": 0.45 + 0.3 * u[3],
+                            "flank_uplift_fraction": 0.18 + 0.12 * u[4],
+                            # border fault alternates from segment to segment
+                            "polarity": [pol[k % 64]] * 4,
+                            "sinuosity_phase": float(2.0 * np.pi * v[2]),
+                            "opening_mm_yr": round(open_rate, 3),
+                            "slip_mm_yr": round(slip, 3),
+                            "cause": "continental divergence at the epoch (normal faults)",
+                        }
+                    )
             else:
                 ratio = open_rate / max(slip, 1e-6)
                 plans.append(
@@ -265,7 +287,20 @@ def _plan_from_edges(mx, my, nx, ny, pi, pj, motion, seed: str, spacing_km: floa
                         "cause": "releasing step of a continental strike-slip boundary",
                     }
                 )
-    return plans
+    # one pull-apart per step: an overlapping smaller one would cross it (an X-shaped pit)
+    pulls = sorted(
+        (p for p in plans if p["basin_type"] == BASIN_TYPES[PULL_APART]),
+        key=lambda p: (-p["subsidence_m"], p["center_km"][0], p["center_km"][1]),
+    )
+    kept: list[dict] = []
+    for p in pulls:
+        if all(
+            np.hypot(p["center_km"][0] - q["center_km"][0], p["center_km"][1] - q["center_km"][1])
+            > 0.9 * (p["half_length_km"] + q["half_length_km"])
+            for q in kept
+        ):
+            kept.append(p)
+    return [p for p in plans if p["basin_type"] != BASIN_TYPES[PULL_APART]] + kept
 
 
 def plan_sags(continentality, x, y, boundary_distance_km, seed: str, density: float, cell_km):
@@ -388,7 +423,10 @@ def _evaluate(plans, hx, hy, mx, my):
             dx, dy = hx[sel] - cx, hy[sel] - cy
             t = dx * ax + dy * ay  # along the boundary
             d = -dx * ay + dy * ax  # across
-            w = p["half_width_km"]
+            # natural basins are not ruler-straight: the axis wanders and the width varies
+            phase = p.get("sinuosity_phase", 0.0)
+            d = d - 0.35 * p["half_width_km"] * np.sin(t / 37.0 + phase)
+            w = p["half_width_km"] * (1.0 + 0.25 * np.sin(t / 23.0 + 1.7 * phase))
             if kind == BASIN_TYPES[RIFT]:
                 seg = p["segment_length_km"]
                 k = np.floor((t + p["half_length_km"]) / seg)

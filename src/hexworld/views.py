@@ -78,7 +78,7 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3", "v46", "v4", "v45") and project.geo is None:
+        if self.stage in ("v2", "v3", "v46", "v4", "v45", "v47") and project.geo is None:
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
         if self.stage == "v4" and project.hydro is None:
             return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
@@ -92,6 +92,8 @@ class ViewSpec:
             return False, f"«{self.title}»: v4.6 (массивы, бассейны, дно) ещё не рассчитан"
         if self.stage == "v45" and project.env is None:
             return False, f"«{self.title}»: экологические параметры (v4.5) не рассчитаны"
+        if self.stage == "v47" and getattr(project, "topo", None) is None:
+            return False, f"«{self.title}»: топоклимат (v4.7) не рассчитан"
         return True, ""
 
     def default_mode(self) -> str:
@@ -3052,6 +3054,378 @@ register_view(
         note="Условия среды для будущих биомов; биомов здесь нет",
         render=_render_ecology,
         legend=_legend_ecology,
+    )
+)
+
+# -- v4.7: altitudinal belts, topoclimate, sub-hex conditions ----------------------------------
+_DIV_RGB = np.array(
+    [[40, 70, 160], [110, 160, 220], [240, 240, 235], [235, 150, 90], [170, 40, 40]],
+    dtype=np.float64,
+)
+
+
+def _diverging(values, half):
+    return _stops(values, np.linspace(-half, half, 5), _DIV_RGB)
+
+
+def _finish_topo(project, rgb, valid, overlays):
+    """Like the v4.5 maps; a coastal hex with dry land keeps its value."""
+    t = project.topo.layers
+    rgb = _finish_env(project, rgb, valid, overlays)
+    part = (t["topo_dry_fraction"] > 0) & ~project.hydro.layers["land_mask"] & valid
+    if part.any():
+        base = _finish_env(project, np.zeros_like(rgb), valid, frozenset())
+        rgb[part] = (0.5 * rgb[part] + 0.5 * base[part]).astype(np.uint8)
+    return rgb
+
+
+def _render_belts(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .topoclimate.thermal import BELT_RGB
+
+    t = project.topo
+    L = t.layers
+    month = _month_of(overlays)
+    has = L["topo_dry_fraction"] > 0
+    if mode == "dominant":
+        rgb = BELT_RGB[L["dominant_thermal_belt"].astype(int)].copy()
+        valid = has
+    elif mode == "margin":
+        v = L["thermal_margin_mean"]
+        rgb = _diverging(v, 4.0)
+        valid = np.isfinite(v)
+    elif mode == "score":
+        v = L["thermal_tree_score_mean"]
+        rgb = _ramp_rgb(v, 0.0, 1.0)
+        valid = np.isfinite(v)
+    elif mode == "site":
+        v = L["site_tree_score_mean"]
+        rgb = _ramp_rgb(v, 0.0, 1.0)
+        valid = np.isfinite(v)
+    elif mode == "transition":
+        v = L["thermal_transition_fraction"]
+        rgb = _ramp_rgb(v, 0.0, 1.0, 0.7)
+        valid = np.isfinite(v)
+    elif mode == "treeline":
+        state = L["treeline_state"]
+        rgb = np.zeros(state.shape + (3,), dtype=np.uint8)
+        rgb[state == 3] = (120, 165, 95)
+        rgb[state == 2] = (215, 220, 230)
+        v = L["treeline_proxy_m"]
+        cross = state == 1
+        rgb[cross] = _ramp_rgb(v, 0.0, 4500.0)[cross]
+        valid = has
+    elif mode in ("snowline", "zero"):
+        key = "topo_snowline_m" if mode == "snowline" else "topo_zero_degree_level_m"
+        v = t.monthly[key][month]
+        rgb = _ramp_rgb(v, 0.0, 6000.0)
+        valid = np.isfinite(v) & has
+        if mode == "snowline":
+            rgb[has & ~valid] = (205, 205, 200)  # no transition inside the hex
+            valid = has
+    elif mode == "perennial":
+        v = L["perennial_snow_fraction"]
+        rgb = _ramp_rgb(v, 0.0, 1.0, 0.5)
+        valid = np.isfinite(v)
+    elif mode == "permafrost":
+        v = L["permafrost_potential_mean"]
+        rgb = _ramp_rgb(v, 0.0, 1.0)
+        valid = np.isfinite(v)
+    elif mode.startswith("share_"):
+        v = L[f"belt_share_{mode[6:]}"]
+        rgb = _ramp_rgb(v, 0.0, 1.0)
+        valid = has
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'belts'")
+    return _finish_topo(project, rgb, valid & has, overlays)
+
+
+def _legend_belts(project: Project, mode: str) -> list[LegendItem]:
+    from .topoclimate.thermal import BELT_RGB, BELT_TITLES, BELTS
+
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    src = LegendItem(
+        "термические классы по сезону роста (GSL/GST, TREELIM 0,9 °C / 94 сут / 6,4 °C); "
+        "не биомы и не факт наличия леса"
+    )
+    if mode == "dominant":
+        items = [
+            LegendItem(BELT_TITLES[b], tuple(int(c) for c in BELT_RGB[i]))
+            for i, b in enumerate(BELTS)
+            if i
+        ]
+        return items + [
+            LegendItem("в низинах без гор — «термический класс», а не горный пояс"),
+            src,
+        ]
+    if mode == "margin":
+        return [
+            LegendItem("−4: далеко ниже порога (холодно)", tuple(int(c) for c in _DIV_RGB[0])),
+            LegendItem("0: термическая граница деревьев", tuple(int(c) for c in _DIV_RGB[2])),
+            LegendItem("+4: с запасом тепла", tuple(int(c) for c in _DIV_RGB[4])),
+            LegendItem("запас = min((GSL−94)/25, (GST−6,4)/1,5), средний по суше гекса"),
+        ]
+    if mode == "treeline":
+        return [
+            LegendItem("граница внутри гекса: 0 м", lo),
+            LegendItem("4500 м", hi),
+            LegendItem("весь гекс теплее порога", (120, 165, 95)),
+            LegendItem("весь гекс холоднее порога", (215, 220, 230)),
+            LegendItem("потенциальная термическая граница, не линия леса"),
+        ]
+    if mode in ("snowline", "zero"):
+        items = [LegendItem("0 м", lo), LegendItem("6000 м", hi)]
+        if mode == "snowline":
+            items += [
+                LegendItem("нет перехода снег/без снега в гексе", (205, 205, 200)),
+                LegendItem("снеговая линия по SWE ≥ порога на конец месяца, не по T < 0"),
+            ]
+        else:
+            items.append(LegendItem("уровень 0 °C в опорном профиле (Γ из конфигурации)"))
+        return [LegendItem("месяц выбирается справа от режима")] + items
+    titles = {
+        "score": ("термический балл 0", "1 (тепла для деревьев достаточно)"),
+        "site": ("балл участка 0", "1 (тепло × снег × почва × ветер × устойчивость)"),
+        "transition": ("нет переходной зоны", "весь гекс у порога (|запас| < 0,5)"),
+        "perennial": ("сезонный снег", "весь гекс под многолетним снегом"),
+        "permafrost": ("потенциал мерзлоты 0", "1 (число мороза ≥ 0,6 с учётом снега)"),
+    }
+    if mode.startswith("share_"):
+        name = "thermal_" + mode[6:]
+        return [LegendItem("доля 0", lo), LegendItem(f"1: {BELT_TITLES[name]}", hi)]
+    a, b = titles[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi)]
+
+
+def _render_topoclimate(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    t = project.topo
+    L, M = t.layers, t.monthly
+    month = _month_of(overlays)
+    has = L["topo_dry_fraction"] > 0
+    if mode == "temperature":
+        v = M["topo_temperature_c"][month]
+        rgb = _stops(v, _TEMP_STOPS, _TEMP_RGB)
+    elif mode == "delta_t":
+        v = M["topo_delta_temperature_c"][month]
+        rgb = _diverging(v, 3.0)
+    elif mode == "radiation":
+        v = M["topo_radiation_mj_m2_day"][month]
+        rgb = _ramp_rgb(v, 0.0, 32.0)
+    elif mode == "swe":
+        v = M["topo_swe_mm"][month]
+        rgb = _ramp_rgb(v, 0.0, 400.0, 0.6)
+    elif mode == "snow_cover":
+        v = M["topo_snow_cover_frac"][month]
+        rgb = _ramp_rgb(v, 0.0, 1.0)
+    else:
+        key, lo, hi, power = _TOPO_STATIC[mode]
+        v = L[key]
+        if mode == "cap_jan":
+            rgb = _diverging(v, 3.0)
+        else:
+            rgb = _ramp_rgb(v, lo, hi, power)
+    return _finish_topo(project, rgb, np.isfinite(v) & has, overlays)
+
+
+_TOPO_STATIC = {
+    "gsl": ("gsl_days_mean", 0.0, 365.0, 1.0),
+    "gst": ("gst_c_mean", 0.0, 25.0, 1.0),
+    "gdd5": ("gdd5_mean", 0.0, 6000.0, 1.0),
+    "cap": ("cap_potential_max", 0.0, 1.0, 1.0),
+    "cap_jan": ("cap_temperature_jan_c", -3.0, 3.0, 1.0),
+    "svf": ("svf_mean", 0.6, 1.0, 1.0),
+    "exposure": ("wind_exposure_mean", 0.0, 0.3, 1.0),
+    "cloud": ("cloud_potential_max", 0.0, 1.0, 1.0),
+    "fog": ("fog_potential_mean", 0.0, 0.5, 1.0),
+    "pfactor": ("precip_factor_max", 1.0, 2.0, 1.0),
+    "runoff": ("topo_local_runoff_mm_yr", 0.0, 2000.0, 0.6),
+}
+_TOPO_UNITS = {
+    "radiation": ("0 МДж/м²/сут", "32 МДж/м²/сут (на склоне, с тенью рельефа)"),
+    "swe": ("0 мм в.э.", "400 мм в.э. (на конец месяца)"),
+    "snow_cover": ("доля под снегом 0", "1 (SWE ≥ порога)"),
+    "gsl": ("0 сут", "365 сут сезона роста (T > 0,9 °C)"),
+    "gst": ("0 °C", "25 °C — средняя T сезона роста"),
+    "gdd5": ("0 °C·сут", "6000 °C·сут выше 5 °C"),
+    "cap": ("нет холодного кармана", "1: впадина, где копится холодный воздух"),
+    "svf": ("видимая доля неба 0,6", "1 (открытое небо)"),
+    "exposure": ("укрыто", "открыто ветру (наветренный уклон Sx < 0)"),
+    "cloud": ("нет орографических облаков", "1: облачный пояс на наветренном склоне"),
+    "fog": ("нет тумана", "0,5+: радиационный / долинный туман"),
+    "pfactor": ("осадки как у гекса (×1)", "×2 на наветренном склоне (сумма сохранена)"),
+    "runoff": ("0 мм/год", "2000 мм/год местного стока"),
+}
+
+
+def _legend_topoclimate(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    prov = project.topo.provenance
+    src = LegendItem(
+        f"опорная высота: {prov.get('climate_reference_elevation', '—')}; "
+        f"влажность: синтетический профиль"
+    )
+    head = [LegendItem("месяц выбирается справа от режима")]
+    if mode == "temperature":
+        return head + [
+            LegendItem(f"{int(v):+d} °C", tuple(int(c) for c in rgb))
+            for v, rgb in zip(_TEMP_STOPS, _TEMP_RGB, strict=True)
+        ] + [src]  # fmt: skip
+    if mode in ("delta_t", "cap_jan"):
+        text = "поправка рельефа к T гекса" if mode == "delta_t" else "холодный карман, январь"
+        return [
+            LegendItem(f"−3 °C ({text})", tuple(int(c) for c in _DIV_RGB[0])),
+            LegendItem("0", tuple(int(c) for c in _DIV_RGB[2])),
+            LegendItem("+3 °C", tuple(int(c) for c in _DIV_RGB[4])),
+            src,
+        ]
+    a, b = _TOPO_UNITS[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi), src]
+
+
+def _render_subhex(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.topo.layers
+    has = L["topo_dry_fraction"] > 0
+    if mode == "fractions":
+        d, lk, o = L["topo_dry_fraction"], L["topo_lake_fraction"], L["topo_ocean_fraction"]
+        rgb = np.clip(
+            d[..., None] * np.array([196, 170, 110])
+            + lk[..., None] * np.array([60, 140, 210])
+            + o[..., None] * np.array([30, 60, 120]),
+            0, 255,
+        ).astype(np.uint8)  # fmt: skip
+        rgb = _finish_env(project, rgb, np.ones(d.shape, bool), overlays)
+        part = (d > 0) & (d < 1)
+        mixed = np.clip(
+            d[..., None] * np.array([196, 170, 110])
+            + lk[..., None] * np.array([60, 140, 210])
+            + o[..., None] * np.array([30, 60, 120]), 0, 255,
+        ).astype(np.uint8)  # fmt: skip
+        rgb[part] = mixed[part]
+        return rgb
+    if mode == "units":
+        v = L["topo_unit_count"].astype(np.float64)
+        rgb = _ramp_rgb(v, 1.0, 16.0)
+    elif mode == "relief":
+        v = L["hyps_relief_m"]
+        rgb = _ramp_rgb(v, 0.0, 3000.0, 0.6)
+    elif mode == "std":
+        v = L["hyps_z_std_m"]
+        rgb = _ramp_rgb(v, 0.0, 800.0, 0.6)
+    elif mode in ("q05", "q50", "q95"):
+        v = L[f"hyps_{mode}_m"]
+        rgb = _ramp_rgb(v, 0.0, 6000.0, 0.7)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'subhex'")
+    return _finish_topo(project, rgb, np.isfinite(v) & has, overlays)
+
+
+def _legend_subhex(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    s = project.topo.summary
+    note = LegendItem(
+        f"{s.get('units', 0)} участков (TU), в среднем {s.get('units_per_land_hex', 0)} на "
+        "гекс суши; участки — статистические страты, без выдуманного размещения"
+    )
+    if mode == "fractions":
+        return [
+            LegendItem("суша", (196, 170, 110)),
+            LegendItem("озеро", (60, 140, 210)),
+            LegendItem("море", (30, 60, 120)),
+            LegendItem("смешанный цвет = доли площади гекса (f_dry + f_lake + f_ocean = 1)"),
+            note,
+        ]
+    titles = {
+        "units": ("1 участок", "16 участков рельефа в гексе"),
+        "relief": ("0 м", "3000 м перепада внутри гекса"),
+        "std": ("0 м", "800 м — разброс высот (σ)"),
+        "q05": ("0 м", "6000 м — 5 % площади ниже"),
+        "q50": ("0 м", "6000 м — медианная высота суши"),
+        "q95": ("0 м", "6000 м — 95 % площади ниже"),
+    }
+    a, b = titles[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi), note]
+
+
+register_view(
+    ViewSpec(
+        id="belts",
+        title="Высотная поясность",
+        stage="v47",
+        layers=("dominant_thermal_belt", "thermal_margin_mean", "treeline_proxy_m"),
+        modes=(
+            Option("dominant", "Преобладающий термический пояс"),
+            Option("margin", "Запас тепла до границы деревьев"),
+            Option("score", "Термический балл деревьев"),
+            Option("site", "Балл участка (тепло, снег, почва, ветер)"),
+            Option("transition", "Переходная полоса"),
+            Option("treeline", "Термическая граница деревьев"),
+            Option("snowline", "Снеговая линия (месяц)"),
+            Option("zero", "Уровень 0 °C (месяц)"),
+            Option("perennial", "Многолетний снег"),
+            Option("permafrost", "Потенциал мерзлоты"),
+            Option("share_lower_montane", "Доля: нижний горный"),
+            Option("share_upper_montane", "Доля: верхний горный"),
+            Option("share_lower_alpine", "Доля: нижний альпийский"),
+            Option("share_upper_alpine", "Доля: верхний альпийский"),
+            Option("share_subnival", "Доля: субнивальный"),
+            Option("share_nival", "Доля: нивальный"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Доли площади участков рельефа, не по средней высоте гекса; не биомы",
+        render=_render_belts,
+        legend=_legend_belts,
+        months=True,
+    )
+)
+register_view(
+    ViewSpec(
+        id="topoclimate",
+        title="Топоклимат",
+        stage="v47",
+        layers=("topo_temperature_c", "topo_radiation_mj_m2_day", "cap_potential_max"),
+        modes=(
+            Option("temperature", "Температура суши (месяц)"),
+            Option("delta_t", "Поправка рельефа к T (месяц)"),
+            Option("radiation", "Солнечная радиация на склонах (месяц)"),
+            Option("swe", "Снег, в.э. (месяц)"),
+            Option("snow_cover", "Доля под снегом (месяц)"),
+            Option("gsl", "Длина сезона роста"),
+            Option("gst", "Температура сезона роста"),
+            Option("gdd5", "Сумма температур > 5 °C"),
+            Option("cap", "Холодные воздушные карманы"),
+            Option("cap_jan", "Охлаждение карманов, январь"),
+            Option("svf", "Открытость неба (SVF)"),
+            Option("exposure", "Ветровая открытость"),
+            Option("cloud", "Орографические облака"),
+            Option("fog", "Туманы"),
+            Option("pfactor", "Перераспределение осадков (макс.)"),
+            Option("runoff", "Местный сток участков"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Климат участков рельефа: высота, склон, тень, карманы; сумма осадков сохранена",
+        render=_render_topoclimate,
+        legend=_legend_topoclimate,
+        months=True,
+    )
+)
+register_view(
+    ViewSpec(
+        id="subhex",
+        title="Субгексные условия",
+        stage="v47",
+        layers=("topo_dry_fraction", "topo_unit_count", "hyps_relief_m"),
+        modes=(
+            Option("fractions", "Суша / озеро / море в гексе"),
+            Option("units", "Число участков рельефа"),
+            Option("relief", "Перепад высот в гексе"),
+            Option("std", "Разброс высот (σ)"),
+            Option("q05", "Нижние 5 % высот"),
+            Option("q50", "Медианная высота суши"),
+            Option("q95", "Верхние 5 % высот"),
+        ),
+        overlays=_ENV_OVERLAYS,
+        note="Гипсометрия и участки рельефа; щелчок по гексу показывает список участков",
+        render=_render_subhex,
+        legend=_legend_subhex,
     )
 )
 

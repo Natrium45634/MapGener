@@ -190,7 +190,9 @@ def derive_landmasses(
 
 
 def stage_depth(project: Project) -> str:
-    """The last stage a project holds ("v1".."v45"; "v46" = v3 + terrain without v4)."""
+    """The last stage a project holds ("v1".."v47"; "v46" = v3 + terrain without v4)."""
+    if getattr(project, "topo", None) is not None:
+        return "v47"
     if project.env is not None:
         return "v45"
     if project.hydro is not None:
@@ -286,7 +288,7 @@ def generate_v4(project: Project, config: Config | None = None, progress=None) -
             erosion=config.erosion,
         )
     )
-    return generate(cfg, progress=progress, reuse=project, through="v45")
+    return generate(cfg, progress=progress, reuse=project, through="v47")
 
 
 def generate_climate(project: Project, config: Config | None = None):
@@ -372,7 +374,19 @@ def generate_environment(project: Project, config: Config | None = None, progres
         if config is None
         else replace(project.config, environment=config.environment)
     )
-    return generate(cfg, progress=progress, reuse=project, through="v45")
+    return generate(cfg, progress=progress, reuse=project, through="v47")
+
+
+def generate_topoclimate(project: Project, config: Config | None = None, progress=None):
+    """Add (or update) the v4.7 topoclimate; v1-v4.5 are reused as they are."""
+    if project.env is None:
+        raise LookupError("v4.7 needs the v4.5 months, soils and water; run v4.5 first")
+    cfg = (
+        project.config
+        if config is None
+        else replace(project.config, topoclimate=config.topoclimate)
+    )
+    return generate(cfg, progress=progress, reuse=project, through="v47")
 
 
 def hex_months(project: Project, col: int, row: int) -> list[dict]:
@@ -407,6 +421,48 @@ def export_hex_months_csv(project: Project, col: int, row: int, path) -> str:
     return str(out)
 
 
+def terrain_units(project: Project, col: int, row: int) -> list[dict]:
+    """The v4.7 terrain units of a hex (strata with area weights; no invented placement)."""
+    if getattr(project, "topo", None) is None:
+        raise LookupError("the topoclimate (v4.7) is not calculated for this project")
+    if not project.layout.inside(col, row):
+        raise IndexError(f"hex ({col}, {row}) is outside the grid")
+    return project.terrain_units(col, row)
+
+
+def export_terrain_units_csv(project: Project, col: int, row: int, path) -> str:
+    """Write the terrain units of a hex as CSV (UTF-8); returns the path."""
+    import csv
+    from pathlib import Path
+
+    rows = terrain_units(project, col, row)
+    out = Path(path)
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        if rows:
+            writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+    return str(out)
+
+
+def query_environment(project: Project, x_km: float, y_km: float, z_m=None, month=None) -> dict:
+    """Local v4.7 conditions at a world point (height: the profile height when omitted)."""
+    from .geomorph.sections import cross_section as _section
+    from .topoclimate.query import query_environment as _query
+
+    if getattr(project, "topo", None) is None:
+        raise LookupError("the topoclimate (v4.7) is not calculated for this project")
+    col, row = project.layout.world_to_offset(x_km, y_km)
+    col, row = int(col), int(row)
+    if not project.layout.inside(col, row):
+        raise IndexError("the point is outside the grid")
+    if z_m is None:
+        z_m = _section(project, (x_km, y_km), (x_km, y_km), 1.0)[0]["height_m"]
+    out = _query(project.topo, row * project.layout.width + col, float(z_m), month)
+    out.update({"col": col, "row": row, "z_m": float(z_m)})
+    return out
+
+
 def generate_terrain(project: Project, config: Config | None = None, progress=None) -> Project:
     """Add (or update) the v4.6 terrain and everything after it; v1-v3 are reused."""
     if project.hist is None:
@@ -416,21 +472,30 @@ def generate_terrain(project: Project, config: Config | None = None, progress=No
         cfg,
         progress=progress,
         reuse=project,
-        through=stage_depth(project) if stage_depth(project) in ("v4", "v45") else "v45",
+        through=stage_depth(project) if stage_depth(project) in ("v4", "v45", "v47") else "v47",
     )
 
 
-def cross_section(project: Project, start, end, step_km: float | None = None) -> list[dict]:
-    """Vertical profile along a line (world km); one metre scale for land and sea floor."""
+def cross_section(
+    project: Project, start, end, step_km: float | None = None, month: int | None = None
+) -> list[dict]:
+    """Vertical profile along a line (world km); one metre scale for land and sea floor.
+
+    With v4.7 the rows also hold T, P, PET, soil, SWE, GSL, GST, thermal margin, belt and
+    the query quality at the profile height (``month`` adds ``t_month_c``, 0 = January).
+    """
     from .geomorph.sections import cross_section as _section
 
-    return _section(project, start, end, step_km)
+    return _section(project, start, end, step_km, month)
 
 
-def export_cross_section_csv(project: Project, start, end, path, step_km=None) -> str:
-    """CSV with distance_km,x_km,y_km,height_m,bedrock_m,water_surface_m,material_type,province."""
+def export_cross_section_csv(
+    project: Project, start, end, path, step_km=None, month: int | None = None
+) -> str:
+    """CSV with distance_km,x_km,y_km,height_m,bedrock_m,water_surface_m,material_type,province
+    (+ the v4.7 climate columns when the topoclimate is calculated)."""
     from .geomorph.sections import write_csv
 
-    rows = cross_section(project, start, end, step_km)
+    rows = cross_section(project, start, end, step_km, month)
     write_csv(rows, path)
     return str(path)

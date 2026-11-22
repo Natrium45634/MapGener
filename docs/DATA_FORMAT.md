@@ -436,6 +436,51 @@ PNG — только изображение. Оно никогда не чита
 Разрез: `hexworld section PROJECT X0 Y0 X1 Y1 --csv f.csv` → колонки
 `distance_km,x_km,y_km,height_m,bedrock_m,water_surface_m,material_type,province`.
 
+## Данные v4.7 (высотная поясность, топоклимат, субгексные условия)
+
+Файлы `topoclimate_fields.npz` (слои гексов `[row, col]`), `topoclimate_monthly.npz`
+(`(12, rows, cols)`, 0 = январь), `topoclimate_units.npz` (участки рельефа) и
+`topoclimate.json` (единицы, названия поясов, массивы, `provenance`, сводка, ключи).
+Раздел манифеста `v47` хранит `topo_hash` и хэши всех массивов. v4.7 загружается только
+если версия алгоритма и ключ стадии совпадают с текущими v3 / v4.6 / v4 / v4.5 и
+конфигурацией; иначе — предупреждение «NOT loaded (not calculated)».
+
+**Участки рельефа (terrain units, TU)** — статистические страты гекса (форма × высотная
+полоса × экспозиция; вода — отдельно), без выдуманного размещения внутри гекса.
+Хранение CSR: участки гекса `h = row * width + col` — индексы
+`hex_offsets[h] .. hex_offsets[h + 1]`.
+
+| Массив `topoclimate_units.npz` | Форма | Смысл |
+|---|---|---|
+| `hex_offsets` | (N + 1,) int64 | CSR-индекс |
+| `unit_hex` | (U,) int32 | гекс участка |
+| `unit_weight_hex`, `unit_weight_land` | (U,) float32 | доля площади гекса / суши гекса |
+| `unit_surface_type` | (U,) uint8 | 0 суша, 1 озеро, 2 море (`surface_types`) |
+| `unit_landform` | (U,) uint8 | `landforms`: open_slope, ridge, valley_floor, steep_rock |
+| `x_km`, `y_km`, `z_surface_m`, `z_ref_m` | (U,) | точка-представитель (реальная точка поверхности) и опорная высота грубого климата |
+| `slope_deg`, `aspect_deg` | (U,) | уклон; экспозиция по часовой от севера, NaN на ровном |
+| `horizon_rad` | (U, K) float16 | знаковый горизонт по K секторам азимута от севера |
+| `svf_slope`, `svf_horizontal`, `visible_sky_fraction`, `upwind_slope_rad` | (U,) | разные метрики неба; Sx против ветра |
+| `temperature_c`, `precip_mm`, `pet_mm`, `aet_mm`, `swe_mm`, `runoff_mm`, `radiation_mj_m2_day`, `rh_frac` | (12, U) float32 | месячные поля участка |
+| `gsl_t_days`, `gst_t_c`, `gsl_site_days`, `gdd0/5/10`, `fdd`, `thermal_margin`, `thermal_tree_score`, `site_tree_score`, `f_*` | (U,) | сезон роста и пригодность (потенциал, не лес) |
+| `thermal_belt` | (U,) uint8 | индекс в `topoclimate.json -> belts` |
+| `cap_static`, `cap_jan_c`, `cloud_potential_max`, `fog_potential_mean`, `precip_factor`, `permafrost_potential`, `snow_surplus_mm_yr` | (U,) | топоклимат |
+
+Слои гексов (полный список с единицами — `topoclimate.json -> layers`):
+`topo_dry_fraction + topo_lake_fraction + topo_ocean_fraction = 1`; гипсометрия
+`hyps_q05/q25/q50/q75/q95_m`, `hyps_z_mean_m`, `hyps_z_std_m`, `hyps_relief_m`;
+`belt_share_<пояс>` — доли **суши** гекса (сумма 1 на суше; доля всего гекса = доля ×
+`topo_dry_fraction`); `dominant_thermal_belt`; `treeline_proxy_m` и `treeline_state`
+(1 граница внутри гекса, 2 весь гекс холоднее, 3 весь теплее); снег, мерзлота,
+холодные карманы, облака, туманы. Месячные: `topo_temperature_c`,
+`topo_delta_temperature_c`, `topo_radiation_mj_m2_day`, `topo_swe_mm`,
+`topo_snow_cover_frac`, `topo_zero_degree_level_m`, `topo_snowline_m`.
+
+Разрез с v4.7 получает колонки `t_mean_c,t_month_c,p_mm_yr,pet_mm_yr,soil_depth_m,
+swe_max_mm,gsl_days,gst_c,thermal_margin,belt,quality` (`quality`:
+`tu_height_interpolated` — интерполяция по высоте между участками гекса,
+`tu_representative`, `tu_height_clamped`, `water`, `unavailable`).
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от

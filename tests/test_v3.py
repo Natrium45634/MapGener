@@ -167,12 +167,22 @@ def test_hotspot_under_a_moving_plate_builds_an_age_progressive_chain():
     assert len(chain) >= 8
     x, y, idx = r["volcanoes"].positions(r["kin"], 20.0)
     ages = np.array([20.0 - r["volcanoes"].volcanoes[int(i)].birth_ma for i in idx])
-    # the plate moved east at 40 mm/yr: a volcano of age a sits 40 * a km east of the hotspot
-    assert np.allclose(x - spot.x, 40.0 * ages, atol=1e-6) and np.allclose(y, spot.y)
-    order = np.argsort(x)
-    assert np.all(np.diff(ages[order]) > 0)  # age grows monotonically along the chain
+    # the plate moved east at 40 mm/yr: a volcano of age a sits 40 * a km east of the hotspot,
+    # give or take the wandering vent (at most 0.3 edifice radii in each axis, Loa / Kea trends)
+    radii = np.array([r["volcanoes"].volcanoes[int(i)].radius_km for i in idx])
+    assert np.all(np.abs(x - spot.x - 40.0 * ages) <= 0.3 * radii + 1e-6)
+    assert np.all(np.abs(y - spot.y) <= 0.3 * radii + 1e-6)
+    # age grows along the chain (rank correlation; neighbours may swap within the vent wander)
+    rank_x = np.argsort(np.argsort(x))
+    rank_a = np.argsort(np.argsort(ages))
+    assert np.corrcoef(rank_x, rank_a)[0, 1] > 0.9
     heights = r["volcanoes"].heights(idx, 20.0, 1.0)
-    assert heights[np.argmax(ages)] < heights[np.argsort(ages)[2]]  # old edifices are worn
+    # old edifices are worn: the share left after erosion (vs. no erosion) falls with the time
+    # since the vent went extinct (edifices differ in size and growth, so not raw heights)
+    worn = heights / r["volcanoes"].heights(idx, 20.0, 0.0)
+    idle = np.array([20.0 - r["volcanoes"].volcanoes[int(i)].last_active_ma for i in idx])
+    order = np.argsort(idle)
+    assert np.all(np.diff(worn[order]) <= 1e-12) and worn[np.argmax(idle)] < 1.0
     assert r["volcanoes"].is_active(int(idx[np.argmin(ages)]), 20.0)
     assert not r["volcanoes"].is_active(int(idx[np.argmax(ages)]), 20.0)
 
