@@ -7,11 +7,12 @@ this module only draws it.
 
 from __future__ import annotations
 
+import html
 import json
 import math
 
-from PySide6.QtCore import QRegularExpression, QSettings, Qt, Signal
-from PySide6.QtGui import QRegularExpressionValidator
+from PySide6.QtCore import QRegularExpression, QSettings, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QGuiApplication, QImage, QPixmap, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,7 +20,9 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -33,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import settings_schema as ss
+from .. import world_tools as wt
 from ..config import Config
 from ..progress import format_seconds
 
@@ -61,6 +65,10 @@ class _Row:
             tip += f", {p.unit}"
         if p.rand is not None and p.kind in ("float", "int"):
             tip += f"\nслучайный выбор: {p.rand[0]:g} … {p.rand[1]:g}"
+        views_ = wt.affected_views(p.path)
+        if views_:
+            shown = ", ".join(views_[:6]) + (f" и ещё {len(views_) - 6}" if len(views_) > 6 else "")
+            tip += f"\nвлияет на вкладки: {shown}"
         self.label.setToolTip(tip)
         self.slider = None
         self.auto = None
@@ -178,6 +186,48 @@ def _nice_step(p: ss.Param) -> float:
     return max(step, 10 ** (-p.decimals))
 
 
+class _PreviewWorker(QThread):
+    """Runs the sketch of a world (:func:`hexworld.world_tools.preview_config`)."""
+
+    done = Signal(int, object, str)  # generation id, project or None, error text
+
+    def __init__(self, gen_id: int, config: Config, parent=None):
+        super().__init__(parent)
+        self.gen_id = gen_id
+        self.config = config
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        from ..pipeline import GenerationCancelled, generate
+
+        def progress(_stage, _f):
+            if self._stop:
+                raise GenerationCancelled()
+
+        try:
+            project = generate(wt.preview_config(self.config), progress=progress)
+        except GenerationCancelled:
+            return
+        except Exception as exc:  # noqa: BLE001 - shown in the sketch panel
+            self.done.emit(self.gen_id, None, str(exc))
+            return
+        if not self._stop:
+            self.done.emit(self.gen_id, project, "")
+
+
+PREVIEW_VIEWS = (
+    ("biomes", "Биомы"),
+    ("heights", "Высоты"),
+    ("temperature", "Температура"),
+    ("precipitation", "Осадки"),
+    ("continents", "Материки"),
+    ("plates", "Плиты"),
+)
+
+
 class WorldSettingsDialog(QDialog):
     """Before a generation: every setting, with locks, presets and the size of the world.
 
@@ -187,10 +237,24 @@ class WorldSettingsDialog(QDialog):
 
     changed = Signal()
 
-    def __init__(self, config: Config | None = None, through: str = "v50", parent=None):
+    def __init__(
+        self,
+        config: Config | None = None,
+        through: str = "v50",
+        parent=None,
+        current: Config | None = None,
+        preview: bool = True,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Новый мир — настройки генерации")
-        self.resize(1080, 820)
+        self.resize(1440, 860)
+        #: config of the world on screen: unchanged stages are taken from it
+        self.current = current
+        self._preview_on = preview
+        self._preview_id = 0
+        self._preview_worker: _PreviewWorker | None = None
+        self._preview_project = None
+        self._workers: list = []
         self.config: Config | None = None
         self.through = through
         self.start = False
@@ -236,13 +300,25 @@ class WorldSettingsDialog(QDialog):
         load_btn.clicked.connect(self.load_file)
         save_btn = QPushButton("Сохранить…")
         save_btn.clicked.connect(self.save_file)
-        for b in (unlock, lock_all, load_btn, save_btn):
+        code_btn = QPushButton("📋 Код мира")
+        code_btn.setToolTip(
+            "Скопировать короткий код этого мира (сид + все изменённые настройки), "
+            "чтобы поделиться им или вернуться к миру позже"
+        )
+        code_btn.clicked.connect(self.copy_code)
+        paste_btn = QPushButton("📥 Вставить код…")
+        paste_btn.setToolTip("Восстановить мир по коду «HW1-…»")
+        paste_btn.clicked.connect(self.paste_code)
+        for b in (unlock, lock_all, load_btn, save_btn, code_btn, paste_btn):
             pre.addWidget(b)
         lay.addLayout(pre)
 
         # -- tabs ----
         self.tabs = QTabWidget()
-        lay.addWidget(self.tabs, 1)
+        middle = QHBoxLayout()
+        middle.addWidget(self.tabs, 1)
+        middle.addWidget(self._build_preview_box())
+        lay.addLayout(middle, 1)
         for gid, gtitle in ss.GROUPS:
             params = [p for p in ss.PARAMS if p.group == gid]
             if not params and gid != "world":
@@ -293,11 +369,17 @@ class WorldSettingsDialog(QDialog):
             bottom.addWidget(b)
         lay.addLayout(bottom)
 
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(900)
+        self._preview_timer.timeout.connect(self.refresh_preview)
         self.set_values(ss.values_from_config(base))
         self._set_locks(ss.default_locked())
         self._restore_locks()
         self._sync_size_preset()
         self._update_footer()
+        if self._preview_on:
+            QTimer.singleShot(50, self.refresh_preview)
 
     # -- size --------------------------------------------------------------------------------------
     def _build_size_rows(self, grid: QGridLayout) -> int:
@@ -361,6 +443,7 @@ class WorldSettingsDialog(QDialog):
         if hasattr(self, "size_preset"):
             self._sync_size_preset()
         self._update_footer()
+        self._schedule_preview()
 
     def _update_footer(self):
         if not hasattr(self, "footer"):
@@ -378,8 +461,24 @@ class WorldSettingsDialog(QDialog):
             f"примерно {format_seconds(est)} и до {mem:.1f} ГБ памяти · "
             f"закреплено {len(self.locked())} из {len(self.rows)} параметров"
         ).replace(",", " ")
+        if not errors and self.current is not None:
+            try:
+                new_cfg = ss.config_from_values(v, seed=self.seed.text())
+                plan = wt.regeneration_plan(self.current, new_cfg)
+            except Exception:  # noqa: BLE001
+                plan = None
+            if plan and plan["first"] is None:
+                text += "<br>Настройки совпадают с текущим миром: он будет взят как есть."
+            elif plan and plan["reused"]:
+                text += (
+                    "<br><span style='color:#2a7a2a'>Быстрее: из текущего мира возьмутся "
+                    f"«{'», «'.join(plan['reused'])}»; пересчёт начнётся с "
+                    f"«{plan['computed'][0]}».</span>"
+                )
         if errors:
             text += f"<br><span style='color:#b00'>Ошибка: {errors[0]}</span>"
+        for warning in wt.conflicts(v)[:4]:
+            text += f"<br><span style='color:#a65f00'>⚠ {warning}</span>"
         self.footer.setText(text)
         ok = not errors
         for b in (self.start_btn, self.rand_start_btn):
@@ -416,7 +515,164 @@ class WorldSettingsDialog(QDialog):
         self.through = self.through_box.currentData()
         self.start = True
         self._remember_locks()
+        self._stop_preview()
         self.accept()
+
+    def reject(self):
+        self._stop_preview()
+        super().reject()
+
+    # -- world code ----
+    def world_code(self) -> str:
+        cfg = ss.config_from_values(self.values(), seed=self.seed.text())
+        return wt.world_code(cfg, self.through_box.currentData())
+
+    def copy_code(self):
+        try:
+            code = self.world_code()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Код мира", str(exc))
+            return
+        QGuiApplication.clipboard().setText(code)
+        QMessageBox.information(
+            self,
+            "Код мира",
+            "Код скопирован в буфер обмена. Вставьте его в «Вставить код…», чтобы получить "
+            f"этот же мир:\n\n{code}",
+        )
+
+    def apply_code(self, code: str):
+        cfg, through = wt.parse_world_code(code)
+        self.seed.setText(cfg.seed)
+        self.seed_lock.setChecked(True)
+        self.set_values(ss.values_from_config(cfg))
+        self.through_box.setCurrentIndex(max(self.through_box.findData(through), 0))
+        self._on_change()
+
+    def paste_code(self):
+        text = QGuiApplication.clipboard().text().strip()
+        default = text if text.startswith(wt.CODE_PREFIX) else ""
+        code, ok = QInputDialog.getText(self, "Код мира", "Код мира (HW1-…):", text=default)
+        if not ok or not code.strip():
+            return
+        try:
+            self.apply_code(code)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Код мира", str(exc))
+
+    # -- sketch ----
+    def _build_preview_box(self) -> QGroupBox:
+        box = QGroupBox("Эскиз мира (быстрый, приблизительный)")
+        box.setFixedWidth(400)
+        col = QVBoxLayout(box)
+        self.preview_view = QComboBox()
+        for key, title in PREVIEW_VIEWS:
+            self.preview_view.addItem(title, key)
+        self.preview_view.currentIndexChanged.connect(lambda _i: self._show_preview())
+        col.addWidget(self.preview_view)
+        self.preview_image = QLabel("эскиз появится здесь")
+        self.preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_image.setMinimumSize(376, 260)
+        self.preview_image.setStyleSheet("background: #1d2733; color: #ccc;")
+        col.addWidget(self.preview_image)
+        self.preview_status = QLabel("")
+        self.preview_status.setWordWrap(True)
+        col.addWidget(self.preview_status)
+        self.preview_stats = QLabel("")
+        self.preview_stats.setWordWrap(True)
+        self.preview_stats.setTextFormat(Qt.TextFormat.RichText)
+        col.addWidget(self.preview_stats)
+        row = QHBoxLayout()
+        self.preview_auto = QCheckBox("обновлять сам")
+        self.preview_auto.setChecked(self._preview_on)
+        self.preview_auto.setToolTip("Пересчитывать эскиз через секунду после каждого изменения")
+        refresh = QPushButton("⟳ Обновить эскиз")
+        refresh.clicked.connect(self.refresh_preview)
+        row.addWidget(self.preview_auto)
+        row.addStretch(1)
+        row.addWidget(refresh)
+        col.addLayout(row)
+        note = QLabel(
+            "Эскиз — тот же сид и настройки на грубой сетке за несколько секунд: видно, где "
+            "будут материки, пустыни, льды и леса. Детали полной карты будут точнее."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #777;")
+        col.addWidget(note)
+        col.addStretch(1)
+        return box
+
+    def _schedule_preview(self):
+        if hasattr(self, "_preview_timer") and self.preview_auto.isChecked():
+            self._preview_timer.start()
+
+    def refresh_preview(self):
+        try:
+            cfg = ss.config_from_values(self.values(), seed=self.seed.text() or "HexWorld1")
+        except Exception as exc:  # noqa: BLE001
+            self.preview_status.setText(f"эскиз недоступен: {exc}")
+            return
+        self._stop_preview(wait=False)
+        self._preview_id += 1
+        worker = _PreviewWorker(self._preview_id, cfg, self)
+        worker.done.connect(self._preview_done)
+        worker.finished.connect(lambda w=worker: self._forget_worker(w))
+        self._preview_worker = worker
+        self._workers.append(worker)
+        self.preview_status.setText("⏳ считаю эскиз… (несколько секунд)")
+        worker.start()
+
+    def _forget_worker(self, worker):
+        if worker in self._workers:
+            self._workers.remove(worker)
+        worker.deleteLater()
+
+    def _stop_preview(self, wait: bool = True):
+        self._preview_timer.stop() if hasattr(self, "_preview_timer") else None
+        for w in list(self._workers):
+            w.stop()
+            if wait:
+                w.wait(15000)
+
+    def _preview_done(self, gen_id: int, project, error: str):
+        if gen_id != self._preview_id:
+            return  # an older sketch
+        if project is None:
+            self.preview_status.setText(f"эскиз не получился: {error}")
+            return
+        self._preview_project = project
+        self._show_preview()
+
+    def _show_preview(self):
+        p = self._preview_project
+        if p is None:
+            return
+        rgb = wt.thumbnail(p, self.preview_view.currentData(), 376)
+        h, w = rgb.shape[:2]
+        self._preview_buf = rgb.copy()
+        img = QImage(self._preview_buf.data, w, h, 3 * w, QImage.Format.Format_RGB888)
+        self.preview_image.setPixmap(QPixmap.fromImage(img.copy()))
+        s = wt.world_summary(p)
+        rows = [r for r in wt.summary_rows(s) if r[1] != "—"]
+        keep = (
+            "Доля суши",
+            "Массивов суши",
+            "Высшая точка, м",
+            "Температура суши, °C",
+            "Осадки на суше, мм/год",
+            "Засушливые земли",
+            "Суша подо льдом",
+            "Биом №1",
+            "Биом №2",
+        )
+        esc = html.escape
+        self.preview_stats.setText(
+            "<br>".join(f"{esc(a)}: <b>{esc(b)}</b>" for a, b in rows if a in keep)
+        )
+        self.preview_status.setText(
+            f"эскиз готов ({p.config.width}×{p.config.height} гексов по "
+            f"{p.config.hex_spacing_km:.0f} км)"
+        )
 
     # -- files and memory ----
     def settings_document(self) -> dict:

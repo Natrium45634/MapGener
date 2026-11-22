@@ -55,15 +55,52 @@ class CrustModel:
             sl = slice(start, start + _CHUNK)
             px, py = xf[sl], yf[sl]
             wx, wy = (px, py) if self.warp is None else self.warp(px, py)
-            dx = wx[:, None] - self.centers[None, :, 0]
-            dy = wy[:, None] - self.centers[None, :, 1]
-            u = (ca * dx + sa * dy) / a
-            v = (-sa * dx + ca * dy) * a
-            val = np.max(self.radii[None, :] - np.hypot(u, v), axis=1)
+            val = self._nearest_nucleus(wx, wy, ca, sa, a)
             if self.rough is not None:
                 val = val + self.rough(px, py)
             out[sl] = val
         return out.reshape(shape)
+
+    def _nearest_nucleus(self, wx, wy, ca, sa, a) -> np.ndarray:
+        """``max_i(r_i - |E_i(p - c_i)|)`` evaluated in compact blocks of points.
+
+        Inside a block only the nuclei that can still win are evaluated: with the
+        elliptical metric ``|d| / a_i <= |E_i d| <= |d| * a_i``, a nucleus whose best case
+        over the block's bounding box is below another nucleus's worst case can never be the
+        maximum. The surviving nuclei are evaluated with the full formula, so the result is
+        exactly that of evaluating all nuclei.
+        """
+        n = wx.size
+        out = np.empty(n)
+        cx, cy, r = self.centers[:, 0], self.centers[:, 1], self.radii
+        # compact blocks: sort the points along a coarse spatial grid
+        span = max(float(np.ptp(wx)), float(np.ptp(wy)), 1e-9)
+        cell = span / 16.0
+        gx = np.floor((wx - wx.min()) / cell).astype(np.int64)
+        gy = np.floor((wy - wy.min()) / cell).astype(np.int64)
+        order = np.argsort(gy * 64 + gx, kind="stable")
+        block = 2048
+        for b0 in range(0, n, block):
+            idx = order[b0 : b0 + block]
+            bx, by = wx[idx], wy[idx]
+            x0, x1, y0, y1 = bx.min(), bx.max(), by.min(), by.max()
+            # distance from each centre to the block box: nearest and farthest corner
+            ddx = np.maximum(np.maximum(x0 - cx, cx - x1), 0.0)
+            ddy = np.maximum(np.maximum(y0 - cy, cy - y1), 0.0)
+            dmin = np.hypot(ddx, ddy)
+            fdx = np.maximum(np.abs(cx - x0), np.abs(cx - x1))
+            fdy = np.maximum(np.abs(cy - y0), np.abs(cy - y1))
+            dmax = np.hypot(fdx, fdy)
+            best_case = r - dmin / a
+            worst_case = r - dmax * a
+            keep = best_case >= worst_case.max() - 1e-9
+            k = np.nonzero(keep)[0]
+            dx = bx[:, None] - cx[None, k]
+            dy = by[:, None] - cy[None, k]
+            u = (ca[k] * dx + sa[k] * dy) / a[k]
+            v = (-sa[k] * dx + ca[k] * dy) * a[k]
+            out[idx] = np.max(r[None, k] - np.hypot(u, v), axis=1)
+        return out
 
     def continentality(self, x, y) -> np.ndarray:
         """Signed pseudo-distance in km: > 0 continental, < 0 oceanic."""

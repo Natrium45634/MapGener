@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -55,7 +56,8 @@ from ..config import (
 from ..io import load_project, save_project
 from ..pipeline import GenerationCancelled, generate
 from ..project import Project
-from ..version import GENERATOR_VERSION
+from ..version import GENERATOR_VERSION, PRODUCT_VERSION
+from .hex_panel import HexInfoPanel
 from .map_view import MapView
 
 STAGE_TITLES = {
@@ -127,7 +129,7 @@ def _season_name(code) -> str:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"HexWorld {GENERATOR_VERSION}")
+        self.setWindowTitle(f"HexWorld {PRODUCT_VERSION}")
         self.resize(1480, 920)
         self.project: Project | None = None
         self._worker: Worker | None = None
@@ -184,7 +186,10 @@ class MainWindow(QMainWindow):
         map_column.addLayout(controls)
         map_column.addWidget(self.view, 1)
         # hover inspector: bottom right, under the map
-        self.hover = QLabel("Наведите курсор на карту")
+        self.hover = QLabel(
+            "Колесо — масштаб · перетаскивание — сдвиг · щелчок — информация о гексе · "
+            "двойной щелчок — приблизить · правая кнопка — разрез"
+        )
         self.hover.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self.hover.setMinimumHeight(54)
         self.hover.setStyleSheet("padding: 2px 6px;")
@@ -273,14 +278,117 @@ class MainWindow(QMainWindow):
         row.addLayout(map_column, 1)
         self.setCentralWidget(central)
 
+        # -- «Информация о гексе»: right side panel, opens on a click on the map ----------
+        self.hex_panel = HexInfoPanel()
+        self.hex_panel.zoom_requested.connect(lambda c, r: self.view.zoom_to_hex(c, r))
+        self.hex_panel.close_requested.connect(self._close_hex_panel)
+        self.hex_dock = QDockWidget("Информация о гексе", self)
+        self.hex_dock.setObjectName("hex_info_dock")
+        self.hex_dock.setWidget(self.hex_panel)
+        self.hex_dock.setMinimumWidth(440)
+        self.hex_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.hex_dock)
+        self.hex_dock.hide()
+
         self.progress = QProgressBar()
         self.progress.setRange(0, 1000)
         self.progress.setFixedWidth(260)
         self.progress.setVisible(False)
         self.statusBar().addPermanentWidget(self.progress)
         self.statusBar().showMessage("Готов")
+        self._build_menu()
         self._set_busy(False)
         self._refresh_view_controls()
+
+    # -- menu --------------------------------------------------------------
+    def _build_menu(self):
+        from PySide6.QtGui import QAction, QKeySequence
+
+        bar = self.menuBar()
+
+        def act(menu, title, slot, shortcut=None, tip=None):
+            a = QAction(title, self)
+            a.triggered.connect(lambda _checked=False: slot())
+            if shortcut:
+                a.setShortcut(QKeySequence(shortcut))
+            if tip:
+                a.setStatusTip(tip)
+            menu.addAction(a)
+            return a
+
+        world = bar.addMenu("&Мир")
+        act(world, "🌍 Новый мир…", self.new_world, "Ctrl+N", "Все настройки генерации и старт")
+        act(world, "🎲 Пакет миров…", self.open_batch, "Ctrl+B",
+            "Много быстрых эскизов сразу — выберите понравившийся мир")  # fmt: skip
+        act(world, "📚 Мои миры…", self.open_library, "Ctrl+L", "История миров и избранное")
+        act(world, "⚖ Сравнить с миром из «Моих миров»…", self.compare_with_library)
+        world.addSeparator()
+        act(world, "Открыть проект…", self.open_project, "Ctrl+O")
+        act(world, "Сохранить проект…", self.save_project, "Ctrl+S")
+        world.addSeparator()
+        act(
+            world,
+            "📤 Экспорт для игровых движков…",
+            self.export_game,
+            tip="Карта высот 16 бит, карты биомов и рек, таблица гексов (Unity, Unreal, Godot)",
+        )
+        act(world, "PNG этой вкладки…", self.export_png)
+        act(world, "PNG всех вкладок…", self.export_all_png)
+        world.addSeparator()
+        act(world, "Выход", self.close, "Ctrl+Q")
+        view = bar.addMenu("&Вид")
+        act(view, "Вся карта", self.view.fit, "Home")
+        act(view, "🌐 Глобус…", self.open_globe, "Ctrl+G", "Мир на вращающемся шаре")
+        act(view, "Информация о гексе (панель справа)", self._toggle_hex_panel, "Ctrl+I")
+        self.names_action = act(view, "Названия на карте", self._toggle_names, "Ctrl+T")
+        self.names_action.setCheckable(True)
+        self.names_action.setChecked(True)
+        help_ = bar.addMenu("&Справка")
+        act(help_, "Как пользоваться", self.show_help, "F1")
+        act(help_, "О программе", self.show_about)
+
+    def _toggle_hex_panel(self):
+        if self.hex_dock.isVisible():
+            self.hex_dock.hide()
+        elif self.view.selected_hex is not None:
+            self.show_hex_panel(*self.view.selected_hex)
+        else:
+            self.hex_panel.clear()
+            self.hex_dock.show()
+
+    def _toggle_names(self):
+        self.view.show_names = self.names_action.isChecked()
+        self.view.update()
+
+    def show_help(self):
+        QMessageBox.information(
+            self,
+            "Как пользоваться HexWorld",
+            "<b>Создать мир</b>: «Мир → Новый мир» (Ctrl+N). Введите сид или нажмите «🎲», "
+            "двигайте ползунки, справа сразу виден эскиз мира. «▶ Старт» — создать мир.<br><br>"
+            "<b>Карта</b>: колесо мыши — масштаб, перетаскивание — сдвиг, щелчок по гексу — "
+            "вся информация о нём справа, двойной щелчок — приблизить, правая кнопка — "
+            "вертикальный разрез, Home — вся карта. Вкладки над картой — разные слои мира.<br><br>"
+            "<b>Мои миры</b> (Ctrl+L): все созданные миры, избранное, сравнение двух миров. "
+            "Каждый мир восстанавливается точно по своему коду «HW1-…».<br><br>"
+            "<b>Пакет миров</b> (Ctrl+B): много эскизов за минуту — выберите лучший.<br><br>"
+            "<b>Глобус</b> (Ctrl+G) и <b>экспорт для игр</b> — в меню «Вид» и «Мир».",
+        )
+
+    def show_about(self):
+        from ..version import PRODUCT_VERSION
+
+        QMessageBox.about(
+            self,
+            "О программе",
+            f"<b>HexWorld {PRODUCT_VERSION}</b><br>Генератор гексагональных карт миров: "
+            "тектоника плит, материки, геологическая история, климат, реки, почвы, высотные "
+            f"пояса, биомы и ледники.<br>Алгоритмы генератора: {GENERATOR_VERSION}.",
+        )
 
     # -- widgets -----------------------------------------------------------
     def _build_world_box(self) -> QGroupBox:
@@ -755,27 +863,151 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Отмена после текущей стадии…")
 
     # -- actions -----------------------------------------------------------
-    def new_world(self):
+    def new_world(self, config: Config | None = None, through: str | None = None):
         """The world settings window; generates with its settings on «Старт»."""
         from .world_settings import WorldSettingsDialog
 
         if not self._worker_idle():
             return
-        try:
-            base = self.build_config()
-        except ValueError:
-            base = self.project.config if self.project is not None else Config()
-        dlg = WorldSettingsDialog(base, self._through(), self)
+        base = config
+        if base is None:
+            try:
+                base = self.build_config()
+            except ValueError:
+                base = self.project.config if self.project is not None else Config()
+        current = self.project.config if self.project is not None else None
+        dlg = WorldSettingsDialog(base, through or self._through(), self, current=current)
+        if config is not None:
+            dlg.seed_lock.setChecked(True)
         self._settings_dialog = dlg
         if not dlg.exec() or not dlg.start or dlg.config is None:
             return
         self.generate_with(dlg.config, dlg.through)
 
+    # -- library, batch, globe, export -------------------------------------------------
+    @property
+    def library(self):
+        if getattr(self, "_library", None) is None:
+            from ..world_library import WorldLibrary
+
+            self._library = WorldLibrary()
+        return self._library
+
+    def _remember_world(self, project: Project, through: str):
+        try:
+            self.library.add(project, through)
+        except Exception as exc:  # noqa: BLE001 - the history is a convenience
+            self.statusBar().showMessage(f"Мир не добавлен в «Мои миры»: {exc}")
+
+    def open_library(self):
+        from ..world_tools import parse_world_code
+        from .worlds_dialogs import LibraryDialog
+
+        self.library.load()
+        dlg = LibraryDialog(self.library, self)
+        if not dlg.exec() or dlg.entry is None:
+            return
+        try:
+            config, through = parse_world_code(dlg.entry["code"])
+        except ValueError as exc:
+            QMessageBox.warning(self, "Мои миры", str(exc))
+            return
+        if dlg.action == "generate":
+            self.generate_with(config, through)
+        else:
+            self.new_world(config, through)
+
+    def open_batch(self):
+        from .. import settings_schema as ss
+        from .worlds_dialogs import BatchDialog
+
+        try:
+            base = self.project.config if self.project is not None else self.build_config()
+        except ValueError:
+            base = Config()
+        dlg = BatchDialog(
+            ss.values_from_config(base), base.seed, ss.default_locked(), self.library, self
+        )
+        if not dlg.exec() or dlg.config is None:
+            return
+        if dlg.action == "generate":
+            self.generate_with(dlg.config, self._through())
+        else:
+            self.new_world(dlg.config)
+
+    def open_globe(self):
+        from .worlds_dialogs import GlobeDialog
+
+        if self.project is None:
+            self.statusBar().showMessage("Сначала создайте или откройте мир")
+            return
+        self._globe = GlobeDialog(self.project, self)
+        self._globe.show()
+
+    def export_game(self):
+        from ..export_game import export_game
+
+        if self.project is None:
+            self.statusBar().showMessage("Сначала создайте или откройте мир")
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Папка для экспорта мира для игр")
+        if not folder:
+            return
+        out = Path(folder) / f"HexWorld_{self.project.config.seed}"
+        try:
+            files = export_game(self.project, out)
+        except Exception as exc:  # noqa: BLE001 - shown to the user
+            QMessageBox.critical(self, "Экспорт", f"Не удалось: {exc}")
+            return
+        QMessageBox.information(
+            self,
+            "Экспорт для игр",
+            f"Записано файлов: {len(files)} в папку\n{out}\n\nКак импортировать в Unity, "
+            "Unreal, Godot — в файле ИМПОРТ.txt.",
+        )
+
+    def compare_with_library(self):
+        """Compare the world on screen with one from «Мои миры»."""
+        from PySide6.QtWidgets import QInputDialog
+
+        from ..world_tools import world_summary
+        from .worlds_dialogs import CompareDialog, _entry_pixmap, _pixmap
+
+        if self.project is None:
+            self.statusBar().showMessage("Сначала создайте или откройте мир")
+            return
+        self.library.load()
+        entries = self.library.entries
+        if not entries:
+            QMessageBox.information(self, "Сравнение", "В «Моих мирах» пока ничего нет.")
+            return
+        names = [f"{e['title']} — {e['created']}" for e in entries]
+        name, ok = QInputDialog.getItem(
+            self, "Сравнение", "С каким миром сравнить:", names, 0, False
+        )
+        if not ok:
+            return
+        e = entries[names.index(name)]
+        from ..world_tools import thumbnail
+
+        here = (
+            f"Текущий: {self.project.config.seed}",
+            world_summary(self.project),
+            _pixmap(thumbnail(self.project, "biomes", 440)),
+        )
+        CompareDialog([here, (e["title"], e.get("summary", {}), _entry_pixmap(self.library, e))],
+                      self).exec()  # fmt: skip
+
     def generate_with(self, config: Config, through: str = "v50"):
         previous = self.project
+
+        def done(project):
+            self._show_project(project, "Сгенерировано", sync_form=True)
+            self._remember_world(project, through)
+
         self._run(
             lambda progress: generate(config, progress=progress, reuse=previous, through=through),
-            lambda project: self._show_project(project, "Сгенерировано", sync_form=True),
+            done,
             through=through,
             hexes=config.width * config.height,
             title=f"Генерация мира «{config.seed}» ({config.width}×{config.height})",
@@ -789,9 +1021,14 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         through = self._through()
+
+        def done(project):
+            self._show_project(project, "Сгенерировано")
+            self._remember_world(project, through)
+
         self._run(
             lambda progress: generate(config, progress=progress, reuse=previous, through=through),
-            lambda project: self._show_project(project, "Сгенерировано"),
+            done,
             through=through,
             hexes=config.width * config.height,
             title=f"Генерация мира «{config.seed}»",
@@ -910,6 +1147,10 @@ class MainWindow(QMainWindow):
         self.view.set_project(project)
         self._apply_view()
         self._show_info()
+        if self.view.selected_hex is not None and self.hex_dock.isVisible():
+            self.show_hex_panel(*self.view.selected_hex)
+        elif self.view.selected_hex is None:
+            self.hex_panel.clear()
         total = project.timings.get("total")
         ok = (
             project.validation.get("ok")
@@ -1451,7 +1692,25 @@ class MainWindow(QMainWindow):
         ]
         return lines
 
-    def _on_hex_clicked(self, _col: int, _row: int):
+    def _on_hex_clicked(self, col: int, row: int):
+        self._show_info()
+        self.show_hex_panel(col, row)
+
+    def show_hex_panel(self, col: int, row: int):
+        """Open the right panel with everything about the hex."""
+        if self.project is None:
+            return
+        try:
+            self.hex_panel.show_hex(self.project, col, row)
+        except Exception as exc:  # noqa: BLE001 - a broken field must not kill the viewer
+            self.hex_panel.clear()
+            self.hex_panel.title.setText(f"Гекс ({col}, {row}): ошибка сведений — {exc}")
+        self.hex_dock.show()
+        self.hex_dock.raise_()
+
+    def _close_hex_panel(self):
+        self.hex_dock.hide()
+        self.view.select_hex(None)
         self._show_info()
 
     def closeEvent(self, event):

@@ -1,0 +1,82 @@
+name: windows-installer
+
+# Builds the HexWorld installer for Windows (no Python needed on the user's computer),
+# checks the packaged program, installs it silently, runs it, uninstalls it.
+# A tag "v*" also attaches the installer to a GitHub release.
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - "packaging/**"
+      - "src/**"
+      - "pmge/**"
+      - ".github/workflows/windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build PMGE (MSVC)
+        run: |
+          cmake -S pmge -B pmge/build
+          cmake --build pmge/build --config Release --parallel
+      - name: Install HexWorld and PyInstaller
+        run: python -m pip install ".[gui]" pyinstaller
+      - name: Icon and version resource
+        run: python packaging/windows/make_icon.py packaging/windows/build
+      - name: Package (PyInstaller)
+        run: pyinstaller packaging/windows/hexworld.spec --noconfirm
+      - name: Self-test of the packaged program
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process -FilePath "dist\HexWorld\HexWorld.exe" -ArgumentList "--self-test", "$PWD\selftest_dist.json" -Wait -PassThru
+          Get-Content selftest_dist.json
+          if ($p.ExitCode -ne 0) { throw "self-test of dist failed: $($p.ExitCode)" }
+      - name: Build the installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          $version = python -c "from hexworld.version import PRODUCT_VERSION; print(PRODUCT_VERSION)"
+          & $iscc "/DAppVersion=$version" packaging\windows\HexWorld.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          Get-ChildItem packaging\windows\Output
+      - name: Install silently, run, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem packaging\windows\Output\HexWorld-*-Setup.exe | Select-Object -First 1
+          $dir = "$env:RUNNER_TEMP\HexWorldTest"
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "install failed: $($p.ExitCode)" }
+          if (-not (Test-Path "$dir\HexWorld.exe")) { throw "HexWorld.exe not installed" }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process -FilePath "$dir\HexWorld.exe" -ArgumentList "--self-test", "$env:RUNNER_TEMP\selftest_installed.json" -Wait -PassThru
+          Get-Content "$env:RUNNER_TEMP\selftest_installed.json"
+          if ($p.ExitCode -ne 0) { throw "installed program self-test failed" }
+          $un = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
+          $p = Start-Process -FilePath $un.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          Start-Sleep -Seconds 3
+          if (Test-Path "$dir\HexWorld.exe") { throw "uninstall left HexWorld.exe" }
+          "installed, ran and uninstalled: OK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HexWorld-Windows-Setup
+          path: packaging/windows/Output/HexWorld-*-Setup.exe
+      - name: Attach to the release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/windows/Output/HexWorld-*-Setup.exe

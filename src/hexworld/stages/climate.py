@@ -21,10 +21,15 @@ Moisture model (per world cell and physics step; four quasi-steady seasons after
 
     q <- q - div(q U) dt                         finite-volume upwind, conservative
     q += E_ocean = r_o * max(0, q_sat(SST) - q)  oceans are sources
-    q += E_land  = r_l * q_sat(T) * wetness       recycling over land
+    q += E_land  = P_recent * AET/P(PET/P_recent)  recycling over land (Budyko-Fu)
     P  = q * (k_zone(lat_eff) + k_conv(T) + k_oro * max(0, U . grad h))
          + c * max(0, q - q_sat(T_air(h)))       condensation when lifted air saturates
     q -= P
+
+Land returns to the air the share of the recent rain that evapotranspires (Fu's curve of
+the local dryness, as in the hex water balance); the rest is runoff. On Earth ~40 % of the
+rain on land comes from land evaporation (Trenberth et al. 2007, van der Ent et al. 2010);
+without this recycling continental interiors dry out far too much.
 
 Every step keeps ``dM = E - P + inflow - outflow`` (M = sum of q, the fluxes through the
 open border of the model area counted separately); the closure is reported in
@@ -69,9 +74,21 @@ RATES = {
     "orographic_cap": 4.0,  # cm/s
     "condensation": 0.15,  # share of the supersaturation that rains out per step
     "ocean": 0.22,  # relaxation of q to saturation over the sea
-    "recycling": 0.0015,  # land evapotranspiration source
+    # land evapotranspiration source: the share of the Budyko AET of the recent rain that
+    # goes back to the air (1 = all of it; lakes, dew and irrigation are not modelled)
+    "recycling": 0.7,
     "hex_orographic": 0.6,  # hex-scale windward / leeward correction
 }
+#: Memory of the recent rain that feeds the land evapotranspiration (share per step).
+RECENT_RAIN = 0.08
+#: World-raster cell size the per-step rates are calibrated at, km.
+CELL_REF_KM = 86.0
+
+
+def fu_share(pet_over_p, w: float = 2.6):
+    """AET / P of Fu's form of the Budyko curve for the dryness ``PET / P`` (0..1)."""
+    x = np.maximum(np.asarray(pet_over_p, dtype=np.float64), 0.0)
+    return np.clip(1.0 + x - np.power(1.0 + np.power(x, w), 1.0 / w), 0.0, 1.0)
 
 
 @dataclass
@@ -382,11 +399,27 @@ def world_climate(
     smax = max(max(float(np.hypot(u, v).max()) for _, u, v in winds), 1e-6)
     dt_s = cell_m / smax  # one physics step: the fastest wind crosses one cell
     gyh, gxh = np.gradient(land_h, cell_m)
-    r_ocean = RATES["ocean"]
+    # the rates are per physics step, and a step moves the fastest air one cell: scaling
+    # them with the cell size makes moisture decay per kilometre, not per cell, so the same
+    # world has the same climate whatever the resolution of the world raster
+    f_cell = cell_km / CELL_REF_KM
+
+    def per_step(k):
+        return 1.0 - np.power(1.0 - np.clip(k, 0.0, 0.999), f_cell)
+
+    r_ocean = per_step(RATES["ocean"])
+    condensation = per_step(RATES["condensation"])
+    recent = per_step(RECENT_RAIN)
     q = np.where(sea, q_sat(sst), 0.3 * q_sat(t_sl)).ravel()
-    wet = np.full(q.shape, 0.5)
     sea_f = sea.astype(np.float64).ravel()
-    land_f = 1.0 - sea_f
+    sea_idx = np.nonzero(sea.ravel())[0]
+    land_idx = np.nonzero(~sea.ravel())[0]
+    p_recent = np.zeros(q.shape)  # recent rain per cell, moisture units per step
+    target = PROFILE_TARGET_OCEAN_MM.get(profile, 1100.0) * params.precipitation_scale
+    ocean_p = None
+    # mm/yr per moisture unit, estimated on the fly from the ocean rain (the final scale is
+    # fitted the same way after the run); None until the spin-up has settled
+    scale_est = None if sea.any() else target / 0.03
     seasonal_p = np.zeros((4, ny, nx))
     budget = {"evaporation": 0.0, "precipitation": 0.0, "inflow": 0.0, "outflow": 0.0}
     m_start = 0.0
@@ -409,7 +442,7 @@ def world_climate(
         )
         w_up = u * gxh + v * gyh  # m/s of forced ascent (+ windward, - leeward)
         k_oro = RATES["orographic"] * np.clip(w_up / 0.01, 0.0, RATES["orographic_cap"])
-        k_total = np.clip(k_zone + k_conv + k_oro, 0.0, 0.5)
+        k_total = per_step(np.clip(k_zone + k_conv + k_oro, 0.0, 0.5))
         uf, vf = _faces(u, v)
         cxf = uf * dt_s / cell_m
         cyf = vf * dt_s / cell_m
@@ -424,8 +457,9 @@ def world_climate(
         op, b_in, b_out = upwind_operator(cxf / nsub, cyf / nsub)
         qs_air, qs_sea, k_total = qs_air.ravel(), qs_sea.ravel(), k_total.ravel()
         e_sat = sea_f * r_ocean
-        e_land = land_f * RATES["recycling"] * qs_air
-        inv_cap = 1.0 / np.maximum(0.03 * qs_air, 1e-6)
+        # land evapotranspiration returns the Budyko share of the rain that fell (moisture
+        # recycling): AET/P from Fu's curve of the local PET/P, the rest is runoff
+        pet_land = potential_et(t_air).ravel()[land_idx]
         if run == 1:
             m_start = float(q.sum())
         acc = np.zeros_like(q)
@@ -436,14 +470,23 @@ def world_climate(
                     budget["outflow"] += float(b_out @ q)
                 q = op @ q
             evap = e_sat * np.maximum(qs_sea - q, 0.0)
-            evap += e_land * wet
+            if scale_est is not None and land_idx.size:
+                pl = p_recent[land_idx]
+                evap[land_idx] += (
+                    RATES["recycling"] * pl * fu_share(pet_land / np.maximum(pl * scale_est, 1e-3))
+                )
             q += evap
             excess = np.maximum(q - qs_air, 0.0)
             precip = q * k_total
-            precip += RATES["condensation"] * excess
+            precip += condensation * excess
             np.minimum(precip, q, out=precip)
             q -= precip
-            wet = np.clip(precip * inv_cap, 0.05, 1.0)
+            p_recent += recent * (precip - p_recent)
+            if sea.any():
+                ocean_now = float(precip[sea_idx].mean())
+                ocean_p = ocean_now if ocean_p is None else ocean_p + 0.02 * (ocean_now - ocean_p)
+                if run or step >= 40:
+                    scale_est = target / max(ocean_p, 1e-12)
             if run:
                 budget["evaporation"] += float(evap.sum())
                 budget["precipitation"] += float(precip.sum())
@@ -455,7 +498,6 @@ def world_climate(
     m_end = float(q.sum())
     annual = seasonal_p.mean(axis=0)
     ocean_mean = float(annual[sea].mean()) if sea.any() else float(annual.mean())
-    target = PROFILE_TARGET_OCEAN_MM.get(profile, 1100.0) * params.precipitation_scale
     scale = target / max(ocean_mean, 1e-12)
     precip_mm = annual * scale
     residual = (m_end - m_start) - (

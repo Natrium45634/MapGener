@@ -1,7 +1,13 @@
+import os
+import tempfile
+
 import pytest
 
-from hexworld import Config, generate
-from hexworld.config import ContinentParams, HistoryParams
+# «Мои миры» and other per-user files of the tests go to a throw-away folder
+os.environ.setdefault("HEXWORLD_DATA_DIR", tempfile.mkdtemp(prefix="hexworld-test-"))
+
+from hexworld import Config, generate  # noqa: E402
+from hexworld.config import ContinentParams, HistoryParams  # noqa: E402
 
 #: A coarser world skeleton keeps the suite fast; the algorithms are the same.
 FAST = ContinentParams(skeleton_cells=224)

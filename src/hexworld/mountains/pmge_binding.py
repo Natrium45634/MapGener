@@ -92,6 +92,11 @@ def _candidates() -> list[str]:
     env = os.environ.get("HEXWORLD_PMGE_LIBRARY")
     if env:
         out.append(env)
+    if getattr(sys, "frozen", False):
+        # the installed application (PyInstaller): the library sits next to the program
+        for base in (getattr(sys, "_MEIPASS", None), os.path.dirname(sys.executable)):
+            if base:
+                out += [os.path.join(base, n) for n in names]
     repo = Path(__file__).resolve().parents[3] / "pmge"
     for sub in ("build", "build/Release", "build/Debug"):
         out += [str(repo / sub / n) for n in names]

@@ -277,7 +277,7 @@ PNG — только изображение. Оно никогда не чита
 
 ### `hydrology.json`
 
-- `algorithm_versions` (`climate-2`, `hydro-3`), `units`, `provenance` (какая поверхность
+- `algorithm_versions` (`climate-3`, `hydro-3`), `units`, `provenance` (какая поверхность
   на входе и какая итоговая), `sea_level_m`, `epoch_time_ma`, `latitude` (широта центра,
   км на градус, признак сжатия, «север — вверх»).
 - `summary.world_climate` — бюджет влаги мира за год (мм/год среднего по миру):

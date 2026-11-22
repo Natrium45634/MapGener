@@ -395,7 +395,13 @@ def _summary_v4(project) -> list[str]:
 
 
 def cmd_generate(args) -> int:
-    config = _config_from_args(args)
+    code_through = None
+    if getattr(args, "code", None):
+        from .world_tools import parse_world_code
+
+        config, code_through = parse_world_code(args.code)
+    else:
+        config = _config_from_args(args)
     last = [""]
 
     from .progress import ProgressTracker, format_seconds
@@ -411,6 +417,10 @@ def cmd_generate(args) -> int:
 
     t0 = time.perf_counter()
     through = "v1" if args.v1_only else "v2" if args.no_history else "v3" if args.no_v4 else "v4"
+    if getattr(args, "through", None):
+        through = args.through
+    elif code_through is not None:
+        through = code_through
     project = generate(config, progress=progress, through=through)
     elapsed = time.perf_counter() - t0
     print(_summary(project))
@@ -570,6 +580,22 @@ def cmd_views(_args) -> int:
                 f"    overlay {overlay.id:<18} {overlay.title}"
                 f"{'  (default)' if overlay.default else ''}"
             )
+    return 0
+
+
+def cmd_export_game(args) -> int:
+    from .export_game import export_game
+
+    project = load_project(args.project)
+    for f in export_game(project, args.out, px_per_hex=args.px_per_hex):
+        print(f)
+    return 0
+
+
+def cmd_code(args) -> int:
+    from .world_tools import world_code
+
+    print(world_code(load_project(args.project).config))
     return 0
 
 
@@ -955,6 +981,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = sub.add_parser("generate", help="generate a project")
     g.add_argument("--config", help="JSON config file (see examples/)")
+    g.add_argument("--code", help="world code «HW1-…» (seed + settings, from the GUI)")
+    g.add_argument(
+        "--through",
+        choices=("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v50"),
+        help="last stage to compute (v50 = everything, with biomes and ice)",
+    )
     g.add_argument("--preset", choices=sorted(PRESETS), help="size preset")
     g.add_argument("--seed", help="case-sensitive seed [0-9A-Za-z]+")
     g.add_argument("--width", type=int)
@@ -1068,6 +1100,19 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("project")
     e.add_argument("--out", "-o", required=True)
     e.set_defaults(func=cmd_export)
+
+    eg = sub.add_parser(
+        "export-game",
+        help="export for game engines: 16-bit height map, biome/river maps, hex table, names",
+    )
+    eg.add_argument("project")
+    eg.add_argument("--out", "-o", required=True)
+    eg.add_argument("--px-per-hex", type=float, default=8.0, help="pixels per hex (default 8)")
+    eg.set_defaults(func=cmd_export_game)
+
+    cd = sub.add_parser("code", help="print the world code «HW1-…» of a saved project")
+    cd.add_argument("project")
+    cd.set_defaults(func=cmd_code)
 
     i = sub.add_parser("info", help="show a saved project")
     i.add_argument("project")
