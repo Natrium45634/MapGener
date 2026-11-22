@@ -374,7 +374,8 @@ class TopoclimateParams:
     mass_elevation_effect_max_c: float = 0.0
     #: synthetic humidity profile (no humidity field exists upstream): RH over the sea / inland
     rh_marine: float = 0.8
-    rh_inland: float = 0.5
+    #: Relative humidity of an inland month with P = PET (drier months lower, wetter higher).
+    rh_inland: float = 0.68
     sunlight_hours_per_day_samples: int = 12
     precipitation_factor_bounds: tuple = (0.15, 5.0)
     snow_mobile_share: float = 0.3

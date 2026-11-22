@@ -330,6 +330,11 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     parent = flat(E["parent_material_class"]).astype(np.int64)[uh]
     drain = flat(E["drainage_class"]).astype(np.int64)[uh]
     river = (flat(L["river_mask"]).astype(bool))[uh]
+    coast_u = (
+        flat(L["coast_type"]).astype(np.int64)[uh]
+        if "coast_type" in L
+        else np.zeros(U, dtype=np.int64)
+    )
     endor = (flat(L["endorheic_mask"]).astype(bool))[uh]
     coastal = marine_inf > 0.5
     vage = np.nan_to_num(flat(H["volcanic_age_ma"]).astype(np.float64), nan=1e9)[uh]
@@ -375,7 +380,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
                       np.abs(d["aspect"] - 180) < 45) & (d["slope"] > 15)  # fmt: skip
     # ombrotrophic proxy (poor drainage, rain surplus) and soft-sediment badlands proxy
     bog_rain = ((drain >= 4) & (alpha > 0.9) & (p_year > pet_year)).astype(float)
-    badlands = ((parent == PM["sedimentary_bedrock"]) & (d["slope"] > 15)
+    badlands = ((parent == PM["sedimentary_bedrock"]) & (d["slope"] > 8)
                 & (np.nan_to_num(ai, nan=9.0) < 0.3)).astype(float)  # fmt: skip
     for c0 in range(0, di.size, step):
         sel = di[c0 : c0 + step]
@@ -405,7 +410,8 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
             "gypsum": np.zeros(sel.size), "erosion": rock_u[sel],
             "permafrost": d["permafrost"][sel], "cloud": d["cloud"][sel],
             "soil_depth": f.soil_depth, "snow_months": f.snow_months, "cap": d["cap"][sel],
-            "marine": marine_inf[sel], "shadow": shadow[sel],
+            "marine": marine_inf[sel], "shadow": shadow[sel], "coast": coast_u[sel],
+            "drain": drain[sel],
         })  # fmt: skip
         biome[sel] = cls["biome"]
         limiting[sel] = cls["limiting"]
@@ -460,9 +466,16 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
 
     # -- hex aggregation: whole-hex biome fractions (CSR) -----------------------------------------
     w = d["w"]
-    fractions, fr, hex_of, dominant = aggregate_fractions(uh, w, biome, n_hex)
+    # tidal fringes (mangroves, salt marshes, coastal sabkhas): a belt a few km wide along the
+    # coast of the hex, taken out of its dry units - a 40 km hex is not all mangrove
+    f_uh, f_w, f_b, fringe_info = tidal_fringe(
+        uh, w, biome, dry, d["slope"], flat(L["coast_type"]) if "coast_type" in L else None,
+        t_hex.min(axis=0), t_hex.max(axis=0), ai_hex, layout.spacing_km, n_hex,
+    )  # fmt: skip
+    fractions, fr, hex_of, dominant = aggregate_fractions(f_uh, f_w, f_b, n_hex)
     offsets = fractions["offsets"]
-    _f2, _fr2, _h2, dominant_land = aggregate_fractions(uh[dry], w[dry], biome[dry], n_hex)
+    f_dry = np.concatenate([dry, np.ones(f_uh.size - uh.size, dtype=bool)])
+    _f2, _fr2, _h2, dominant_land = aggregate_fractions(f_uh[f_dry], f_w[f_dry], f_b[f_dry], n_hex)
 
     def hmean(v, mask=None):
         ww = w if mask is None else w * mask
@@ -613,6 +626,84 @@ def aggregate_fractions(unit_hex, weights, biome, n_hex):
         first = np.r_[True, hex_of[order][1:] != hex_of[order][:-1]]
         dominant[hex_of[order][first]] = codes[order][first]
     return fractions, fr, hex_of, dominant
+
+
+#: Width of the tidal fringe, km: mangrove coast, other sheltered tropical coasts, tidal-flat
+#: (wadden) coast, other sheltered temperate coasts, sabkha.
+FRINGE_KM = {"mangrove": 4.0, "soft_tropical": 1.5, "tidal_flat": 2.0, "soft_temperate": 0.6,
+             "sabkha": 3.0}  # fmt: skip
+_SOFT_COASTS = ("delta", "estuary", "liman", "tidal_flat", "barrier_lagoon")
+
+
+def tidal_fringe(uh, w, biome, dry, slope, coast, tc_hex, tw_hex, ai_hex, spacing_km, n_hex):
+    """Extra units of mangrove / salt marsh / sabkha on coast hexes (and the rest shrunk).
+
+    The coast type of the hex (v4.1: tides, waves, sediment, sea temperature) picks the
+    fringe; its share of the hex is ``belt width x coast length / hex area`` (coast length
+    ~ one hex spacing), at most half of the hex's dry land, and only where the hex has
+    low, gentle ground (a unit with slope < 3 deg). Returns the extended unit arrays.
+    """
+    if coast is None:
+        return uh, w, biome, {"hexes": 0}
+    from .stages.coasts import COAST_TYPES
+
+    code = {name: i for i, name in enumerate(COAST_TYPES)}
+    coast = np.asarray(coast).astype(np.int64)
+    soft = np.isin(coast, [code[k] for k in _SOFT_COASTS])
+    tropical = (tc_hex >= 18.0) & (tw_hex >= 24.0)
+    kind = np.full(n_hex, -1)
+    belt = np.zeros(n_hex)
+    mang = (coast == code["mangrove"]) | (soft & tropical)
+    kind[mang] = 0
+    belt[mang] = np.where(coast[mang] == code["mangrove"], FRINGE_KM["mangrove"],
+                          FRINGE_KM["soft_tropical"])  # fmt: skip
+    marsh = ~mang & ((coast == code["tidal_flat"]) | soft) & (tw_hex > 6.0) & (ai_hex > 0.05)
+    kind[marsh] = 1
+    belt[marsh] = np.where(coast[marsh] == code["tidal_flat"], FRINGE_KM["tidal_flat"],
+                           FRINGE_KM["soft_temperate"])  # fmt: skip
+    sab = (coast == code["sabkha"]) & (ai_hex < 0.2) & (tw_hex >= 22.0)
+    kind[sab] = 2
+    belt[sab] = FRINGE_KM["sabkha"]
+    gentle = np.zeros(n_hex, dtype=bool)
+    np.logical_or.at(gentle, uh[dry], slope[dry] < 3.0)
+    dry_w = np.bincount(uh[dry], weights=w[dry], minlength=n_hex)
+    hex_area = 0.5 * np.sqrt(3.0) * spacing_km**2
+    share = np.minimum(belt * spacing_km / hex_area, 0.5) * dry_w
+    take = (kind >= 0) & gentle & (dry_w > 0) & (share > 0)
+    hx = np.nonzero(take)[0]
+    if hx.size == 0:
+        return uh, w, biome, {"hexes": 0}
+    # shrink the dry units of those hexes, then add the fringe units
+    scale = np.ones(n_hex)
+    scale[hx] = 1.0 - share[hx] / dry_w[hx]
+    w2 = np.where(dry, w * scale[uh], w)
+    new_uh, new_w, new_b = [], [], []
+    for k, (a, b_) in enumerate((("forest_tropical_mangrove", "wetland_mangrove_intertidal"),
+                                 ("wetland_saltmarsh_tidal", None),
+                                 ("desert_hot_salt_flat", None))):  # fmt: skip
+        sel = hx[kind[hx] == k]
+        if sel.size == 0:
+            continue
+        if b_ is None:
+            new_uh.append(sel)
+            new_w.append(share[sel])
+            new_b.append(np.full(sel.size, INDEX[a]))
+        else:  # mangrove forest behind its intertidal fringe (2 : 1)
+            new_uh += [sel, sel]
+            new_w += [share[sel] * 2 / 3, share[sel] / 3]
+            new_b += [np.full(sel.size, INDEX[a]), np.full(sel.size, INDEX[b_])]
+    info = {
+        "hexes": int(hx.size),
+        "mangrove": int((kind[hx] == 0).sum()),
+        "salt_marsh": int((kind[hx] == 1).sum()),
+        "sabkha": int((kind[hx] == 2).sum()),
+    }
+    return (
+        np.concatenate([uh, *new_uh]),
+        np.concatenate([w2, *new_w]),
+        np.concatenate([biome, *[b.astype(biome.dtype) for b in new_b]]),
+        info,
+    )
 
 
 def marine_classes(depth_m, trench, t_cold_c, river_mouth):

@@ -81,6 +81,17 @@ RATES = {
 }
 #: Memory of the recent rain that feeds the land evapotranspiration (share per step).
 RECENT_RAIN = 0.08
+#: Annual mean warming of open-water coasts per degree of latitude poleward of 40 deg, degC.
+MARITIME_WARMING = 0.3
+#: Annual temperature range of a coast relative to a deep interior (Bergen vs Yakutsk).
+COAST_SEASONALITY = 0.33
+
+
+def _smooth01(x):
+    t = np.clip(x, 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
 #: World-raster cell size the per-step rates are calibrated at, km.
 CELL_REF_KM = 86.0
 
@@ -384,15 +395,26 @@ def world_climate(
     t_zone = (
         zonal_temperature(lat) + PROFILE_T_OFFSET.get(profile, 0.0) + params.temperature_offset_c
     )
-    # continental interiors: colder annual means at high latitude, a little warmer in the tropics
+    # seas that freeze in winter (zonal mean below ~ -3 degC) make their coasts continental:
+    # no winter warmth from the water, a large annual range (Arctic coasts)
+    sea_ice = _smooth01((2.0 - t_zone) / 10.0)
+    # continental interiors: colder annual means at high latitude, a little warmer in the
+    # tropics; open-water coasts poleward of 40 deg are warmer than the zonal mean (which is
+    # dominated by the interiors): the oceans carry heat there
     t_sl = (
         t_zone
         - cont * np.clip(phi - 35.0, 0.0, None) * 0.12
         + cont * 0.8 * np.exp(-((phi / 20.0) ** 2))
+        + (1.0 - cont) * (1.0 - sea_ice) * MARITIME_WARMING * np.clip(phi - 40.0, 0.0, 30.0)
     )
     sst = np.maximum(t_zone, -1.8)
     t_sl = np.where(sea, sst, t_sl)
-    seasonal = params.seasonality * (1.0 + 0.32 * phi) * (0.25 + 0.75 * cont)
+    cont_season = np.maximum(cont, sea_ice)
+    seasonal = (
+        params.seasonality
+        * (1.0 + 0.32 * phi)
+        * (COAST_SEASONALITY + (1.0 - COAST_SEASONALITY) * cont_season)
+    )
     winds = seasonal_winds(params, lat, cont, seasonal, land_h, cell_km)
 
     # -- conservative moisture transport, season by season -------------------------------

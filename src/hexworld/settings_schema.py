@@ -1404,7 +1404,7 @@ PARAMS: tuple[Param, ...] = (
     ),
     _p("topoclimate.rh_marine", "Влажность воздуха у моря", "topo", "float", 0, 1, (0.7, 0.9)),
     _p(
-        "topoclimate.rh_inland", "Влажность воздуха внутри суши", "topo", "float", 0, 1, (0.35, 0.6)
+        "topoclimate.rh_inland", "Влажность воздуха внутри суши", "topo", "float", 0, 1, (0.55, 0.8)
     ),
     _p("topoclimate.snow_mobile_share", "Переметание снега", "topo", "float", 0, 1, (0.15, 0.45)),
     _p(

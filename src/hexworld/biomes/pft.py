@@ -544,7 +544,7 @@ def suitability(f: Features) -> np.ndarray:
         if t.form == "tree":
             s = s * np.clip(f.tree_score, 0.0, 1.0)
         if t.id == "TREE_MONTANE_CLOUD":
-            s = s * _sig((f.cloud - 0.25) / 0.06)
+            s = s * _sig((f.cloud - 0.12) / 0.05)
         if t.id == "SHRUB_SCLEROPHYLL":
             s = s * _sig((f.summer_dry - 1.5) / 0.5)  # needs a dry summer
         if t.id == "TREE_MANGROVE":
@@ -553,12 +553,23 @@ def suitability(f: Features) -> np.ndarray:
     return out
 
 
+#: Temperature where photosynthesis starts, degC, where it differs from the growing-degree base:
+#: boreal and temperate conifers and larch fix carbon from ~0-2 degC (Jarvis & Linder 2000;
+#: Suni et al. 2003), so in short cool summers they are not out-competed by dwarf shrubs.
+PHOTO_BASE_C = {
+    "TREE_BOREAL_EVERGREEN": 0.0,
+    "TREE_BOREAL_DECID": 1.0,
+    "TREE_TEMP_CONIFER": 1.0,
+    "TREE_TEMP_DECID": 3.0,
+}
+
+
 def productivity(f: Features, suit: np.ndarray) -> np.ndarray:
     """(P, U) dimensionless productivity index of every PFT (0..~1)."""
     out = np.empty_like(suit)
     ref = 0.48 * 20.0 * 30.4 * 12.0 * (1.0 - np.exp(-0.5 * 6.0))  # an ideal tropical year
     for k, t in enumerate(TRAITS):
-        s_t = np.clip((f.t_m - t.gdd_base) / 15.0, 0.0, 1.0)
+        s_t = np.clip((f.t_m - PHOTO_BASE_C.get(t.id, t.gdd_base)) / 15.0, 0.0, 1.0)
         # drought-adapted types reach their full rate at a lower moisture (water-use
         # efficiency): saturation at 2.5 alpha_min + 0.15, within [0.2, 0.8] [А]
         w_sat = float(np.clip(2.5 * t.alpha_min + 0.15, 0.2, 0.8))

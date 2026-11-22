@@ -108,6 +108,12 @@ TOPO_LAYER_SPECS = {
 }
 
 
+#: Orographic cloud: the air comes from low ground within this distance, km; the cloud belt
+#: on a mountain is this thick, m (tropical montane cloud belts span ~1-3 km).
+CLOUD_SOURCE_KM = 150.0
+CLOUD_BELT_M = 1800.0
+
+
 def _key(*parts) -> str:
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -363,6 +369,14 @@ def run_topoclimate(config, geometry, project, report=None):  # noqa: C901 - one
     sea = float(project.hydro.sea_level_m)
     lapse = float(config.climate.lapse_rate_c_per_km)
 
+    # regional low ground (~150 km around): the air that forms orographic cloud on a mountain
+    # rises from there, so the cloud base is counted from it, not from the hex itself
+    from scipy import ndimage as _ndi
+
+    z_grid = np.maximum(H["z"], sea).reshape(layout.height, layout.width)
+    reach = max(1, int(round(CLOUD_SOURCE_KM / layout.spacing_km)))
+    z_low = _ndi.minimum_filter(z_grid, size=2 * reach + 1, mode="nearest").ravel()
+
     # -- Gate A: samples of the sub-hex surface ---------------------------------------------
     coarse = CoarseSurface(layout, H["z"])
     land = ~H["ocean"]
@@ -549,15 +563,22 @@ def run_topoclimate(config, geometry, project, report=None):  # noqa: C901 - one
                 anomaly[m] -= np.where(den > 0, num / np.maximum(den, 1e-12), 0.0)[g]
         t_loc = t_base + anomaly
         # humidity: synthetic reference RH carried as specific humidity to the local level
-        rh_ref = np.clip(tp.rh_inland + (tp.rh_marine - tp.rh_inland) * H["marine"][hx_], 0.05, 1.0)
+        # inland RH follows the month's wetness (P/PET): ~0.3 in deserts, ~0.85 in rainforests;
+        # rh_inland is the value of a month with P = PET. The sea air (rh_marine) is blended in
+        # by the marine influence of the hex.
+        wet_m = np.maximum(p_hex, 0.0) / np.maximum(pet_hex, 5.0)
+        rh_in = np.clip(tp.rh_inland + 0.12 * np.log(np.clip(wet_m, 0.03, 8.0)), 0.15, 0.92)
+        mar = H["marine"][hx_][None, :]
+        rh_ref = np.clip(rh_in + (tp.rh_marine - rh_in) * mar, 0.05, 1.0)
         p_ref = atm.pressure_fao_kpa(z_ref)
         p_loc = atm.pressure_fao_kpa(z_air)
         rh, _vpd, condense = atm.local_humidity(
-            t_hex, rh_ref[None, :], p_ref[None, :], t_loc, p_loc[None, :]
+            t_hex, rh_ref, p_ref[None, :], t_loc, p_loc[None, :]
         )
         condensation_months += int((condense & d_u[None, :]).sum())
-        td_ref = atm.dew_point_c(t_hex, rh_ref[None, :])
-        cloud_base = z_ref[None, :] + atm.lcl_height_agl_m(t_hex, td_ref)
+        z_src = np.minimum(z_low[hx_], z_ref)
+        t_src = t_hex + lapse * (z_ref - z_src)[None, :] / 1000.0
+        cloud_base = z_src[None, :] + atm.lcl_height_agl_m(t_src, atm.dew_point_c(t_src, rh_ref))
         # precipitation: the detail gradient (the hex P already holds the hex-mean slope)
         wd = w_ * d_u
         den = np.maximum(np.bincount(g, weights=wd, minlength=ng), 1e-12)
@@ -582,8 +603,13 @@ def run_topoclimate(config, geometry, project, report=None):  # noqa: C901 - one
                     snow, w_[di], drift[di], tp.snow_mobile_share, g[di], ng
                 )
                 precip[m, di] += moved - snow
-        cloud_pot = rd.cloud_potential(rh_ref[None, :], uplift[None, :], z_air[None, :], cloud_base)
-        fog_pot = rd.fog_potential(rh, cap[None, :], u_loc[None, :])
+        cloud_pot = rd.cloud_potential(
+            rh_ref, uplift[None, :], z_air[None, :], cloud_base, thickness_m=CLOUD_BELT_M
+        )
+        fog_pot = np.maximum(
+            rd.fog_potential(rh, cap[None, :], u_loc[None, :]),
+            rd.advection_fog_potential(rh_ref, mar, t_loc, u_loc[None, :]),
+        )
         # PET and soil of the unit, then the v4.5 water kernel
         pe_hex = potential_et(t_hex)
         pe_loc = potential_et(t_loc)

@@ -148,6 +148,24 @@ def fog_potential(rh_local, cap, wind_ms):
     )
 
 
+def advection_fog_potential(rh_local, marine, t_c, wind_ms):
+    """Sea fog carried onto a warm coast (coastal fog deserts, «garúa») 0..1.
+
+    ``rh_local`` is the humidity of the incoming (sea-blended) air, not of the heated ground.
+
+    Moist sea air (high RH near the coast) over warm ground in a light-to-moderate onshore
+    breeze; it fades inland with the marine influence and does not form below freezing.
+    """
+    return np.clip(
+        smoothstep(0.55, 0.8, rh_local)
+        * np.clip(np.asarray(marine), 0.0, 1.0) ** 1.5
+        * smoothstep(5.0, 15.0, t_c)
+        * (1.0 - smoothstep(6.0, 12.0, wind_ms)),
+        0.0,
+        1.0,
+    )
+
+
 # -- reference bucket of TZ 7.4 (control calculation T27) -----------------------------------
 def tz_bucket_step(
     w, gw, swe, rain, melt, awc, infiltration_limit, aet, recharge_fraction, release_fraction

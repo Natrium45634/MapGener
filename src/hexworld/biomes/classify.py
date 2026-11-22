@@ -55,6 +55,18 @@ def classify_units(c: dict) -> dict:
     herb_sh = np.where(v > 0, herb / np.maximum(v, 1e-9), 0.0)
     tree_cover_abs = tree
     dom_tree = np.argmax(np.where(pft.IS_TREE[:, None], cover, -1.0), axis=0)
+    # flood-tolerant trees make a floodplain forest only on floodplains and along rivers;
+    # elsewhere the zonal tree type of the unit names its forest
+    fl = pft.PFT_INDEX["TREE_FLOOD_TOLERANT"]
+    # (a river in a 40 km hex does not make the hex a floodplain)
+    on_flood = (c["floodplain"] > 0.3) | (
+        c["river"] & (c["waterlog"] >= 4.0) & (c["slope_deg"] < 0.5) & (c["valley"] > 0.2)
+    )
+    others = np.where(pft.IS_TREE[:, None], cover, -1.0)
+    others[fl] = -1.0
+    second = np.argmax(others, axis=0)
+    swap = (dom_tree == fl) & ~on_flood & (others.max(axis=0) > 0.0)
+    dom_tree = np.where(swap, second, dom_tree)
     mountain = c["mountain"]
     z = c["z"]
     ai = c["ai"]
@@ -84,17 +96,24 @@ def classify_units(c: dict) -> dict:
     put(nunatak, "barren_nunatak")
 
     # --- 2. recent volcanic surfaces --------------------------------------------------------
-    young_volc = (pm == c["pm_young_volcanic"]) & (c["volcanic_age"] < 0.5) & (v < 0.3)
+    young_volc = (pm == c["pm_young_volcanic"]) & (c["volcanic_age"] < 1.0) & (v < 0.5)
     mods |= np.where(pm == c["pm_young_volcanic"], MOD_BIT["volcanic_ash_young"], 0)
     lim |= np.where(young_volc, LF_BIT["young_volcanic"], 0)
     put(young_volc, "barren_volcanic_recent")
 
     # --- 3. wetlands -------------------------------------------------------------------------
+    # standing water half the year, or 4+ months on very poorly drained ground: a hex that is
+    # merely damp for a season is not a swamp
     low_flat = (slope < 4.0) & (c["rank"] < 0.6)
-    wet = (wlog >= 4.0) & low_flat & ~hyper
+    drain = c.get("drain")
+    very_poor = (drain >= 5) if drain is not None else np.ones(u, dtype=bool)
+    wet = ((wlog >= 6.0) | ((wlog >= 4.0) & very_poor)) & low_flat & ~hyper
     mods |= np.where(wlog >= 2.0, MOD_BIT["seasonal_flood"], 0)
     lim |= np.where(wlog >= 4.0, LF_BIT["flooding"], 0)
     put(wet & (salt > 0.45), "wetland_inland_saline")
+    # salt marshes of closed basins: seasonally wet, saline lowest ground
+    saline_basin = c["endorheic"] & (wlog >= 2.0) & (salt > 0.3) & (slope < 2.0) & ~hyper
+    put(saline_basin & (c["rank"] <= 0.5), "wetland_inland_saline")
     trees_wet = wet & (tree_cover_abs > 0.3)
     put(trees_wet & (tc > 15.0), "forest_tropical_swamp")
     put(trees_wet & (gdd5 < 1300), "boreal_peat_swamp_forest")
@@ -102,8 +121,10 @@ def classify_units(c: dict) -> dict:
     peat = wet & (c["organic"] > 0.6) & (gdd5 < 2200)
     mods |= np.where(peat, MOD_BIT["peat_accumulation"], 0)
     put(peat & (c["drainage_poor_rain"] > 0.5), "wetland_bog")
+    # minerotrophic peat: fed by rivers or groundwater rather than rain
+    put(peat & (c["river"] | (c["floodplain"] > 0.2)), "wetland_fen")
     put(peat, "wetland_peatland_mosaic")
-    put(wet & (c["floodplain"] > 0.5), "wetland_floodplain_seasonal")
+    put(wet & ((c["floodplain"] > 0.5) | c["river"]), "wetland_floodplain_seasonal")
     put(wet & (wlog >= 6.0), "wetland_fresh_marsh")
     put(wet, "wetland_unclassified")
 
@@ -138,13 +159,17 @@ def classify_units(c: dict) -> dict:
     # floor), not on every saline soil of an arid region
     pan = endor & (c["rank"] < 0.25) & (slope < 2.0)
     put(hot_dry & pan & (salt > 0.7) & (c["rank"] < 0.12), "desert_hot_salt_flat")
+    # takyr / playa: the flat clay floor of a dry lake that fills now and then
+    put(barren & arid & pan & ((wlog >= 0.5) | (c["rank"] < 0.18)), "desert_playa_dry_lake")
     put(hot_dry & pan & (salt > 0.55), "desert_saline_crust")
-    put(barren & arid & pan & (salt > 0.55) & (wlog >= 1.0), "desert_playa_dry_lake")
-    put(hot_dry & (c["fog"] > 0.25) & c["coastal"], "desert_hot_fog_coast")
+    put(hot_dry & (c["fog"] > 0.2) & c["coastal"], "desert_hot_fog_coast")
     put(hot_dry & (pm == c["pm_aeolian"]), "desert_hot_sand_erg")
-    put(hot_dry & ((rocky > 0.5) | (slope > 12.0)), "desert_hot_rock_hamada")
     put(hot_dry & (c["badlands"] > 0.5), "desert_badlands_barren")
-    put(hot_dry & (c["gypsum"] > 0.5), "barren_gypsum_alkali")
+    # gypsum and alkali flats: hyper-arid closed basins, moderately saline (no gypsum model)
+    # (the gentle rims of hyper-arid closed basins, around their salt pans)
+    gyps = (c["gypsum"] > 0.5) | (endor & hyper & ~pan & (slope < 5.0))
+    put(hot_dry & gyps, "barren_gypsum_alkali")
+    put(hot_dry & ((rocky > 0.5) | (slope > 12.0)), "desert_hot_rock_hamada")
     put(hot_dry, "desert_hot_gravel_reg")
     put(barren & (tc < -2.0) & arid, "desert_temperate_cold")
     put(barren & arid & (v >= 0.02), "desert_semi_arid_sparse")
@@ -169,41 +194,54 @@ def classify_units(c: dict) -> dict:
     put(above, "tundra_sedge_graminoid")
 
     # --- 7. forests, woodlands, grass and shrub --------------------------------------------
-    forest = (canopy >= 0.6) & (v >= 0.4)
-    woodland = (canopy >= 0.1) & ~forest
     ids = pft.PFT_INDEX
     d = dom_tree
+    # boreal and larch forests are naturally open (crown cover 30-60 % counts as taiga)
+    boreal_tree = np.isin(d, [ids["TREE_BOREAL_EVERGREEN"], ids["TREE_BOREAL_DECID"]])
+    forest = ((canopy >= 0.6) | (boreal_tree & (canopy >= 0.4))) & (v >= 0.4)
+    woodland = (canopy >= 0.1) & ~forest
     cover_of = {k: cover[ids[k]] for k in ids}
     con = cover_of["TREE_TEMP_CONIFER"] + cover_of["TREE_BOREAL_EVERGREEN"]
     broad = cover_of["TREE_TEMP_DECID"] + cover_of["TREE_TEMP_EVERGREEN"]
-    mixed = (np.minimum(con, broad) > 0.3 * np.maximum(con, broad)) & (con + broad > 0)
-    cloud = (d == ids["TREE_MONTANE_CLOUD"]) | (mountain & (c["cloud"] > 0.35) & (tc > 10))
+    mixed = (np.minimum(con, broad) > 0.6 * np.maximum(con, broad)) & (con + broad > 0)
+    cloud = (d == ids["TREE_MONTANE_CLOUD"]) | (mountain & (c["cloud"] > 0.15) & (tc > 8))
     mods |= np.where(c["cloud"] > 0.35, MOD_BIT["montane_cloud_belt"], 0)
-    put(forest & cloud & (tc > 10.0), "forest_tropical_cloud_montane")
+    put(forest & cloud & (tc > 8.0), "forest_tropical_cloud_montane")
     put(forest & (d == ids["TREE_TROP_EVERGREEN"]), "forest_tropical_everwet")
     put(forest & (d == ids["TREE_TROP_SEASONAL"]) & (dry_m <= 4.5), "forest_tropical_monsoon")
     put(forest & (d == ids["TREE_TROP_SEASONAL"]), "forest_tropical_seasonal_dry")
     put(forest & (d == ids["TREE_TROP_DRY"]), "forest_tropical_seasonal_dry")
     sub_ever = forest & (d == ids["TREE_TEMP_EVERGREEN"])
     put(sub_ever & (alpha > 0.95) & (c["p_year"] > 1800) & (tc < 10), "forest_temperate_rainforest")
-    put(sub_ever & (tc > 7.0) & (sdry < 1.5), "forest_subtropical_evergreen")
     put(sub_ever & (sdry >= 2.0), "forest_mediterranean_sclerophyll")
-    put(sub_ever & (tc > 7.0), "forest_subtropical_seasonal")
+    # a dry winter (monsoon subtropics) rather than a dry summer
+    put(sub_ever & (tc > 7.0) & (dry_m >= 2.0), "forest_subtropical_seasonal")
+    put(sub_ever & (tc > 7.0), "forest_subtropical_evergreen")
     put(sub_ever, "forest_temperate_evergreen_broadleaf")
     temp = forest & np.isin(d, [ids["TREE_TEMP_DECID"], ids["TREE_TEMP_CONIFER"]])
-    put(temp & mountain & (c["rank"] > 0.5) & (margin < 1.5), "forest_montane_temperate")
+    put(temp & mountain & ((z > 1200.0) | (margin < 1.5)), "forest_montane_temperate")
     put(temp & (alpha > 0.95) & (c["p_year"] > 2000), "forest_temperate_rainforest")
     put(temp & mixed, "forest_temperate_mixed")
     put(forest & (d == ids["TREE_TEMP_DECID"]), "forest_temperate_deciduous")
     put(forest & (d == ids["TREE_TEMP_CONIFER"]), "forest_temperate_conifer")
     bor = forest & np.isin(d, [ids["TREE_BOREAL_EVERGREEN"], ids["TREE_BOREAL_DECID"]])
     b_ev, b_de = cover_of["TREE_BOREAL_EVERGREEN"], cover_of["TREE_BOREAL_DECID"]
-    bmix = np.minimum(b_ev, b_de) > 0.35 * np.maximum(b_ev, b_de)
+    bmix = np.minimum(b_ev, b_de) > 0.65 * np.maximum(b_ev, b_de)
     put(bor & bmix & (d != ids["TREE_BOREAL_DECID"]), "forest_boreal_mixed")
     put(bor & (d == ids["TREE_BOREAL_DECID"]), "forest_boreal_deciduous_larch")
     put(bor & (alpha > 0.8), "forest_boreal_dark_conifer")
     put(bor, "forest_boreal_light_conifer")
-    put(forest & (d == ids["TREE_FLOOD_TOLERANT"]), "forest_floodplain_temperate")
+    flood_forest = forest & (d == ids["TREE_FLOOD_TOLERANT"])
+    put(flood_forest & on_flood & (tc > 15.0), "forest_tropical_floodplain")
+    put(flood_forest & on_flood, "forest_floodplain_temperate")
+    # flood-tolerant trees off the floodplain (no other tree type there): a swamp forest only
+    # on real wetland ground, otherwise the zonal forest of the climate - soil that is wet
+    # for a few months is not a swamp
+    put(flood_forest & wet & (tc > 15.0), "forest_tropical_swamp")
+    put(flood_forest & wet, "forest_wetland_temperate")
+    put(flood_forest & (tc > 15.0) & (dry_m <= 2.0), "forest_tropical_everwet")
+    put(flood_forest & (tc > 15.0), "forest_tropical_monsoon")
+    put(flood_forest & (gdd5 < 1300), "forest_boreal_dark_conifer")
     put(forest, "forest_temperate_mixed")
 
     trop = tc > 15.0
