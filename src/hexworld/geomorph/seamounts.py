@@ -129,8 +129,9 @@ def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blen
     summary = {"field_seamounts": 0, "field_guyots": 0, "field_islands": 0}
     if m.size == 0:
         return relief, summit, kind, summary
+    pad = 2.5 * float(np.sqrt((5.5 * 9.0) ** 2 + (0.6 * spacing_km) ** 2)) + 10.0
     cat = seamount_catalogue(
-        seed, mx[m].min() - 60, my[m].min() - 60, mx[m].max() + 60, my[m].max() + 60
+        seed, mx[m].min() - pad, my[m].min() - pad, mx[m].max() + pad, my[m].max() + pad
     )
     if cat.shape[0] == 0:
         return relief, summit, kind, summary
@@ -138,7 +139,10 @@ def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blen
     r_eff = np.sqrt(r * r + (0.6 * spacing_km) ** 2)
     h_eff = h * (r / r_eff) ** 2
     tree = cKDTree(np.column_stack([sx, sy]))
-    reach = float(r_eff.max()) * 2.5
+    # a fixed reach (the largest possible edifice), not the largest of this catalogue: the
+    # catalogue depends on the window, the reach must not (window-independent relief)
+    r_max = 5.5 * 9.0
+    reach = 2.5 * float(np.sqrt(r_max * r_max + (0.6 * spacing_km) ** 2))
     k = min(6, sx.size)
     d, idx = tree.query(np.column_stack([mx[m], my[m]]), k=k, distance_upper_bound=reach)
     if k == 1:
