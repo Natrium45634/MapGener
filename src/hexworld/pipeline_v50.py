@@ -286,6 +286,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
             uh[cidx], d["w"][cidx], np.ones(cidx.size, dtype=bool), d["t_m"][:, cidx],
             d["p_m"][:, cidx], d["pet_m"][:, cidx], flat(L["elevation_m"]).astype(np.float64),
             nbr, layout.spacing_km, n_hex, cp, seed_ice_hex=seed if cp.paleo_ice else None,
+            progress=lambda f: rep(0.02 + 0.85 * f),
         )  # fmt: skip
         for k, v in res.unit.items():
             if k in cryo_unit:
@@ -298,7 +299,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     form_hex, ice_id_hex, bodies = _ice_forms(ice_hex, dry_hex_w > 0, nbr, layout.spacing_km,
                                               mountain_hex)  # fmt: skip
     timings["v50_cryosphere"] = round(time.perf_counter() - t0, 3)
-    rep(0.4)
+    rep(0.88)
 
     # -- features ----------------------------------------------------------------------------------
     t0 = time.perf_counter()
@@ -411,7 +412,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         modifiers[sel] = cls["modifiers"]
         canopy[sel] = cls["canopy_fraction"]
     timings["v50_pft_classes"] = round(time.perf_counter() - t0, 3)
-    rep(0.8)
+    rep(0.96)
 
     # -- water units: lakes and the sea ----------------------------------------------------------
     t0 = time.perf_counter()
@@ -661,7 +662,11 @@ def run_v50(config, geometry, project, old_keys: dict, old_cache: dict, report):
         data = old_cache["v50_biomes"]
         return data, {"v50_biomes": data}, ["v50_biomes"]
     report("v50_biomes", 0.998)
-    res = run_biomes(config, geometry, project)
+    from .progress import sub_report
+
+    res = run_biomes(
+        config, geometry, project, report=lambda f: report(sub_report("v50_biomes", f), 0.998)
+    )
     warnings = []
     s = res["summary"]
     if s["input_quality"] == "coarse_hex_fallback":

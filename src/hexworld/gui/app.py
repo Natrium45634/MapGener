@@ -6,12 +6,13 @@ view there. Switching a tab changes the presentation only.
 
 from __future__ import annotations
 
+import os
 import sys
 import traceback
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -195,6 +196,13 @@ class MainWindow(QMainWindow):
         # -- side panel -------------------------------------------------------
         side = QWidget()
         col = QVBoxLayout(side)
+        self.new_world_btn = QPushButton("🌍 Новый мир… (все настройки генерации)")
+        self.new_world_btn.setToolTip(
+            "Сид, все параметры генерации с замками, пресеты миров, размер карты и старт"
+        )
+        self.new_world_btn.setMinimumHeight(36)
+        self.new_world_btn.clicked.connect(self.new_world)
+        col.addWidget(self.new_world_btn)
         col.addWidget(self._build_world_box())
         col.addWidget(self._build_v2_box())
         col.addWidget(self._build_v3_box())
@@ -671,7 +679,7 @@ class MainWindow(QMainWindow):
         return self._worker is None or not self._worker.isRunning()
 
     def _set_busy(self, busy: bool):
-        for w in (self.generate_btn, self.open_btn, self.v2_button):
+        for w in (self.generate_btn, self.open_btn, self.v2_button, self.new_world_btn):
             w.setEnabled(not busy)
         has_v3 = self.project is not None and self.project.hist is not None
         self.v4_btn.setEnabled(not busy and has_v3)
@@ -684,9 +692,20 @@ class MainWindow(QMainWindow):
         self.cancel_btn.setEnabled(busy)
         self.progress.setVisible(busy)
 
-    def _run(self, job, on_done):
+    def _run(self, job, on_done, through: str | None = None, hexes: int | None = None,
+             title: str = "Генерация мира"):  # fmt: skip
+        from ..progress import ProgressTracker
+        from .progress_dialog import ProgressDialog
+
         self._set_busy(True)
         self.progress.setValue(0)
+        self._tracker = None
+        self._progress_dialog = None
+        if through is not None:
+            self._tracker = ProgressTracker(through, hexes or 10_000)
+            self._progress_dialog = ProgressDialog(title, self._tracker, self)
+            self._progress_dialog.cancel_requested.connect(self.cancel_generation)
+            self._progress_dialog.show()
         worker = Worker(job, self)
         worker.progress.connect(self._on_progress)
         worker.succeeded.connect(on_done)
@@ -697,12 +716,31 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_worker_finished(self):
+        dlg = getattr(self, "_progress_dialog", None)
+        if dlg is not None:
+            dlg.finish()
+            self._progress_dialog = None
         self._set_busy(False)
         self._apply_view()
 
     def _on_progress(self, stage: str, fraction: float):
+        from ..progress import format_seconds
+
+        dlg = getattr(self, "_progress_dialog", None)
+        tracker = getattr(self, "_tracker", None)
+        if dlg is not None:
+            dlg.report(stage, fraction)
+        if tracker is not None:
+            st = tracker.state()
+            self.progress.setValue(int(1000 * st.overall))
+            self.statusBar().showMessage(
+                f"Генерация: {st.title}… прошло {format_seconds(st.elapsed_s)}, "
+                f"осталось ~{format_seconds(st.eta_s)}"
+            )
+            return
+        key = stage.partition("@")[0]
         self.progress.setValue(int(1000 * fraction))
-        self.statusBar().showMessage(f"Генерация: {STAGE_TITLES.get(stage, stage)}…")
+        self.statusBar().showMessage(f"Генерация: {STAGE_TITLES.get(key, key)}…")
 
     def _on_failed(self, message: str):
         self.statusBar().showMessage("Ошибка; прежние данные сохранены")
@@ -717,6 +755,32 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Отмена после текущей стадии…")
 
     # -- actions -----------------------------------------------------------
+    def new_world(self):
+        """The world settings window; generates with its settings on «Старт»."""
+        from .world_settings import WorldSettingsDialog
+
+        if not self._worker_idle():
+            return
+        try:
+            base = self.build_config()
+        except ValueError:
+            base = self.project.config if self.project is not None else Config()
+        dlg = WorldSettingsDialog(base, self._through(), self)
+        self._settings_dialog = dlg
+        if not dlg.exec() or not dlg.start or dlg.config is None:
+            return
+        self.generate_with(dlg.config, dlg.through)
+
+    def generate_with(self, config: Config, through: str = "v50"):
+        previous = self.project
+        self._run(
+            lambda progress: generate(config, progress=progress, reuse=previous, through=through),
+            lambda project: self._show_project(project, "Сгенерировано", sync_form=True),
+            through=through,
+            hexes=config.width * config.height,
+            title=f"Генерация мира «{config.seed}» ({config.width}×{config.height})",
+        )
+
     def start_generation(self):
         try:
             config = self.build_config()
@@ -728,6 +792,9 @@ class MainWindow(QMainWindow):
         self._run(
             lambda progress: generate(config, progress=progress, reuse=previous, through=through),
             lambda project: self._show_project(project, "Сгенерировано"),
+            through=through,
+            hexes=config.width * config.height,
+            title=f"Генерация мира «{config.seed}»",
         )
 
     def apply_v4(self):
@@ -1400,6 +1467,9 @@ def run(project_path: str | None = None) -> int:
     window.show()
     if project_path:
         window.load_path(project_path)
+    elif os.environ.get("HEXWORLD_NO_START_DIALOG") != "1":
+        # a new session starts with the world settings (seed, parameters, size, start)
+        QTimer.singleShot(0, window.new_world)
     return app.exec()
 
 

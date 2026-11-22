@@ -951,7 +951,11 @@ def run_v47(config, geometry, project, old_keys: dict, old_cache: dict, report):
         data = old_cache["v47_topoclimate"]
         return data, {"v47_topoclimate": data}, ["v47_topoclimate"]
     report("v47_topoclimate", 0.9975)
-    res = run_topoclimate(config, geometry, project, report=None)
+    from .progress import sub_report
+
+    res = run_topoclimate(
+        config, geometry, project, report=lambda f: report(sub_report("v47_topoclimate", f), 0.9975)
+    )
     warnings = []
     s = res["summary"]
     if s["precipitation_conservation_max_rel"] > 1e-6:

@@ -398,10 +398,16 @@ def cmd_generate(args) -> int:
     config = _config_from_args(args)
     last = [""]
 
+    from .progress import ProgressTracker, format_seconds
+
+    tracker = ProgressTracker("v50", config.width * config.height)
+
     def progress(stage: str, fraction: float):
-        if not args.quiet and stage != last[0]:
-            last[0] = stage
-            print(f"[{100 * fraction:5.1f}%] {stage}", file=sys.stderr)
+        st = tracker.report(stage, fraction)
+        if not args.quiet and st.stage != last[0]:
+            last[0] = st.stage
+            print(f"[{100 * st.overall:5.1f}%] {st.title}  (прошло {format_seconds(st.elapsed_s)}"
+                  f", осталось ~{format_seconds(st.eta_s)})", file=sys.stderr)  # fmt: skip
 
     t0 = time.perf_counter()
     through = "v1" if args.v1_only else "v2" if args.no_history else "v3" if args.no_v4 else "v4"

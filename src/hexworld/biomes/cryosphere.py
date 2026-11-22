@@ -170,7 +170,7 @@ class CryoResult:
 
 
 def run_cryosphere(units_hex, weights, dry, t_m, p_m, pet_m, z_hex, nbr, spacing_km,
-                   n_hex, cp: CryoParams, seed_ice_hex=None):  # fmt: skip
+                   n_hex, cp: CryoParams, seed_ice_hex=None, progress=None):  # fmt: skip
     """Spin the snow / firn / ice reservoirs up on the dry units of every hex.
 
     ``t_m, p_m, pet_m``: (12, U). ``seed_ice_hex`` (n_hex,) optional initial ice thickness (m)
@@ -198,6 +198,8 @@ def run_cryosphere(units_hex, weights, dry, t_m, p_m, pet_m, z_hex, nbr, spacing
     last_year = {}
     snow_monthly_last = np.zeros((12, U))
     for year in range(cp.spinup_years):
+        if progress is not None and year % 5 == 0:
+            progress(year / max(cp.spinup_years, 1))
         year_acc = {k: np.zeros(U) for k in acc}
         for step in range(12):
             mi = order[step]

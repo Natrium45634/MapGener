@@ -329,13 +329,28 @@ def compose_sea_floor(
     arc_noise = FractalNoise(stream.child("arc_along"), [700.0, 260.0, 120.0], [1.0, 0.6, 0.35])
     arc_var = np.clip(arc_noise(mx, my) * 1.4, -1.0, 1.0)
     arc, arc_w = arc_platform(
-        floor, tdist, side, rate, marine & (u > 110.0), np.ones(n, dtype=bool), arc_var
+        floor,
+        tdist,
+        side,
+        rate,
+        marine & (u > 110.0),
+        np.ones(n, dtype=bool),
+        arc_var,
+        params.island_amount,
     )
     floor = floor + arc
 
     # -- 9c. intraplate seamount field (plate frame): seamounts, guyots, volcanic islands ------
     smf, smf_top, smf_kind, smf_summary = seamount_field(
-        seed, mx, my, age, marine & (u > 60.0), spacing, params.ridge_depth_m, blend
+        seed,
+        mx,
+        my,
+        age,
+        marine & (u > 60.0),
+        spacing,
+        params.ridge_depth_m,
+        blend,
+        params.island_amount,
     )
     floor = floor + smf
 
@@ -348,7 +363,7 @@ def compose_sea_floor(
     z_new = np.where(marine, floor + residual, z3)
     # shelf archipelagos on the continental crust below the sea (kept surface + highs)
     shelf = cont_hex & (z_new < sea_level_m - 5.0) & (z_new > sea_level_m - 220.0)
-    shelf_hi = shelf_highs(mx, my, z_new, shelf, seed)
+    shelf_hi = shelf_highs(mx, my, z_new, shelf, seed, params.island_amount)
     z_new = z_new + shelf_hi
     delta = z_new - z3
 

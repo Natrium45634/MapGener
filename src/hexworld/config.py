@@ -341,6 +341,9 @@ class TerrainParams:
     #: Intracratonic sag basins per 10 million km^2 of continental interior.
     sag_density: float = 1.5
     massif_graphs: bool = True
+    #: Islands of the world: 0 none, 1 Earth-like, 3 archipelago world. Scales the seamount
+    #: field, the shelf archipelagos and the crest of the island-arc platforms [А].
+    island_amount: float = 1.0
 
     def __post_init__(self):
         # JSON gives lists: keep tuples, so a loaded config equals the saved one
@@ -603,6 +606,8 @@ class Config:
             raise ConfigError("terrain.elastic_thickness_km must be within [2, 150]")
         if not 0.0 <= te.foreland_fill <= 1.0:
             raise ConfigError("terrain.foreland_fill must be within [0, 1]")
+        if not 0.0 <= te.island_amount <= 3.0:
+            raise ConfigError("terrain.island_amount must be within [0, 3]")
         if not 0.0 <= te.sag_density <= 20.0:
             raise ConfigError("terrain.sag_density must be within [0, 20]")
         tc = self.topoclimate

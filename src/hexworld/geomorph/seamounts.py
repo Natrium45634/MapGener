@@ -113,7 +113,7 @@ def seamount_catalogue(seed: str, x0, y0, x1, y1, mean_per_cell: float = MEAN_PE
     return np.concatenate(rows, axis=0)
 
 
-def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blend):
+def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blend, amount=1.0):
     """Relief (m) the seamount field adds to marine hexes, and its classes.
 
     Returns ``relief``, ``summit_now`` (m vs the datum, NaN off seamounts), ``kind``
@@ -131,7 +131,12 @@ def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blen
         return relief, summit, kind, summary
     pad = 2.5 * float(np.sqrt((5.5 * 9.0) ** 2 + (0.6 * spacing_km) ** 2)) + 10.0
     cat = seamount_catalogue(
-        seed, mx[m].min() - pad, my[m].min() - pad, mx[m].max() + pad, my[m].max() + pad
+        seed,
+        mx[m].min() - pad,
+        my[m].min() - pad,
+        mx[m].max() + pad,
+        my[m].max() + pad,
+        mean_per_cell=MEAN_PER_CELL * max(float(amount), 0.0),
     )
     if cat.shape[0] == 0:
         return relief, summit, kind, summary
@@ -190,7 +195,7 @@ def seamount_field(seed, mx, my, age_ma, marine, spacing_km, ridge_depth_m, blen
     return relief, summit, kind, summary
 
 
-def arc_platform(z_floor, tdist, side, rate, marine, oceanic_over, along_var):
+def arc_platform(z_floor, tdist, side, rate, marine, oceanic_over, along_var, amount=1.0):
     """Raise the overriding oceanic plate to the arc crest along the volcanic arc axis.
 
     ``along_var`` in [-1, 1] (world noise along the arc) moves the crest between -1.9 and
@@ -199,7 +204,13 @@ def arc_platform(z_floor, tdist, side, rate, marine, oceanic_over, along_var):
     """
     active = np.clip(np.asarray(rate, dtype=np.float64) / 25.0, 0.0, 1.0)
     here = marine & (side == -1) & oceanic_over & np.isfinite(tdist)
-    crest = ARC_CREST_M + 900.0 * np.asarray(along_var, dtype=np.float64)
+    # ``amount`` (the world's island setting) raises or lowers the arc crest: more or fewer
+    # cones break the sea surface
+    crest = (
+        ARC_CREST_M
+        + 500.0 * (float(amount) - 1.0)
+        + 900.0 * np.asarray(along_var, dtype=np.float64)
+    )
     shape = np.exp(
         -0.5 * ((np.asarray(tdist, dtype=np.float64) - ARC_DISTANCE_KM) / ARC_SIGMA_KM) ** 2
     )
@@ -208,7 +219,7 @@ def arc_platform(z_floor, tdist, side, rate, marine, oceanic_over, along_var):
     return lift, weight
 
 
-def shelf_highs(mx, my, z, shelf, seed):
+def shelf_highs(mx, my, z, shelf, seed, amount=1.0):
     """Island highs on shallow continental shelves (drowned hills, horsts, moraines) [А].
 
     Archipelagos cluster: a regional modulator (1500 km) makes some coasts island-rich
@@ -226,6 +237,10 @@ def shelf_highs(mx, my, z, shelf, seed):
     if idx.size == 0:
         return out
     mod = np.clip(region(mx[idx], my[idx]) * 1.3 + 0.15, 0.0, 1.0)
-    h = np.clip((hills(mx[idx], my[idx]) - 0.25) / 0.45, 0.0, 1.0) ** 1.5
-    out[idx] = 420.0 * mod * h
+    a = max(float(amount), 0.0)
+    if a == 0.0:
+        return out
+    thr = 0.25 + 0.2 * (1.0 - min(a, 2.0)) / 1.0  # more islands: lower threshold
+    h = np.clip((hills(mx[idx], my[idx]) - thr) / 0.45, 0.0, 1.0) ** 1.5
+    out[idx] = 420.0 * np.sqrt(a) * np.clip(mod + 0.25 * (a - 1.0), 0.0, 1.0) * h
     return out
