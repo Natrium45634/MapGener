@@ -293,6 +293,9 @@ TERRAIN_LAYER_SPECS: dict[str, tuple[str, str]] = {
     "margin_type": ("enum", "0 none, 1 passive, 2 active, 3 transform"),
     "crust_edge_distance_km": ("km", "signed distance to the continental crust edge"),
     "slope_width_km": ("km", "continental slope width of the local margin"),
+    "arc_platform_m": ("m", "island-arc platform added on the overriding oceanic plate"),
+    "seamount_field_m": ("m", "relief of the intraplate seamount field (hex mean)"),
+    "shelf_highs_m": ("m", "island highs of shallow continental shelves (archipelagos)"),
     "rise_width_km": ("km", "continental rise width of the local margin"),
     "oceanic_plateau_m": ("m", "height of an oceanic plateau"),
     "seamount_type": ("enum", "0 none, 1 seamount, 2 guyot, 3 volcanic island"),
@@ -417,6 +420,57 @@ class TopoData:
         return np.arange(int(off[flat_index]), int(off[flat_index + 1]))
 
 
+@dataclass
+class BiomeData:
+    """Results of v5.0: hex layers, sparse biome fractions, unit results."""
+
+    layers: dict
+    units: dict
+    fractions: dict  # CSR: offsets (N + 1), biome (K,) uint16, fraction (K,) float32
+    summary: dict
+    provenance: dict
+    stage_keys: dict
+    warnings: list = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
+
+    def content_hashes(self) -> dict:
+        out = {f"biome/{k}": array_hash(v) for k, v in self.layers.items()}
+        out.update({f"biome_units/{k}": array_hash(v) for k, v in self.units.items()})
+        out.update({f"biome_fractions/{k}": array_hash(v) for k, v in self.fractions.items()})
+        return out
+
+    def breakdown(self, flat_index: int) -> list[tuple[str, float]]:
+        """``[(biome_id, whole-hex fraction)]`` of one hex, largest first (sums to 1)."""
+        off = self.fractions["offsets"]
+        a, b = int(off[flat_index]), int(off[flat_index + 1])
+        from .biomes.registry import BIOMES
+
+        rows = [
+            (BIOMES[int(k)].id, float(f))
+            for k, f in zip(
+                self.fractions["biome"][a:b], self.fractions["fraction"][a:b], strict=True
+            )
+        ]
+        return sorted(rows, key=lambda r: -r[1])
+
+
+def _num(v):
+    v = float(v)
+    return None if not np.isfinite(v) else round(v, 4)
+
+
+class _IndexOf(dict):
+    def __missing__(self, key):
+        from .biomes.registry import INDEX
+
+        self.update(INDEX)
+        return INDEX[key]
+
+
+INDEX_OF = _IndexOf()
+
+
 def array_hash(arr: np.ndarray) -> str:
     """SHA-256 of dtype + shape + C-order bytes (independent of file container)."""
     arr = np.ascontiguousarray(arr)
@@ -456,6 +510,8 @@ class Project:
     terrain: TerrainData | None = None
     #: v4.7 topoclimate (terrain units, local climate, thermal belts); ``None`` if not run.
     topo: TopoData | None = None
+    #: v5.0 biomes, natural cover and cryosphere; ``None`` if not generated.
+    biomes: BiomeData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 
@@ -477,6 +533,8 @@ class Project:
             names += [n for n in self.terrain.layers if n not in names]
         if getattr(self, "topo", None) is not None:
             names += [n for n in self.topo.layers if n not in names]
+        if getattr(self, "biomes", None) is not None:
+            names += [n for n in self.biomes.layers if n not in names]
         return names
 
     @property
@@ -517,6 +575,9 @@ class Project:
         """Hex layer as a ``(height, width)`` array indexed ``[row, col]``."""
         if name == "base_macro_elevation_m" and self.geo is not None:
             return self.geo.layers["macro_elevation_m"]  # a reference, not a copy
+        bio = getattr(self, "biomes", None)
+        if bio is not None and name in bio.layers:
+            return bio.layers[name]  # v5.0 fields have their own names
         topo = getattr(self, "topo", None)
         if topo is not None and name in topo.layers:
             return topo.layers[name]  # v4.7 fields have their own names
@@ -689,7 +750,57 @@ class Project:
                 for name, arr in topo.monthly.items()
             }
             info["terrain_units"] = self.terrain_units(col, row)
+        bio = getattr(self, "biomes", None)
+        if bio is not None:
+            info["biomes"] = self.explain_biome(col, row)
         return info
+
+    def explain_biome(self, col: int, row: int) -> dict:
+        """Whole-hex composition (sums to 1), dominant classes and why (TZ 5.0, 13.2)."""
+        from .biomes.registry import (
+            BIOMES,
+            COVER_CLASSES,
+            LIMITING_FACTORS,
+            MODIFIERS,
+            REALMS,
+            decode_bits,
+        )
+        from .pipeline_v50 import KOPPEN
+
+        bio = self.biomes
+        h = row * self.layout.width + col
+        L = bio.layers
+        comp = bio.breakdown(h)
+        dry = 1.0 - float(L["cover_open_water"][row, col])
+        return {
+            "basis": "whole-hex planimetric area",
+            "composition": [{"biome": b, "title": BIOMES[INDEX_OF[b]].ru, "fraction": round(f, 4),
+                             "land_only_fraction": (round(f / dry, 4) if dry > 0 and
+                                                    BIOMES[INDEX_OF[b]].family not in
+                                                    ("marine", "freshwater") else None)}
+                            for b, f in comp],
+            "dominant": BIOMES[int(L["dominant_biome"][row, col])].id,
+            "dominant_land": BIOMES[int(L["dominant_land_biome"][row, col])].id,
+            "realm": REALMS[int(L["realm"][row, col])],
+            "climate_zone_koppen": KOPPEN[int(L["climate_zone_koppen"][row, col])],
+            "cover": {c: round(float(L[f"cover_{c}"][row, col]), 4) for c in COVER_CLASSES
+                      if np.isfinite(L[f"cover_{c}"][row, col])},
+            "vegetation_fraction": _num(L["vegetation_fraction"][row, col]),
+            "tree_canopy_fraction": _num(L["tree_canopy_fraction"][row, col]),
+            "productivity_index": _num(L["productivity_index"][row, col]),
+            "aridity_index": _num(L["aridity_index"][row, col]),
+            "aridity_valid": bool(L["aridity_valid"][row, col]),
+            "limiting_factors": decode_bits(int(L["limiting_flags"][row, col]), LIMITING_FACTORS),
+            "habitat_modifiers": decode_bits(int(L["habitat_modifiers"][row, col]), MODIFIERS),
+            "ice_thickness_m": _num(L["ice_thickness_m"][row, col]),
+            "ice_form": ("none", "glacier_mountain", "glacier_ice_cap", "glacier_ice_sheet")[
+                int(L["ice_form"][row, col])],
+            "glacier_state": ("none", "simulated_flow", "initialized_existing_ice",
+                              "potential_only")[int(L["glacier_state"][row, col])],
+            "firn_swe_mm": _num(L["firn_swe_mm"][row, col]),
+            "quality": bio.summary.get("input_quality"),
+            "model": bio.provenance.get("classification_version"),
+        }  # fmt: skip
 
     def terrain_units(self, col: int, row: int) -> list[dict]:
         """The v4.7 terrain units of one hex: weights, landform, height, climate summary.

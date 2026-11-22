@@ -1,0 +1,9 @@
+{
+ "climate": {
+  "precipitation_scale": 0.35,
+  "temperature_offset_c": -6.0
+ },
+ "biomes": {
+  "paleo_ice_initialization": false
+ }
+}

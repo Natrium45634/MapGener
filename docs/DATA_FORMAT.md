@@ -481,6 +481,35 @@ swe_max_mm,gsl_days,gst_c,thermal_margin,belt,quality` (`quality`:
 `tu_height_interpolated` — интерполяция по высоте между участками гекса,
 `tu_representative`, `tu_height_clamped`, `water`, `unavailable`).
 
+## Данные v5.0 (биомы, покров, криосфера)
+
+Файлы `biomes_fields.npz` (слои гексов `[row, col]`), `biomes_units.npz` (результаты
+участков), `biomes_fractions.npz` (доли) и `biomes.json` (реестр классов и PFT, биты причин и
+местообитаний, Кёппен, сводка, `provenance`, seed, ключи). Раздел манифеста `v50` хранит
+`biome_hash` и хэши массивов.
+
+**Доли** (CSR, по плановой площади всего гекса): классы гекса `h = row * width + col` —
+`biome[offsets[h]:offsets[h+1]]`, доли — `fraction[...]`, сумма 1. Доли суши = доля класса /
+(1 − `cover_open_water`).
+
+Главные слои: `dominant_biome`, `dominant_land_biome` (коды реестра), `biome_family`,
+`realm`, `climate_zone_koppen`, `vegetation_fraction`, `tree_canopy_fraction`, `lai_proxy`,
+`productivity_index` (безразмерный), `cover_<класс>` (9 классов покрова, сумма 1),
+`pft_<тип>` (22 PFT), `aridity_index` + `aridity_valid`, `moisture_index` (AET/PET),
+`dry_season_months`, `growing_months`, `main_limiting_factor`, `limiting_flags`,
+`habitat_modifiers` (биты), `ice_thickness_m`, `ice_form` (0 нет, 1 горный ледник, 2 шапка,
+3 щит), `ice_id`, `ice_mass_balance_mm`, `firn_swe_mm`, `perennial_snow_fraction`,
+`glacier_fraction`, `snow_months`, `ice_initial_condition`, `glacier_state`,
+`sea_ice_potential_months`.
+
+Участки (`biomes_units.npz`): `unit_hex`, `unit_weight_hex`, `unit_surface_type`, `biome`,
+`limiting_flags`, `habitat_modifiers`, `vegetation_fraction`, `canopy_fraction`,
+`productivity_index`, `pft_cover` (22 × U), `cover_fractions` (9 × U), `aridity_index`
+(−1 = не определён), `moisture_index`, `dry_season_months`, `z_m`, `cryo_*` (снег, фирн,
+возраст и плотность фирна, лёд, толщина, баланс, таяние, снегопад, поток льда).
+
+Отсутствие раздела `v50` означает «не сгенерировано», а не «нулевая растительность».
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от

@@ -45,6 +45,7 @@ from .stages.reference import build_reference_grid
 from .stages.validate import validate_geo, validate_history, validate_hydro, validate_project
 from .version import (
     ALGORITHM_VERSION,
+    BIOMES_ALGORITHM_VERSION,
     CLIMATE_ALGORITHM_VERSION,
     CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
@@ -69,6 +70,12 @@ V2_DATA_FILES = ("continental_fields.npz", "continents.json")
 V4_DATA_FILES = ("hydro_fields.npz", "hydrology.json", "rivers.geojson")
 V45_DATA_FILES = ("environment_fields.npz", "environment_monthly.npz", "environment.json")
 V46_DATA_FILES = ("terrain_fields.npz", "terrain.json")
+V50_DATA_FILES = (
+    "biomes_fields.npz",
+    "biomes_units.npz",
+    "biomes_fractions.npz",
+    "biomes.json",
+)
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -422,6 +429,62 @@ def _write_v47_data(project: Project, path: Path) -> None:
     )  # fmt: skip
 
 
+def _biome_hash(bio) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(bio.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    return h.hexdigest()
+
+
+def _write_v50_data(project: Project, path: Path) -> None:
+    from .biomes import pft
+    from .biomes.registry import (
+        BIOMES,
+        COVER_CLASSES,
+        LIMITING_FACTORS,
+        MODIFIERS,
+        PFT_REGISTRY_VERSION,
+        REALMS,
+        REGISTRY_VERSION,
+    )
+    from .pipeline_v50 import KOPPEN
+
+    b = project.biomes
+    np.savez_compressed(path / "biomes_fields.npz", **b.layers)
+    np.savez_compressed(path / "biomes_units.npz", **b.units)
+    np.savez_compressed(path / "biomes_fractions.npz", **b.fractions)
+    _write_json(
+        path / "biomes.json",
+        {
+            "world_id": project.world_id,
+            "stage": "biomes_5_0",
+            "schema_version": "5.0",
+            "algorithm_version": BIOMES_ALGORITHM_VERSION,
+            "biome_registry_version": REGISTRY_VERSION,
+            "pft_registry_version": PFT_REGISTRY_VERSION,
+            "biome_registry": [
+                {"code": i, "id": c.id, "family": c.family, "ru": c.ru, "en": c.en,
+                 "rgb": list(c.rgb)} for i, c in enumerate(BIOMES)
+            ],
+            "pft_registry": [t.__dict__ for t in pft.TRAITS],
+            "cover_classes": list(COVER_CLASSES),
+            "realms": list(REALMS),
+            "koppen": list(KOPPEN),
+            "limiting_factor_bits": list(LIMITING_FACTORS),
+            "modifier_bits": list(MODIFIERS),
+            "fractions_layout": "CSR whole-hex fractions: hex h = row * width + col owns "
+            "biome[offsets[h]:offsets[h+1]] with fraction[...] (sum = 1 per hex)",
+            "summary": b.summary,
+            "provenance": b.provenance,
+            "seed": project.config.seed,
+            "stage_keys": b.stage_keys,
+            "warnings": b.warnings,
+            "timings_s": b.timings,
+            "nodata": "not generated = no biomes section (never zero vegetation)",
+        },
+    )  # fmt: skip
+
+
 def _terrain_hash(terrain) -> str:
     h = hashlib.sha256()
     for key, value in sorted(terrain.content_hashes().items()):
@@ -508,6 +571,12 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             terrain_now is None
             or (existing.get("v46") or {}).get("terrain_hash") == _terrain_hash(terrain_now)
         )
+        bio_now = getattr(project, "biomes", None)
+        env_same = env_same and (
+            (bio_now is None and not existing.get("v50"))
+            or (bio_now is not None
+                and (existing.get("v50") or {}).get("biome_hash") == _biome_hash(bio_now))
+        )  # fmt: skip
         topo_now = getattr(project, "topo", None)
         env_same = env_same and (
             (topo_now is None and not existing.get("v47"))
@@ -537,7 +606,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         _write_v1_data(project, path)
         stale = (
             V2_DATA_FILES + V3_DATA_FILES + V4_DATA_FILES + V45_DATA_FILES + V46_DATA_FILES
-            + V47_DATA_FILES
+            + V47_DATA_FILES + V50_DATA_FILES
         )  # fmt: skip
         for name in stale:  # no stale data of another world
             (path / name).unlink(missing_ok=True)
@@ -566,6 +635,26 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         }
     else:
         for name in V45_DATA_FILES:  # an ecological layer of another v4 state would be stale
+            (path / name).unlink(missing_ok=True)
+    v50_manifest = None
+    bio = getattr(project, "biomes", None)
+    if bio is not None and project.env is not None:
+        b_hash = _biome_hash(bio)
+        if not (
+            same_geology and (existing.get("v50") or {}).get("biome_hash") == b_hash
+            and all((path / n).exists() for n in V50_DATA_FILES)
+        ):  # fmt: skip
+            _write_v50_data(project, path)
+        files += list(V50_DATA_FILES)
+        v50_manifest = {
+            "algorithm_version": BIOMES_ALGORITHM_VERSION,
+            "files": list(V50_DATA_FILES),
+            "biome_hash": b_hash,
+            "content_hashes": bio.content_hashes(),
+            "stage_keys": bio.stage_keys,
+        }
+    else:
+        for name in V50_DATA_FILES:
             (path / name).unlink(missing_ok=True)
     v47_manifest = None
     topo = getattr(project, "topo", None)
@@ -738,6 +827,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v45": v45_manifest,
         "v46": v46_manifest,
         "v47": v47_manifest,
+        "v50": v50_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -913,6 +1003,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_hydro(project, path, manifest, config, verify)
     _load_env(project, path, manifest, config, verify)
     _load_topo(project, path, manifest, config, verify)
+    _load_biomes(project, path, manifest, config, verify)
     return project
 
 
@@ -1053,6 +1144,56 @@ def _load_env(project: Project, path: Path, manifest: dict, config, verify) -> N
     project.env = env
     env.validation = validate_env(project)
     project.cache["v45_environment"] = env
+
+
+def _load_biomes(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v5.0 data, or say why not (never stale; missing = not generated)."""
+    from .pipeline_v50 import biome_stage_keys, upstream_keys
+    from .project import BiomeData
+    from .stages.validate import validate_biomes
+
+    v50 = manifest.get("v50")
+    if not v50 or project.env is None:
+        return
+    if not all((path / name).exists() for name in V50_DATA_FILES):
+        project.warnings.append("The manifest lists v5.0 data, but its files are missing.")
+        return
+    doc = json.loads((path / "biomes.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != BIOMES_ALGORITHM_VERSION:
+        project.warnings.append(
+            f"The stored biomes were produced by {doc.get('algorithm_version')}, this build "
+            f"uses {BIOMES_ALGORITHM_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    keys = biome_stage_keys(config, upstream_keys(project))
+    if keys["v50_biomes"] != doc["stage_keys"].get("v50_biomes"):
+        project.warnings.append(
+            "The stored biomes belong to another v4.5 / v4.7 state or configuration: "
+            "NOT loaded (not generated)."
+        )
+        return
+    loaded = {}
+    for name in ("biomes_fields.npz", "biomes_units.npz", "biomes_fractions.npz"):
+        with np.load(path / name) as data:
+            loaded[name] = {k: data[k] for k in data.files}
+    bio = BiomeData(
+        layers=loaded["biomes_fields.npz"],
+        units=loaded["biomes_units.npz"],
+        fractions=loaded["biomes_fractions.npz"],
+        summary=doc["summary"],
+        provenance=doc["provenance"],
+        stage_keys=dict(doc["stage_keys"]),
+        warnings=list(doc.get("warnings", [])),
+        timings=dict(doc.get("timings_s", {})),
+    )
+    if verify:
+        actual = bio.content_hashes()
+        for key, expected in v50["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.biomes = bio
+    bio.validation = validate_biomes(project)
+    project.cache["v50_biomes"] = bio
 
 
 def _load_topo(project: Project, path: Path, manifest: dict, config, verify) -> None:

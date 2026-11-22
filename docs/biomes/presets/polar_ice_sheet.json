@@ -1,0 +1,9 @@
+{
+ "climate": {
+  "temperature_offset_c": -14.0
+ },
+ "biomes": {
+  "cryo_spinup_years": 300,
+  "paleo_ice_initialization": true
+ }
+}

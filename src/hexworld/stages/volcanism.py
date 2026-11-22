@@ -174,7 +174,7 @@ class VolcanoBuilder:
                 # on a continent a hotspot builds a broad low volcanic swell (plateau
                 # basalts, the Snake River Plain), not a string of tall cones; in the ocean
                 # the shields are wide enough to merge into a ridge (the Hawaiian Ridge)
-                height = (250.0 + 400.0 * u[0]) if continental else (1500.0 + 4200.0 * u[0] ** 1.5)
+                height = (250.0 + 400.0 * u[0]) if continental else (3200.0 + 5200.0 * u[0] ** 1.3)
                 height *= h.strength**0.5 * intensity**0.3
                 radius = (80.0 + 50.0 * u[1]) if continental else (55.0 + 55.0 * u[1])
                 off = (u[4] - 0.5) * 0.6 * radius, (u[5] - 0.5) * 0.6 * radius

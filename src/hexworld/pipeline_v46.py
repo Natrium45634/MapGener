@@ -108,6 +108,7 @@ def compose_terrain(config, geometry, project, report=None) -> dict:
         config.seed,
         hist.volcanoes,
         age_scale=scale,
+        sea_level_m=float(hist.sea_level_m),
         transform_points=np.column_stack(
             [
                 skeleton.bx[skeleton.kind == TYPE_TRANSFORM],

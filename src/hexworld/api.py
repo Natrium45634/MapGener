@@ -191,6 +191,8 @@ def derive_landmasses(
 
 def stage_depth(project: Project) -> str:
     """The last stage a project holds ("v1".."v47"; "v46" = v3 + terrain without v4)."""
+    if getattr(project, "biomes", None) is not None:
+        return "v50"
     if getattr(project, "topo", None) is not None:
         return "v47"
     if project.env is not None:
@@ -288,7 +290,7 @@ def generate_v4(project: Project, config: Config | None = None, progress=None) -
             erosion=config.erosion,
         )
     )
-    return generate(cfg, progress=progress, reuse=project, through="v47")
+    return generate(cfg, progress=progress, reuse=project, through="v50")
 
 
 def generate_climate(project: Project, config: Config | None = None):
@@ -374,7 +376,7 @@ def generate_environment(project: Project, config: Config | None = None, progres
         if config is None
         else replace(project.config, environment=config.environment)
     )
-    return generate(cfg, progress=progress, reuse=project, through="v47")
+    return generate(cfg, progress=progress, reuse=project, through="v50")
 
 
 def generate_topoclimate(project: Project, config: Config | None = None, progress=None):
@@ -386,7 +388,7 @@ def generate_topoclimate(project: Project, config: Config | None = None, progres
         if config is None
         else replace(project.config, topoclimate=config.topoclimate)
     )
-    return generate(cfg, progress=progress, reuse=project, through="v47")
+    return generate(cfg, progress=progress, reuse=project, through="v50")
 
 
 def hex_months(project: Project, col: int, row: int) -> list[dict]:
@@ -419,6 +421,23 @@ def export_hex_months_csv(project: Project, col: int, row: int, path) -> str:
         writer.writeheader()
         writer.writerows(rows)
     return str(out)
+
+
+def generate_biomes(project: Project, config: Config | None = None, progress=None) -> Project:
+    """Add (or update) the v5.0 biomes and cryosphere; v1-v4.7 are reused as they are."""
+    if project.env is None:
+        raise LookupError("v5.0 needs v4.5 (months, soils, water); run v4.5 first")
+    cfg = project.config if config is None else replace(project.config, biomes=config.biomes)
+    return generate(cfg, progress=progress, reuse=project, through="v50")
+
+
+def explain_biome(project: Project, col: int, row: int) -> dict:
+    """Composition of a hex (sums to 1) with the inputs and reasons (TZ 5.0, 13.2)."""
+    if getattr(project, "biomes", None) is None:
+        raise LookupError("the biomes (v5.0) are not generated for this project")
+    if not project.layout.inside(col, row):
+        raise IndexError(f"hex ({col}, {row}) is outside the grid")
+    return project.explain_biome(col, row)
 
 
 def terrain_units(project: Project, col: int, row: int) -> list[dict]:
@@ -472,7 +491,9 @@ def generate_terrain(project: Project, config: Config | None = None, progress=No
         cfg,
         progress=progress,
         reuse=project,
-        through=stage_depth(project) if stage_depth(project) in ("v4", "v45", "v47") else "v47",
+        through=(
+            stage_depth(project) if stage_depth(project) in ("v4", "v45", "v47", "v50") else "v50"
+        ),
     )
 
 

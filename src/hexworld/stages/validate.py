@@ -469,6 +469,36 @@ def validate_topo(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
 
 
+def validate_biomes(project) -> dict:
+    """Invariants of v5.0: fractions close, cover closes, cryosphere mass closes, IDs valid."""
+    from ..biomes.registry import BIOMES, validate_registry
+
+    b = project.biomes
+    s = b.summary
+    errors: list[str] = list(validate_registry())
+    checks = {
+        "fraction_sum_max_error": s["fraction_sum_max_error"],
+        "cover_sum_max_error": s["cover_sum_max_error"],
+        "cryo_mass_residual_mm": s["cryosphere"]["mass_residual_mm_max"],
+    }
+    if s["fraction_sum_max_error"] > 1e-5:
+        errors.append("the biome fractions of a hex do not sum to its area")
+    if s["cover_sum_max_error"] > 1e-5:
+        errors.append("the cover fractions of a unit do not sum to 1")
+    if s["cryosphere"]["mass_residual_mm_max"] > 1e-3:
+        errors.append("the snow / firn / ice mass budget does not close")
+    fr = b.fractions
+    if fr["biome"].size and int(fr["biome"].max()) >= len(BIOMES):
+        errors.append("unknown biome code")
+    if (fr["fraction"] < 0).any():
+        errors.append("negative biome fraction")
+    if int(b.layers["dominant_biome"].max()) >= len(BIOMES):
+        errors.append("unknown dominant biome code")
+    if (np.nan_to_num(b.layers["ice_thickness_m"]) < 0).any():
+        errors.append("negative ice thickness")
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
 def validate_terrain(project) -> dict:
     """Invariants of v4.6: one finite surface, bedrock under sediment, kept continents."""
     t = project.terrain
@@ -486,11 +516,12 @@ def validate_terrain(project) -> dict:
         errors.append("bedrock lies above the surface")
     marine = L["marine_floor_mask"]
     in_basin = L["basin_subsidence_m"] > 0.0
-    untouched = ~marine & ~in_basin & (np.abs(L["basin_delta_m"]) < 1e-6)
+    shelf_hi = L["shelf_highs_m"] > 0.0 if "shelf_highs_m" in L else np.zeros_like(marine)
+    untouched = ~marine & ~in_basin & ~shelf_hi & (np.abs(L["basin_delta_m"]) < 1e-6)
     diff = np.abs(z - hist.layers["elevation_m"])[untouched]
     checks["continental_max_change_m"] = float(diff.max()) if diff.size else 0.0
     if diff.size and checks["continental_max_change_m"] > 0.01:
-        errors.append("v4.6 changed continental hexes outside its basins")
+        errors.append("v4.6 changed continental hexes outside its basins and shelf highs")
     sea = np.float32(hist.sea_level_m)
     if (L["ocean_mask_pre_v4"] & (z > sea)).any():
         errors.append("an ocean hex lies above the sea level")

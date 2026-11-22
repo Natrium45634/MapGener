@@ -29,6 +29,7 @@ from ..noise import FractalNoise
 from ..rng import Stream
 from .margins import ACTIVE, PASSIVE, TRANSFORM, classify_margin, margin_profile, margin_weights
 from .ocean_age import flowline_age, parsons_sclater_depth
+from .seamounts import arc_platform, seamount_field, shelf_highs
 
 #: offsets of the 7-point footprint sample (centre + 6 at 0.55 of the hex radius)
 _RING = [(0.0, 0.0)] + [(np.cos(a), np.sin(a)) for a in np.arange(6) * np.pi / 3.0]
@@ -87,6 +88,7 @@ def compose_sea_floor(
     volcano_rows: list[dict] | None = None,
     age_scale: float = 1.0,
     transform_points=None,
+    sea_level_m: float = 0.0,
 ) -> dict:
     """Sea floor of the epoch. Returns flat-free (rows, cols) layers and a summary."""
     shape = (layout.height, layout.width)
@@ -138,6 +140,20 @@ def compose_sea_floor(
     depth = parsons_sclater_depth(
         np.nan_to_num(age, nan=150.0), params.ridge_depth_m, blend_ma=blend
     )
+    # old floor: flexure and sediment smear the steps between crust of different pieces over
+    # tens of km; the mean depth of a ring of plate-frame points (radius growing with age)
+    # rounds the straight facets of the piece frame without moving the age-depth trend.
+    # World function of the material coordinates: the same in every window.
+    old = np.nonzero(marine & (np.nan_to_num(age, nan=0.0) > 12.0))[0]
+    if old.size:
+        rad = np.clip((age[old] - 12.0) / 60.0, 0.0, 1.0) * 1.1 * spacing
+        acc = depth[old].copy()
+        for ox, oy in _RING[1:]:
+            fa_r = flowline_age(pieces, mx[old] + rad * ox, my[old] + rad * oy, plate[old])
+            a_r = age_scale * fa_r.age_ma + t_epoch
+            a_r = np.where(new[old], age[old], a_r)
+            acc += parsons_sclater_depth(a_r, params.ridge_depth_m, blend_ma=blend)
+        depth[old] = acc / len(_RING)
     z_bas = -depth
 
     # -- 3. ridge axis: rift valley on slow ridges, axial high on fast ones -------------------
@@ -205,9 +221,12 @@ def compose_sea_floor(
     # trough of the fracture zone: deeper where the offset (the age jump) is larger
     # only major offsets (>= 3 Ma) cut a trough; it is wider than a line and is buried by
     # sediment on old crust, so the old floor keeps faint traces, not crisp grooves
-    fz_amp = params.fracture_zone_depth_m * np.clip((fz_jump - 3.0) / 5.0, 0.0, 1.0)
+    fz_amp = params.fracture_zone_depth_m * np.clip((fz_jump - 4.0) / 8.0, 0.0, 1.0)
+    # the trough is a young-crust feature: thermal contraction and sediment smooth it away;
+    # on old crust only the depth step of the age jump remains (no ruled lines)
+    fz_amp = fz_amp * np.exp(-np.nan_to_num(age, nan=100.0) / 30.0)
     fz_amp = fz_amp * np.exp(-(pelagic + sed3) / 500.0)
-    fz_trough = np.where(fz, -fz_amp * footprint(0.0, 15.0, spacing), 0.0)
+    fz_trough = np.where(fz, -fz_amp * footprint(0.0, 20.0, spacing), 0.0)
 
     # -- 7. trenches and outer rise on the subducting oceanic plate -------------------------
     side = flat("trench_side", np.int64)
@@ -227,15 +246,16 @@ def compose_sea_floor(
         # the result depend on the window): the inner wall uses the crust of its own side
         d_here = d_axis
         bulge = (250.0 + 250.0 * np.clip(np.nan_to_num(age, nan=80.0) / 100.0, 0.0, 1.0)) * f_rate
-        trench = np.where(
-            sub,
-            -d_here * footprint(tdist, 22.0, spacing)
-            + bulge * footprint(tdist - 120.0, 40.0, spacing),
-            0.0,
-        )
-        trench = np.where(over, -0.85 * d_here * footprint(tdist, 28.0, spacing), trench)
-        trench_axis = (sub | over) & (trench < -0.45 * d_here)
-        outer_rise = sub & (tdist > 60.0) & (tdist < 220.0) & (trench > 60.0)
+        # a V in section: the outer wall of the subducting plate falls over ~100-150 km
+        # (2-5 deg), the inner wall of the overriding plate over ~60-90 km; the axis is the
+        # deepest line. A wide profile also hides the hex sampling of the axis (no stairs)
+        # (one axis profile on both sides: where two trenches meet and the side flips from
+        # hex to hex, the depth stays continuous; only the far outer rise is one-sided)
+        v_shape = -d_here * np.exp(-0.5 * (tdist / 42.0) ** 1.6)
+        trench = np.where(sub, v_shape + bulge * footprint(tdist - 150.0, 60.0, spacing), 0.0)
+        trench = np.where(over, v_shape, trench)
+        trench_axis = (sub | over) & (tdist < 0.55 * spacing) & (trench < -0.6 * d_here)
+        outer_rise = sub & (tdist > 80.0) & (tdist < 260.0) & (trench > 60.0)
 
     # -- 8. continental margins ----------------------------------------------------------------
     # distance to transform plate boundaries of the world skeleton, in the plate frame
@@ -305,9 +325,31 @@ def compose_sea_floor(
             )
     floor = floor + plateau
 
+    # -- 9b. island-arc platforms on the overriding oceanic plate -----------------------------
+    arc_noise = FractalNoise(stream.child("arc_along"), [700.0, 260.0, 120.0], [1.0, 0.6, 0.35])
+    arc_var = np.clip(arc_noise(mx, my) * 1.4, -1.0, 1.0)
+    arc, arc_w = arc_platform(
+        floor, tdist, side, rate, marine & (u > 110.0), np.ones(n, dtype=bool), arc_var
+    )
+    floor = floor + arc
+
+    # -- 9c. intraplate seamount field (plate frame): seamounts, guyots, volcanic islands ------
+    smf, smf_top, smf_kind, smf_summary = seamount_field(
+        seed, mx, my, age, marine & (u > 60.0), spacing, params.ridge_depth_m, blend
+    )
+    floor = floor + smf
+
     # -- 10. compose: replace the baseline + trench parts on the sea floor --------------------
     residual = z3 - flat("base_component_m") - flat("trench_relief_m")
+    # on an island-arc platform the platform is the arc crust: the v3 arc uplift that the
+    # residual carries is replaced, the volcanic cones (and sediment) stay on top
+    uplift3 = np.clip(flat("uplift_total_m"), 0.0, None)
+    residual = residual - arc_w * np.minimum(uplift3, np.clip(residual, 0.0, None))
     z_new = np.where(marine, floor + residual, z3)
+    # shelf archipelagos on the continental crust below the sea (kept surface + highs)
+    shelf = cont_hex & (z_new < sea_level_m - 5.0) & (z_new > sea_level_m - 220.0)
+    shelf_hi = shelf_highs(mx, my, z_new, shelf, seed)
+    z_new = z_new + shelf_hi
     delta = z_new - z3
 
     # -- 11. seamounts and guyots: planed at the sea level, then subsided with the crust -------
@@ -318,6 +360,7 @@ def compose_sea_floor(
     smt = seamount_types(
         on_floor, age, vage, np.nan_to_num(summit, nan=-1e4) + delta, params.ridge_depth_m, blend
     )
+    smt = np.where((smt == 0) & (smf_kind > 0), smf_kind, smt).astype(np.uint8)
 
     margin = np.where(marine & (u < ws + wr), classify_margin(weights), 0).astype(np.uint8)
 
@@ -344,6 +387,9 @@ def compose_sea_floor(
         "spreading_half_rate_mm_yr": grid(np.where(marine & (piece >= 0), half, np.nan)),
         "marine_local_relief_m": grid(np.where(marine, fabric_range * burial, 0.0)),
         "slope_width_km": grid(np.where(marine, ws, 0.0)),
+        "arc_platform_m": grid(arc),
+        "seamount_field_m": grid(smf),
+        "shelf_highs_m": grid(shelf_hi),
         "rise_width_km": grid(np.where(marine, wr, 0.0)),
     }
     w_pas, w_act, w_tr = weights
@@ -366,6 +412,11 @@ def compose_sea_floor(
             else []
         ),
         "seamounts": int((smt == 1).sum()),
+        "volcanic_island_hexes": int((smt == 3).sum()),
+        "arc_platform_hexes": int((arc > 100.0).sum()),
+        "shelf_island_hexes": int(((shelf_hi > 0) & (z_new > sea_level_m)).sum()),
+        "arc_island_hexes": int(((arc > 100.0) & (z_new > sea_level_m)).sum()),
+        **smf_summary,
         "guyots": int((smt == 2).sum()),
         "age_estimation_mode": "approx",
         "max_trench_depth_m": float(-(z_new[trench_axis]).min()) if trench_axis.any() else None,

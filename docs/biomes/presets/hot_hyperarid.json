@@ -1,0 +1,6 @@
+{
+ "climate": {
+  "precipitation_scale": 0.25,
+  "temperature_offset_c": 4.0
+ }
+}

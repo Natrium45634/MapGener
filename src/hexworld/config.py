@@ -389,6 +389,25 @@ class TopoclimateParams:
 
 
 @dataclass(frozen=True)
+class BiomeParams:
+    """v5.0 biomes and cryosphere (TZ 5.0, 13.1). [П] starting calibration of
+    ``earthlike_v1_preview``, not natural constants."""
+
+    enabled: bool = True
+    profile: str = "earthlike_potential_natural"
+    mode: str = "equilibrium"
+    #: softness of the PFT competition (on the productivity index)
+    pft_tau: float = 0.08
+    #: productivity index of a closed cover (V = best productivity / v_ref, clipped)
+    cover_v_ref: float = 0.25
+    annual_pet_epsilon_mm: float = 50.0
+    cryo_spinup_years: int = 100
+    paleo_ice_initialization: bool = True
+    glacier_flow: bool = True
+    co2_ppm: float = 420.0
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -418,6 +437,7 @@ class Config:
     environment: EnvironmentParams = field(default_factory=EnvironmentParams)
     terrain: TerrainParams = field(default_factory=TerrainParams)
     topoclimate: TopoclimateParams = field(default_factory=TopoclimateParams)
+    biomes: BiomeParams = field(default_factory=BiomeParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -605,6 +625,15 @@ class Config:
             raise ConfigError("topoclimate RH must be within [0, 1]")
         if tc.tree_gsl_days <= 0 or tc.smoothing_days <= 0 or tc.smoothing_c <= 0:
             raise ConfigError("topoclimate tree-limit thresholds must be positive")
+        bp = self.biomes
+        if bp.mode != "equilibrium":
+            raise ConfigError("biomes.mode: only 'equilibrium' (potential vegetation) in v5.0")
+        if not 0.005 <= bp.pft_tau <= 1.0 or not 0.01 <= bp.cover_v_ref <= 2.0:
+            raise ConfigError("biomes.pft_tau within [0.005, 1], cover_v_ref within [0.01, 2]")
+        if not 0 <= int(bp.cryo_spinup_years) <= 2000:
+            raise ConfigError("biomes.cryo_spinup_years must be within [0, 2000]")
+        if bp.annual_pet_epsilon_mm <= 0:
+            raise ConfigError("biomes.annual_pet_epsilon_mm must be positive")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -639,6 +668,7 @@ class Config:
             "environment": EnvironmentParams,
             "terrain": TerrainParams,
             "topoclimate": TopoclimateParams,
+            "biomes": BiomeParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

@@ -1,0 +1,9 @@
+{
+ "climate": {
+  "latitude_center_deg": 12.0,
+  "seasonality": 1.4
+ },
+ "biomes": {
+  "pft_tau": 0.06
+ }
+}

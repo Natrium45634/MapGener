@@ -656,7 +656,7 @@ class MainWindow(QMainWindow):
         )
 
     def _through(self) -> str:
-        return "v47" if self.v4_on.isChecked() else "v3"  # v4 + v4.5 ecology + v4.7 topoclimate
+        return "v50" if self.v4_on.isChecked() else "v3"  # v4 .. v4.7 + v5.0 biomes
 
     def _sea_params(self, base: SeaParams) -> SeaParams:
         return replace(
@@ -741,7 +741,7 @@ class MainWindow(QMainWindow):
             return
         previous = self.project
         self._run(
-            lambda progress: generate(config, progress=progress, reuse=previous, through="v47"),
+            lambda progress: generate(config, progress=progress, reuse=previous, through="v50"),
             lambda project: self._show_project(project, "Климат, реки и эрозия пересчитаны"),
         )
 
@@ -1073,6 +1073,8 @@ class MainWindow(QMainWindow):
             lines += ["", *self._v45_hex_lines(info)]
         if "terrain_units" in info:
             lines += ["", *self._v47_hex_lines(info)]
+        if "biomes" in info:
+            lines += ["", *self._v50_hex_lines(info["biomes"])]
         lines += ["", "— проект —", self._project_text()]
         self.info.setPlainText("\n".join(lines))
 
@@ -1156,6 +1158,33 @@ class MainWindow(QMainWindow):
                 cells = "".join("    —" if v is None else fmt.format(v) for v in vals)
                 lines.append(f"{title:<8}{cells}")
         return lines
+
+    @staticmethod
+    def _v50_hex_lines(b: dict) -> list[str]:
+        def num(v, digits=2):
+            return "—" if v is None else f"{v:,.{digits}f}"
+
+        out = [f"— v5.0: биомы ({b['basis']}, сумма 100 %) —"]
+        for c in b["composition"][:12]:
+            land = c["land_only_fraction"]
+            extra = "" if land is None else f" (суши {100 * land:.0f} %)"
+            out.append(f"  {100 * c['fraction']:5.1f} %  {c['title']}{extra}")
+        out.append(f"климат Кёппена {b['climate_zone_koppen']}; растительность "
+                   f"{num(b['vegetation_fraction'])}, кроны {num(b['tree_canopy_fraction'])}, "
+                   f"продуктивность {num(b['productivity_index'])}")  # fmt: skip
+        ai = num(b["aridity_index"]) if b["aridity_valid"] else "не определена (PET ≈ 0)"
+        out.append(f"аридность P/PET {ai}")
+        if b["limiting_factors"]:
+            out.append("ограничения: " + ", ".join(b["limiting_factors"]))
+        if b["habitat_modifiers"]:
+            out.append("местообитания: " + ", ".join(b["habitat_modifiers"]))
+        if b["ice_form"] != "none" or (b["firn_swe_mm"] or 0) > 0:
+            out.append(
+                f"лёд: {b['ice_form']}, {num(b['ice_thickness_m'], 0)} м "
+                f"({b['glacier_state']}); фирн {num(b['firn_swe_mm'], 0)} мм в.э."
+            )
+        out.append(f"качество входа: {b['quality']}; модель {b['model']}")
+        return out
 
     @staticmethod
     def _v47_hex_lines(info: dict) -> list[str]:

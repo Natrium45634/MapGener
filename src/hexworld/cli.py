@@ -633,6 +633,18 @@ def cmd_export(args) -> int:
 def cmd_info(args) -> int:
     project = load_project(args.project)
     print(_summary(project))
+    topo = getattr(project, "topo", None)
+    if topo is not None:
+        t = topo.summary
+        print(f"v4.7            {t['units']} terrain units, {t['treeline_hexes']} hexes cross the "
+              f"thermal tree limit; ok {topo.validation.get('ok')}")  # fmt: skip
+    bio = getattr(project, "biomes", None)
+    if bio is not None:
+        b = bio.summary
+        top = ", ".join(f"{k} {100 * v:.0f} %" for k, v in list(b["land_shares_top"].items())[:5])
+        print(f"v5.0            {b['classes_present_land']} land classes ({b['input_quality']}); "
+              f"ice bodies {b['ice_body_count']}; ok {bio.validation.get('ok')}")  # fmt: skip
+        print(f"                {top}")
     if args.plates:
         print("\n id  name          class   area Mkm2  cont%  speed mm/yr  visible hexes")
         for p in project.plates:
@@ -803,6 +815,51 @@ def cmd_topoclimate(args) -> int:
         print(f"units csv       {export_terrain_units_csv(result, col, row, target)}")
     print(f"saved           {save_project(result, _save_target(args))}")
     return 0 if t.validation["ok"] else 2
+
+
+def cmd_biomes(args) -> int:
+    """Add or update the v5.0 biomes and cryosphere of a saved project (needs v4.5)."""
+    from .api import generate_biomes
+
+    project = load_project(args.project)
+    if project.env is None:
+        print("error: v5.0 needs v4.5 data; run `hexworld environment` first", file=sys.stderr)
+        return 1
+    data = project.config.to_dict()
+    bp = dict(data.get("biomes", {}))
+    for arg, key in (("spinup", "cryo_spinup_years"), ("tau", "pft_tau")):
+        if getattr(args, arg, None) is not None:
+            bp[key] = getattr(args, arg)
+    if args.no_paleo_ice:
+        bp["paleo_ice_initialization"] = False
+    data["biomes"] = bp
+    t0 = time.perf_counter()
+    result = generate_biomes(project, Config.from_dict(data))
+    b = result.biomes
+    s = b.summary
+    print(f"v5.0            ok {b.validation['ok']}; {s['units']} units ({s['input_quality']}), "
+          f"{s['classes_present_land']} land classes")  # fmt: skip
+    top = list(s["land_shares_top"].items())[:8]
+    print("land shares     " + ", ".join(f"{k} {100 * v:.1f} %" for k, v in top))
+    c = s["cryosphere"]
+    print(
+        f"cryosphere      {c['ice_hexes']} ice hexes, max {c['max_ice_thickness_m']:.0f} m, "
+        f"{s['ice_body_count']} ice bodies; mass residual {c['mass_residual_mm_max']:.1e} mm"
+    )
+    print(f"time            {time.perf_counter() - t0:.2f} s")
+    print(f"saved           {save_project(result, _save_target(args))}")
+    return 0 if b.validation["ok"] else 2
+
+
+def cmd_biome(args) -> int:
+    """Explain the biome composition of one hex (JSON)."""
+    import json
+
+    from .api import explain_biome
+
+    project = load_project(args.project)
+    print(json.dumps(explain_biome(project, args.col, args.row), ensure_ascii=False, indent=1))
+    return 0
 
 
 def cmd_units(args) -> int:
@@ -1092,6 +1149,21 @@ def build_parser() -> argparse.ArgumentParser:
                     help="also write the terrain units of this hex as CSV")  # fmt: skip
     tc.add_argument("--csv", help="file for --hex (default hex_COL_ROW_units.csv)")
     tc.set_defaults(func=cmd_topoclimate)
+
+    bi = sub.add_parser("biomes", help="add or update v5.0 biomes, cover and cryosphere")
+    bi.add_argument("project")
+    bi.add_argument("--out", "-o", help="save to another directory instead of updating in place")
+    bi.add_argument("--spinup", type=int, help="years of the snow / firn / ice spin-up (100)")
+    bi.add_argument("--tau", type=float, help="softness of the PFT competition (0.08)")
+    bi.add_argument("--no-paleo-ice", action="store_true",
+                    help="no seeded paleoclimate ice (ice only from the spin-up)")  # fmt: skip
+    bi.set_defaults(func=cmd_biomes)
+
+    bx = sub.add_parser("biome", help="composition and reasons of one hex (v5.0)")
+    bx.add_argument("project")
+    bx.add_argument("col", type=int)
+    bx.add_argument("row", type=int)
+    bx.set_defaults(func=cmd_biome)
 
     un = sub.add_parser("units", help="terrain units of one hex (v4.7)")
     un.add_argument("project")

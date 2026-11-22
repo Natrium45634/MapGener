@@ -1,0 +1,8 @@
+{
+ "topoclimate": {
+  "quality": "reference"
+ },
+ "biomes": {
+  "cryo_spinup_years": 150
+ }
+}

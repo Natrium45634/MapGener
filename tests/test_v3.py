@@ -603,7 +603,8 @@ def test_v3_views_show_computed_data(hist_project):
     compare = views.view_rgb(hist_project, "continents", "compare", frozenset())
     assert len(np.unique(compare.reshape(-1, 3), axis=0)) >= 3
     planned = {s.id for s in views.VIEWS.values() if s.status == "planned"}
-    assert {"biomes", "geosymbols", "seismicity"} <= planned
+    assert {"geosymbols", "seismicity"} <= planned
+    assert views.VIEWS["biomes"].status == "ready"  # implemented in v5.0
     assert not {"temperature", "precipitation", "hydrology", "erosion"} & planned
     assert all(views.VIEWS[i].render is None for i in planned)
 

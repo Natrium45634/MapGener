@@ -78,7 +78,7 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3", "v46", "v4", "v45", "v47") and project.geo is None:
+        if self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v50") and project.geo is None:
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
         if self.stage == "v4" and project.hydro is None:
             return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
@@ -94,6 +94,8 @@ class ViewSpec:
             return False, f"«{self.title}»: экологические параметры (v4.5) не рассчитаны"
         if self.stage == "v47" and getattr(project, "topo", None) is None:
             return False, f"«{self.title}»: топоклимат (v4.7) не рассчитан"
+        if self.stage == "v50" and getattr(project, "biomes", None) is None:
+            return False, f"«{self.title}»: биомы (v5.0) не сгенерированы"
         return True, ""
 
     def default_mode(self) -> str:
@@ -2240,7 +2242,7 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
         # bathymetric charts; minor offsets stay in the layer, not on the picture
         major = T["fracture_zone_mask"] & (T["fracture_zone_offset_ma"] >= 4.0) & sea
         _shade(rgb, major, 0.55, (20, 20, 30))
-        rgb[T["trench_axis_mask"] & sea] = (0, 0, 0)
+        _shade(rgb, T["trench_axis_mask"] & sea, 0.6, (10, 10, 20))
     if T is not None and "canyons" in overlays and "submarine_canyon_mask" in T:
         rgb[T["submarine_canyon_mask"] & sea] = (255, 255, 255)
         fan = (T["submarine_fan_m"] > 50.0) & sea
@@ -3429,8 +3431,569 @@ register_view(
     )
 )
 
+# -- v5.0: biomes, cover, cryosphere, wetlands, limits, eco-zones ------------------------------
+_V50_OVERLAYS = (Option("coast", "Берег", True), Option("rivers", "Реки"))
+
+
+def _finish_bio(project, rgb, valid, overlays, keep_water=False):
+    """Water hexes keep their own colour unless the view is about water habitats."""
+    rgb = np.asarray(rgb, dtype=np.uint8).copy()
+    if not keep_water:
+        rgb = _finish_env(project, rgb, valid, overlays)
+        return rgb
+    land = project.hydro.layers["land_mask"]
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.4)
+    if "rivers" in overlays:
+        rgb[project.hydro.layers["river_mask"]] = (40, 90, 200)
+    return rgb
+
+
+def _render_biomes(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .biomes.registry import BIOME_RGB, BIOMES, FAMILIES
+
+    B = project.biomes.layers
+    if mode == "dominant":
+        rgb = BIOME_RGB[B["dominant_biome"].astype(int)]
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays, keep_water=True)
+    if mode == "dominant_land":
+        has = B["realm"] == 1
+        rgb = BIOME_RGB[B["dominant_land_biome"].astype(int)].copy()
+        return _finish_bio(project, rgb, has | ~project.hydro.layers["land_mask"], overlays)
+    if mode == "family":
+        fam_rgb = np.array(
+            [BIOMES[[b.family for b in BIOMES].index(f)].rgb for f in FAMILIES], dtype=np.uint8
+        )
+        rgb = fam_rgb[B["biome_family"].astype(int)]
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays, keep_water=True)
+    if mode == "diversity":
+        off = project.biomes.fractions["offsets"]
+        n = np.diff(off).reshape(B["realm"].shape).astype(float)
+        return _finish_bio(project, _ramp_rgb(n, 1.0, 6.0), n > 0, overlays)
+    raise KeyError(f"Unknown mode {mode!r} of view 'biomes'")
+
+
+def _legend_biomes(project: Project, mode: str) -> list[LegendItem]:
+    from .biomes.registry import BIOMES, FAMILIES
+
+    b = project.biomes
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    note = LegendItem(
+        "потенциальная естественная растительность (не сезон, не фактический лес); "
+        "щелчок по гексу — состав всего гекса, сумма 100 %"
+    )
+    if mode in ("dominant", "dominant_land"):
+        key = "dominant_biome" if mode == "dominant" else "dominant_land_biome"
+        codes, counts = np.unique(b.layers[key], return_counts=True)
+        order = np.argsort(-counts)[:28]
+        return [LegendItem(BIOMES[int(codes[i])].ru, BIOMES[int(codes[i])].rgb) for i in order] + [
+            note
+        ]
+    if mode == "family":
+        titles = {
+            "special": "нет данных",
+            "desert": "пустыни",
+            "barren": "безрастительные земли",
+            "forest_tropical": "тропические леса",
+            "forest_subtropical": "субтропические леса",
+            "woodland": "редколесья",
+            "forest_temperate": "умеренные леса",
+            "shrubland": "кустарники",
+            "forest_boreal": "тайга",
+            "savanna": "саванны",
+            "grassland": "степи и луга",
+            "mountain": "высокогорья",
+            "tundra": "тундры",
+            "polar": "полярные пустоши",
+            "ice": "снег, фирн, лёд",
+            "wetland": "болота",
+            "freshwater": "пресные воды",
+            "marine": "море",
+        }
+        return [
+            LegendItem(titles.get(f, f), BIOMES[[x.family for x in BIOMES].index(f)].rgb)
+            for f in FAMILIES
+        ] + [note]
+    return [LegendItem("1 класс в гексе", lo), LegendItem("6+ классов (смешанный гекс)", hi)]
+
+
+def _render_cover(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    B = project.biomes.layers
+    if mode == "cover":
+        names = (
+            "vegetation",
+            "bare_soil",
+            "rock",
+            "sand",
+            "salt",
+            "snow_perennial",
+            "firn",
+            "glacier_ice",
+            "open_water",
+        )
+        cols = np.array(
+            [
+                [70, 140, 60],
+                [200, 170, 120],
+                [140, 135, 130],
+                [235, 210, 150],
+                [245, 245, 240],
+                [250, 250, 255],
+                [215, 230, 245],
+                [180, 210, 240],
+                [40, 90, 170],
+            ],
+            dtype=np.float64,
+        )
+        rgb = sum(np.nan_to_num(B[f"cover_{n}"])[..., None] * cols[i] for i, n in enumerate(names))
+        return _finish_bio(project, np.clip(rgb, 0, 255), np.ones(rgb.shape[:2], bool), overlays)
+    if mode.startswith("pft_"):
+        v = B[mode]
+        return _finish_bio(project, _ramp_rgb(v, 0.0, 0.8), np.isfinite(v), overlays)
+    key, lo_, hi_ = {
+        "vegetation": ("vegetation_fraction", 0.0, 1.0),
+        "canopy": ("tree_canopy_fraction", 0.0, 1.0),
+        "lai": ("lai_proxy", 0.0, 6.0),
+        "productivity": ("productivity_index", 0.0, 0.6),
+        "bare": ("bare_fraction", 0.0, 1.0),
+    }[mode]
+    v = B[key]
+    return _finish_bio(project, _ramp_rgb(v, lo_, hi_), np.isfinite(v), overlays)
+
+
+def _legend_cover(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "cover":
+        return [
+            LegendItem("растительность", (70, 140, 60)),
+            LegendItem("голый грунт", (200, 170, 120)),
+            LegendItem("скалы", (140, 135, 130)),
+            LegendItem("песок", (235, 210, 150)),
+            LegendItem("соль", (245, 245, 240)),
+            LegendItem("многолетний снег", (250, 250, 255)),
+            LegendItem("фирн", (215, 230, 245)),
+            LegendItem("ледниковый лёд", (180, 210, 240)),
+            LegendItem("смесь цветов = доли площади (сумма 1)"),
+        ]
+    t = {
+        "vegetation": ("доля растительности 0", "1"),
+        "canopy": ("кроны деревьев 0", "1"),
+        "lai": ("LAI 0", "6 (индекс, не измерение)"),
+        "productivity": ("индекс продуктивности 0", "0,6 (безразмерный, не гС/м²)"),
+        "bare": ("голой поверхности 0", "1"),
+    }
+    if mode.startswith("pft_"):
+        return [
+            LegendItem("покрытие типа растений 0", lo),
+            LegendItem("0,8", hi),
+            LegendItem("функциональный тип растений (PFT), не вид"),
+        ]
+    a, b = t[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi)]
+
+
+def _render_cryo(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    B = project.biomes.layers
+    if mode == "ice_form":
+        cols = np.array(
+            [[200, 190, 170], [150, 190, 230], [190, 215, 245], [235, 242, 252]], dtype=np.uint8
+        )
+        rgb = cols[B["ice_form"].astype(int)].copy()
+        none = B["ice_form"] == 0
+        base = _ramp_rgb(B["perennial_snow_fraction"], 0.0, 1.0)
+        rgb[none] = (0.4 * base[none] + 0.6 * np.array([200, 190, 170])).astype(np.uint8)
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays)
+    if mode == "state":
+        cols = np.array(
+            [[200, 190, 170], [120, 170, 230], [90, 120, 200], [230, 200, 140]], dtype=np.uint8
+        )
+        rgb = cols[B["glacier_state"].astype(int)]
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays)
+    if mode == "sea_ice":
+        v = B["sea_ice_potential_months"].astype(float)
+        rgb = _ramp_rgb(v, 0.0, 12.0)
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays, keep_water=True)
+    key, lo_, hi_, pw = {
+        "thickness": ("ice_thickness_m", 0.0, 3000.0, 0.5),
+        "balance": ("ice_mass_balance_mm", -2000.0, 2000.0, 1.0),
+        "firn": ("firn_swe_mm", 0.0, 3000.0, 0.5),
+        "snow_months": ("snow_months", 0.0, 12.0, 1.0),
+        "glacier_fraction": ("glacier_fraction", 0.0, 1.0, 1.0),
+    }[mode]
+    v = B[key]
+    rgb = _diverging(v, 2000.0) if mode == "balance" else _ramp_rgb(v, lo_, hi_, pw)
+    return _finish_bio(project, rgb, np.isfinite(v), overlays)
+
+
+def _legend_cryo(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    c = project.biomes.summary.get("cryosphere", {})
+    note = LegendItem(
+        f"снег/фирн/лёд: {c.get('spinup_years')} лет разгона; масса сходится "
+        f"до {c.get('mass_residual_mm_max', 0):.1e} мм; течение льда — упрощённое"
+    )
+    if mode == "ice_form":
+        return [
+            LegendItem("горный ледник", (150, 190, 230)),
+            LegendItem("ледниковая шапка", (190, 215, 245)),
+            LegendItem("материковый щит", (235, 242, 252)),
+            LegendItem("без льда (светлее — многолетний снег)", (200, 190, 170)),
+            note,
+        ]
+    if mode == "state":
+        return [
+            LegendItem("лёд: смоделирован с течением", (120, 170, 230)),
+            LegendItem("лёд: древний (засеян сценарием, затем баланс)", (90, 120, 200)),
+            LegendItem("только потенциал (накопление без льда)", (230, 200, 140)),
+            note,
+        ]
+    if mode == "balance":
+        return [
+            LegendItem("−2000 мм в.э./год (таяние)", tuple(int(x) for x in _DIV_RGB[0])),
+            LegendItem("0", tuple(int(x) for x in _DIV_RGB[2])),
+            LegendItem("+2000 (накопление)", tuple(int(x) for x in _DIV_RGB[4])),
+            note,
+        ]
+    t = {
+        "thickness": ("0 м", "3000 м льда"),
+        "firn": ("0", "3000 мм в.э. фирна"),
+        "snow_months": ("0 мес. со снегом", "12"),
+        "glacier_fraction": ("доля льда 0", "1"),
+        "sea_ice": ("0 мес. морского льда (потенциал)", "12"),
+    }
+    a, b = t[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi), note]
+
+
+def _render_wet(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .biomes.registry import BIOME_RGB, BIOMES
+
+    b = project.biomes
+    fam = np.array([x.family == "wetland" for x in BIOMES])
+    if mode == "wetlands":
+        off, codes, fr = b.fractions["offsets"], b.fractions["biome"], b.fractions["fraction"]
+        n = off.size - 1
+        wf = np.bincount(
+            np.repeat(np.arange(n), np.diff(off)), weights=fr * fam[codes], minlength=n
+        ).reshape(b.layers["realm"].shape)
+        best = np.full(n, -1)
+        sel = fam[codes]
+        if sel.any():
+            hh = np.repeat(np.arange(n), np.diff(off))[sel]
+            order = np.lexsort((-fr[sel], hh))
+            first = np.r_[True, hh[order][1:] != hh[order][:-1]]
+            best[hh[order][first]] = codes[sel][order][first]
+        best = best.reshape(wf.shape)
+        rgb = np.full(wf.shape + (3,), 215, dtype=np.float64)
+        has = best >= 0
+        rgb[has] = BIOME_RGB[best[has]] * np.clip(0.4 + wf[has, None] * 1.5, 0, 1) + 215 * (
+            1 - np.clip(0.4 + wf[has, None] * 1.5, 0, 1)
+        )
+        return _finish_bio(project, np.clip(rgb, 0, 255), np.ones(wf.shape, bool), overlays)
+    E = project.env.layers
+    v, lo_, hi_ = {
+        "hydroperiod": (E["waterlogging_months"], 0, 12),
+        "salinity": (E["soil_salinity_proxy"], 0, 1),
+        "floodplain": (E["floodplain_potential"], 0, 1),
+    }[mode]
+    return _finish_bio(project, _ramp_rgb(v, lo_, hi_), np.isfinite(v), overlays)
+
+
+def _legend_wet(project: Project, mode: str) -> list[LegendItem]:
+    from .biomes.registry import BIOMES
+
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "wetlands":
+        return [LegendItem(x.ru, x.rgb) for x in BIOMES if x.family == "wetland"] + [
+            LegendItem(
+                "насыщенность цвета = доля болот в гексе; без болот — серый", (215, 215, 215)
+            ),
+            LegendItem("верховое болото и мангры — только при данных о питании / приливе"),
+        ]
+    t = {
+        "hydroperiod": ("0 мес. переувлажнения", "12 (оценка по месяцам)"),
+        "salinity": ("нет засоления", "1 (индекс засоления)"),
+        "floodplain": ("нет поймы", "1 (потенциал поймы)"),
+    }
+    a, b = t[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi)]
+
+
+_LIMIT_RGB = np.array(
+    [
+        [200, 200, 200],
+        [70, 110, 200],
+        [120, 150, 220],
+        [215, 120, 50],
+        [230, 170, 90],
+        [150, 110, 80],
+        [130, 130, 130],
+        [235, 235, 220],
+        [60, 150, 170],
+        [235, 240, 250],
+        [190, 215, 240],
+        [90, 60, 60],
+        [180, 140, 110],
+        [200, 60, 40],
+        [170, 190, 210],
+        [30, 60, 140],
+    ],
+    dtype=np.uint8,
+)
+
+
+def _render_limits(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    B = project.biomes.layers
+    if mode == "main":
+        rgb = _LIMIT_RGB[B["main_limiting_factor"].astype(int)]
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays)
+    if mode == "aridity":
+        v = B["aridity_index"]
+        cls = np.digitize(np.nan_to_num(v, nan=9), [0.05, 0.2, 0.5, 0.65])
+        rgb = _ARIDITY_RGB[cls].copy()
+        rgb[~B["aridity_valid"]] = (200, 205, 225)
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays)
+    key, lo_, hi_ = {
+        "moisture": ("moisture_index", 0.0, 1.0),
+        "dry_months": ("dry_season_months", 0.0, 12.0),
+        "growing": ("growing_months", 0.0, 12.0),
+    }[mode]
+    return _finish_bio(project, _ramp_rgb(B[key], lo_, hi_), np.isfinite(B[key]), overlays)
+
+
+def _legend_limits(project: Project, mode: str) -> list[LegendItem]:
+    from .biomes.registry import LIMITING_FACTORS
+
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    ru = {
+        "cold": "холод (мало тепла)",
+        "short_season": "короткий сезон",
+        "drought": "засуха",
+        "seasonal_drought": "сезонная засуха",
+        "soil_shallow": "тонкая почва",
+        "rock": "скалы",
+        "salinity": "засоление",
+        "flooding": "переувлажнение",
+        "snow": "долгий снег",
+        "ice": "лёд / фирн",
+        "young_volcanic": "молодая лава",
+        "erosion": "размыв",
+        "hyperarid_heat": "жара и гипераридность",
+        "cold_polar_dry": "полярная сухость",
+        "deep_water": "вода",
+    }
+    if mode == "main":
+        return [LegendItem("ограничений нет", tuple(int(x) for x in _LIMIT_RGB[0]))] + [
+            LegendItem(ru[n], tuple(int(x) for x in _LIMIT_RGB[i + 1]))
+            for i, n in enumerate(LIMITING_FACTORS)
+        ]
+    if mode == "aridity":
+        return [
+            LegendItem(t, tuple(int(c) for c in rgb))
+            for t, rgb in zip(_ARIDITY_TITLES, _ARIDITY_RGB, strict=True)
+        ] + [LegendItem("индекс не определён (PET ≈ 0: холод, не пустыня)", (200, 205, 225))]
+    t = {
+        "moisture": ("AET/PET 0 (сухо)", "1 (влаги хватает)"),
+        "dry_months": ("0 засушливых мес.", "12"),
+        "growing": ("0 мес. роста", "12"),
+    }
+    a, b = t[mode]
+    return [LegendItem(a, lo), LegendItem(b, hi)]
+
+
+def _render_zones(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .biomes.registry import BIOME_RGB, BIOMES
+    from .pipeline_v50 import KOPPEN
+
+    B = project.biomes.layers
+    if mode == "koppen":
+        rgb = _KOPPEN_RGB[B["climate_zone_koppen"].astype(int)]
+        return _finish_bio(project, rgb, B["climate_zone_koppen"] > 0, overlays)
+    if mode == "realm":
+        cols = np.array(
+            [[128, 128, 128], [190, 175, 130], [60, 140, 205], [30, 70, 140], [120, 170, 150]],
+            dtype=np.uint8,
+        )
+        rgb = cols[B["realm"].astype(int)]
+        return _finish_bio(project, rgb, np.ones(rgb.shape[:2], bool), overlays, keep_water=True)
+    if mode == "aquatic":
+        d = B["dominant_biome"].astype(int)
+        water = np.array([b.family in ("marine", "freshwater") for b in BIOMES])[d]
+        rgb = np.where(water[..., None], BIOME_RGB[d], np.array([205, 200, 190], np.uint8))
+        return _finish_bio(project, rgb, np.ones(d.shape, bool), overlays, keep_water=True)
+    del KOPPEN
+    raise KeyError(f"Unknown mode {mode!r} of view 'ecozones'")
+
+
+_KOPPEN_RGB = np.array(
+    [
+        [128, 128, 128],
+        [0, 0, 254],
+        [0, 119, 255],
+        [70, 169, 250],
+        [254, 0, 0],
+        [254, 150, 149],
+        [245, 165, 0],
+        [255, 220, 100],
+        [255, 255, 0],
+        [150, 255, 150],
+        [100, 200, 100],
+        [255, 0, 254],
+        [170, 175, 255],
+        [0, 255, 255],
+        [178, 178, 178],
+        [102, 102, 102],
+    ],
+    dtype=np.uint8,
+)
+
+
+def _legend_zones(project: Project, mode: str) -> list[LegendItem]:
+    from .biomes.registry import BIOMES
+    from .pipeline_v50 import KOPPEN
+
+    if mode == "koppen":
+        return [
+            LegendItem(k, tuple(int(c) for c in _KOPPEN_RGB[i])) for i, k in enumerate(KOPPEN) if i
+        ] + [LegendItem("климатическая зона (диагностика), не биом")]
+    if mode == "realm":
+        return [
+            LegendItem("суша", (190, 175, 130)),
+            LegendItem("внутренние воды", (60, 140, 205)),
+            LegendItem("море", (30, 70, 140)),
+            LegendItem("переходная зона", (120, 170, 150)),
+        ]
+    return [LegendItem(b.ru, b.rgb) for b in BIOMES if b.family in ("marine", "freshwater")] + [
+        LegendItem(
+            "морские местообитания — только физические классы глубины; кораллы и "
+            "морской лёд — потенциал"
+        )
+    ]
+
+
+register_view(
+    ViewSpec(
+        id="biomes",
+        title="Биомы",
+        stage="v50",
+        layers=("dominant_biome", "dominant_land_biome", "biome_family"),
+        modes=(
+            Option("dominant", "Преобладающий класс (весь гекс)"),
+            Option("dominant_land", "Преобладающий биом суши"),
+            Option("family", "Группы биомов"),
+            Option("diversity", "Число классов в гексе"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Потенциальная растительность по участкам рельефа; состав гекса — по щелчку",
+        render=_render_biomes,
+        legend=_legend_biomes,
+    )
+)
+register_view(
+    ViewSpec(
+        id="vegetation",
+        title="Растительный покров",
+        stage="v50",
+        layers=("vegetation_fraction", "tree_canopy_fraction", "lai_proxy"),
+        modes=(
+            Option("cover", "Физический покров (доли)"),
+            Option("vegetation", "Доля растительности"),
+            Option("canopy", "Кроны деревьев"),
+            Option("lai", "LAI (индекс)"),
+            Option("productivity", "Индекс продуктивности"),
+            Option("bare", "Голая поверхность"),
+            Option("pft_tree_trop_evergreen", "PFT: тропические вечнозелёные"),
+            Option("pft_tree_temp_decid", "PFT: умеренные листопадные"),
+            Option("pft_tree_boreal_evergreen", "PFT: бореальные хвойные"),
+            Option("pft_grass_c4", "PFT: травы C4"),
+            Option("pft_grass_c3", "PFT: травы C3"),
+            Option("pft_shrub_xeric", "PFT: ксерофитные кустарники"),
+            Option("pft_moss_lichen", "PFT: мхи и лишайники"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Голая поверхность — нормальный результат, не ошибка",
+        render=_render_cover,
+        legend=_legend_cover,
+    )
+)
+register_view(
+    ViewSpec(
+        id="cryosphere",
+        title="Снег и ледники",
+        stage="v50",
+        layers=("ice_thickness_m", "ice_form", "firn_swe_mm"),
+        modes=(
+            Option("ice_form", "Ледниковые тела"),
+            Option("thickness", "Толщина льда"),
+            Option("balance", "Баланс массы"),
+            Option("firn", "Фирн"),
+            Option("snow_months", "Месяцы со снегом"),
+            Option("glacier_fraction", "Доля льда"),
+            Option("state", "Происхождение льда"),
+            Option("sea_ice", "Морской лёд (потенциал)"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Снег, фирн и лёд — разные резервуары; ледник не выводится из одной T < 0",
+        render=_render_cryo,
+        legend=_legend_cryo,
+    )
+)
+register_view(
+    ViewSpec(
+        id="wetlands",
+        title="Водно-болотные экосистемы",
+        stage="v50",
+        layers=("dominant_biome", "waterlogging_months"),
+        modes=(
+            Option("wetlands", "Болота и поймы"),
+            Option("hydroperiod", "Гидропериод"),
+            Option("salinity", "Засоление"),
+            Option("floodplain", "Поймы (потенциал)"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Болото — по месяцам переувлажнения и рельефу, не по TWI",
+        render=_render_wet,
+        legend=_legend_wet,
+    )
+)
+register_view(
+    ViewSpec(
+        id="eco_limits",
+        title="Экологические ограничения",
+        stage="v50",
+        layers=("main_limiting_factor", "aridity_index", "moisture_index"),
+        modes=(
+            Option("main", "Главный ограничивающий фактор"),
+            Option("aridity", "Аридность (UNEP)"),
+            Option("moisture", "Влагообеспеченность AET/PET"),
+            Option("dry_months", "Засушливые месяцы"),
+            Option("growing", "Месяцы роста"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Почему здесь этот биом: тепло, вода, почва, соль, лёд",
+        render=_render_limits,
+        legend=_legend_limits,
+    )
+)
+register_view(
+    ViewSpec(
+        id="ecozones",
+        title="Экозоны и водные местообитания",
+        stage="v50",
+        layers=("climate_zone_koppen", "realm"),
+        modes=(
+            Option("koppen", "Климат Кёппена"),
+            Option("realm", "Суша / воды / море"),
+            Option("aquatic", "Водные местообитания"),
+        ),
+        overlays=_V50_OVERLAYS,
+        note="Климатическая зона ≠ биом; морская экология не моделируется",
+        render=_render_zones,
+        legend=_legend_zones,
+    )
+)
+
 for _id, _title in (
-    ("biomes", "Биомы"),
     ("geosymbols", "Геосимволы"),
     ("seismicity", "Сейсмичность"),
 ):
