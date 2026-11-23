@@ -60,7 +60,9 @@ def miami_npp(t_c, p_mm):
 
 def run(family_names, t_ann, p_ann, dry_months, soil, nbr, seed_int, years=300,
         disturbances=None) -> dict:  # fmt: skip
-    """Year-by-year actual state; ``disturbances``: list of (year_index, hex_idx, fraction)."""
+    """Year-by-year actual state; ``disturbances``: list of (year_index, hex_idx, fraction)
+    or (year_index, hex_idx, fraction, resets_soil). Windthrow passes ``resets_soil=False``:
+    the stand falls but the soil stays (no primary succession)."""
     n = len(family_names)
     cmax = np.array([C_MAX.get(f, 1.0) for f in family_names], dtype=np.float64)
     cmax = np.where(np.asarray(soil, bool), cmax, np.minimum(cmax, 0.05))
@@ -72,19 +74,22 @@ def run(family_names, t_ann, p_ann, dry_months, soil, nbr, seed_int, years=300,
     burnt_last = np.zeros(n)
     burn_count = np.zeros(n)
     dist = {}
-    for y, idx, f in disturbances or []:
-        dist.setdefault(int(y), []).append((np.asarray(idx, dtype=np.int64),
-                                            np.asarray(f, dtype=np.float64)))  # fmt: skip
+    for item in disturbances or []:
+        y, idx, f = item[:3]
+        soil_reset = bool(item[3]) if len(item) > 3 else True
+        entry = (np.asarray(idx, dtype=np.int64), np.asarray(f, dtype=np.float64), soil_reset)
+        dist.setdefault(int(y), []).append(entry)
     dryness = np.clip(np.asarray(dry_months, dtype=np.float64) / 8.0, 0.0, 1.0)
     warmth = np.clip((np.asarray(t_ann, dtype=np.float64) - 0.0) / 20.0, 0.0, 1.0)
     hex_ids = np.arange(n)
     for year in range(years):
         # volcanic resets of a share of the hex (lava, PDC, thick ash, lahar)
-        for idx, f in dist.get(year, []):
+        for idx, f, soil_reset in dist.get(year, []):
             f = np.clip(f, 0.0, 1.0)
             c[idx] = c[idx] * (1.0 - f)
             age[idx] = age[idx] * (1.0 - f)
-            soil_dev[idx] = soil_dev[idx] * (1.0 - f)  # primary succession starts on rock
+            if soil_reset:
+                soil_dev[idx] = soil_dev[idx] * (1.0 - f)  # primary succession starts on rock
         # growth with a seed source: own living share or vegetated neighbours
         seeds = c > 0.02 * np.maximum(cmax, 1e-9)
         nb_seed = np.zeros(n, dtype=bool)

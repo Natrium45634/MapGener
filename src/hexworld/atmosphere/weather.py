@@ -456,6 +456,10 @@ def generate(
         events += etc_events(G, grid, rng_factory, tag, days)
         events += ar_events(G, grid, rng_factory, tag)
     ev_m = np.zeros((12,) + shape)
+    # snow share of the month's rain from the surface air temperature [A]; ETC fronts use
+    # their own profile-based share: snow is a part of the same water, never added (T74)
+    snow_share = np.clip((1.0 - G["t_air_c"].astype(np.float64)) / 4.0, 0.0, 1.0)
+    ev_snow = np.zeros((12,) + shape)
     # the vapour events can spend in a month: the column renewed every ~8 days
     pool = G["column_vapor_kg_m2"].astype(np.float64) * (np.asarray(days).reshape(12, 1, 1) / 8.0)
     events.sort(key=lambda e: e["event_id"])  # deterministic, independent of generation order
@@ -463,6 +467,10 @@ def generate(
         r = event_rain(ev, G, grid, shape, pool[ev["month"] - 1])
         m = ev["month"] - 1
         ev_m[m] += r
+        if ev["event_type"] == "ETC":
+            ev_snow[m] += r * ev["fronts"][0]["snow_fraction"]
+        else:
+            ev_snow[m] += r * snow_share[m]
         d = int(start[m]) + min(int(ev.get("start_day", 0)), int(days[m]) - 1)
         daily[d] += r  # the event day carries its rain (dynamic hydrology input)
     p_act = gen_m + ev_m
@@ -489,6 +497,7 @@ def generate(
         "aggregate_monthly_actuals_mm": p_act.astype(np.float32),
         "generator_monthly_mm": gen_m.astype(np.float32),
         "event_monthly_mm": ev_m.astype(np.float32),
+        "snowfall_monthly_mm": (gen_m * snow_share + ev_snow).astype(np.float32),
         "annual_anomaly_pct": (
             100.0 * (p_act.sum(0) / np.maximum(p_norm.sum(0), 1e-9) - 1.0)
         ).astype(np.float32),

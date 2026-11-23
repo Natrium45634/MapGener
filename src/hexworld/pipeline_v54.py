@@ -533,8 +533,15 @@ def apply_weather_effects(project, grid, wy, p_norm_grid, shape) -> dict:
     area_m2 = lay.hex_area_km2 * 1e6
     flood_q = route_volume(L, excess.ravel() * 1e-3 * area_m2).reshape(shape) / 86400.0
     q_mean = np.maximum(L["discharge_m3_s"].astype(np.float64), 1e-3)
+    storm_wind = storm_max_wind_hex(project, wy["events"])
+    damage = np.where(land, WINDTHROW_MAX * np.clip((storm_wind - 25.0) / 30.0, 0.0, 1.0), 0.0)
+    snow = sample(grid, wy["snowfall_monthly_mm"].astype(np.float64).sum(axis=0), hx, hy)
+    snow_share = np.clip(snow / np.maximum(sample(grid, act, hx, hy), 1e-9), 0.0, 1.0)
     f32 = np.float32
     return {
+        "weather_snowfall_annual_mm": np.where(land, p_act_hex * snow_share, np.nan).astype(f32),
+        "weather_storm_max_wind_ms": storm_wind.astype(f32),
+        "weather_canopy_damage_fraction": damage.astype(f32),
         "weather_precip_actual_annual_mm": np.where(land, p_act_hex, np.nan).astype(f32),
         "weather_annual_anomaly_pct": sample(grid, wy["annual_anomaly_pct"], hx, hy).astype(f32),
         "weather_max_daily_rain_mm": max_daily.astype(f32),
@@ -545,6 +552,52 @@ def apply_weather_effects(project, grid, wy, p_norm_grid, shape) -> dict:
         "weather_flood_peak_m3_s": np.where(land, flood_q, 0.0).astype(f32),
         "weather_flood_peak_ratio": np.where(land, flood_q / q_mean, 0.0).astype(f32),
     }
+
+
+#: [H] largest share of a stand thrown by the strongest storm winds (55 m/s and more)
+WINDTHROW_MAX = 0.6
+HOLLAND_RMAX_KM = 40.0
+
+
+def storm_max_wind_hex(project, events) -> np.ndarray:
+    """Max storm wind of the year per hex: Holland gradient wind around each TC position.
+
+    The eye scale (tens of km) is resolved on the hexes, not on the ~300 km atmosphere
+    grid; over land the surface wind is reduced to 0.75 of the gradient wind [A].
+    """
+    from scipy.spatial import cKDTree
+
+    from .atmosphere.storms import dp_for_vmax, holland_wind
+    from .earth.planet import EARTH
+
+    lay = project.layout
+    hx, hy = lay.centers()
+    shape = hx.shape
+    out = np.zeros(hx.size)
+    pts = [
+        p
+        for e in events
+        if e["event_type"] == "TC"
+        for p in e["track"]["points"]
+        if p.get("v_ms", 0.0) >= 17.0
+    ]
+    if not pts:
+        return out.reshape(shape)
+    tree = cKDTree(np.column_stack([hx.ravel(), hy.ravel()]))
+    lat = project.hydro.layers["latitude_deg"].ravel()
+    land = project.hydro.layers["land_mask"].ravel().astype(bool)
+    for p in pts:
+        idx = tree.query_ball_point([p["x_km"], p["y_km"]], 300.0)
+        if not idx:
+            continue
+        idx = np.asarray(idx)
+        r = np.hypot(hx.ravel()[idx] - p["x_km"], hy.ravel()[idx] - p["y_km"]) * 1000.0
+        dp = dp_for_vmax(p["v_ms"])
+        f = float(EARTH.coriolis(np.mean(lat[idx])))
+        v = holland_wind(r, 101000.0 - dp, 101000.0, HOLLAND_RMAX_KM * 1000.0, f)
+        v = np.minimum(v, p["v_ms"]) * np.where(land[idx], 0.75, 1.0)
+        out[idx] = np.maximum(out[idx], v)
+    return out.reshape(shape)
 
 
 def route_volume(L, volume_m3):

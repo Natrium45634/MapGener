@@ -434,3 +434,61 @@ def test_fixtures_s01_s24_exist():
         d = json.loads(p.read_text("utf-8"))
         assert {"id", "scenario", "expected", "test"} <= set(d)
     assert math.isfinite(1.0)
+
+
+# -- snow, windthrow, export ----------------------------------------------------------------
+def test_t74_snow_is_part_of_the_same_water(hist_project):
+    a = hist_project.atmosphere
+    G, grid = a.grid_fields, a.grid
+    y = weather.generate(G, grid, EARTH, np.asarray(grid["month_days"]), "Ab12", "snow", 1, None)
+    snow = y["snowfall_monthly_mm"].astype(np.float64)
+    act = y["aggregate_monthly_actuals_mm"].astype(np.float64)
+    assert (snow <= act * (1 + 1e-5) + 1e-4).all()  # a share of the water, never extra
+    cold = G["t_air_c"] < -5.0
+    if cold.any():
+        assert snow[cold].sum() > 0.9 * act[cold].sum()
+
+
+def test_windthrow_keeps_the_soil():
+    from hexworld.biomes import ecology as eco
+
+    n = 30
+    nbr = np.full((n, 6), -1, dtype=np.int64)
+    nbr[:, 0] = np.roll(np.arange(n), -1)
+    nbr[:, 3] = np.roll(np.arange(n), 1)
+    args = (["forest_temperate"] * n, np.full(n, 12.0), np.full(n, 900.0), np.zeros(n),
+            np.ones(n, bool), nbr, 7)  # fmt: skip
+    idx = np.arange(n)
+    wind = eco.run(*args, years=60, disturbances=[(30, idx, np.full(n, 0.6), False)])
+    lava = eco.run(*args, years=60, disturbances=[(30, idx, np.full(n, 0.6), True)])
+    assert wind["actual_biomass_kg_c_m2"].mean() > lava["actual_biomass_kg_c_m2"].mean()
+
+
+def test_storm_wind_on_hexes_follows_the_holland_profile(hist_project):
+    from hexworld.pipeline_v54 import storm_max_wind_hex
+
+    hx, hy = hist_project.layout.centers()
+    x0, y0 = float(hx.mean()), float(hy.mean())
+    ev = {"event_type": "TC", "track": {"points": [{"x_km": x0, "y_km": y0, "v_ms": 50.0}]}}
+    w = storm_max_wind_hex(hist_project, [ev])
+    d = np.hypot(hx - x0, hy - y0)
+    assert w[d < 60].max() > 30.0
+    assert w[d > 400].max() == 0.0
+    assert np.isfinite(w).all()
+
+
+def test_export_ledger_and_metric_geometry(hist_project, tmp_path):
+    from hexworld.atmosphere.export import export_all, world_metric_json
+    from hexworld.pipeline_v54 import run_atmosphere
+
+    cfg = hist_project.config
+    cfg2 = replace(cfg, atmosphere=replace(cfg.atmosphere, weather_year=True))
+    res = run_atmosphere(cfg2, hist_project)
+    atm = replace(hist_project.atmosphere, events=res["events"], summary=res["summary"],
+                  grid_fields=res["grid_fields"])  # fmt: skip
+    info = export_all(atm, tmp_path / "x")
+    assert info["events"] == len(res["events"]) and info["budget_months"] == 12
+    head = (tmp_path / "x" / "weather_events.csv").read_text("utf-8").splitlines()[0]
+    assert head.startswith("event_id,event_type,month")
+    doc = world_metric_json(atm)
+    assert doc["crs"] == "world_metric_km" and "lat" not in json.dumps(doc["features"][:5])

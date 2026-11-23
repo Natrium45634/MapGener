@@ -62,6 +62,11 @@ def upstream_keys(project) -> dict:
         "hydro": project.hydro.stage_keys,
         "volcanism": volc.stage_keys if volc is not None else {},
         **({"earth": project.earth.stage_keys} if getattr(project, "earth", None) else {}),
+        **(
+            {"atmosphere": project.atmosphere.stage_keys}
+            if getattr(project, "atmosphere", None) is not None
+            else {}
+        ),
     }
 
 
@@ -654,6 +659,15 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
             for yr in np.unique((years - age[hit]).astype(int)):
                 sel = hit & ((years - age).astype(int) == yr)
                 dist.append((int(yr), np.nonzero(sel)[0], f[sel]))
+        atm = getattr(project, "atmosphere", None)
+        storm_damage = 0
+        if atm is not None and "weather_canopy_damage_fraction" in atm.layers:
+            # v5.4c: the weather year's windthrow is the last simulated year (keeps the soil)
+            dmg = flat(atm.layers["weather_canopy_damage_fraction"]).astype(np.float64)
+            sel = dmg > 0
+            if sel.any():
+                dist.append((years - 1, np.nonzero(sel)[0], dmg[sel], False))
+                storm_damage = int(sel.sum())
         soil = flat(E["soil_present"]).astype(bool) if "soil_present" in E else np.ones(n_hex, bool)
         seed_int = int(hashlib.sha256(str(config.seed).encode()).hexdigest()[:15], 16)
         er = eco.run(fam_of, t_hex.mean(axis=0), p_hex.sum(axis=0),
@@ -671,6 +685,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         layers["succession_stage"] = grid(er["succession_stage"], np.uint8)
         layers["fire_return_interval_yr"] = grid(np.minimum(er["fire_return_interval_yr"], 1e6))
         eco_summary = er["summary"]
+        eco_summary["weather_storm_damage_hexes"] = storm_damage
         timings["v50_ecosystems"] = round(time.perf_counter() - t0, 3)
     # budgets
     hex_tot = np.bincount(uh, weights=w, minlength=n_hex)

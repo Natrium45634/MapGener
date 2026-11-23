@@ -943,6 +943,66 @@ def cmd_volcanism(args) -> int:
     return 0
 
 
+def cmd_atmosphere(args) -> int:
+    """Print the v5.4 summary and the monthly vapour budget; optional windAt and export."""
+    project = load_project(args.project)
+    a = getattr(project, "atmosphere", None)
+    if a is None or not a.grid_fields:
+        print("v5.4 atmosphere is not calculated for this project (needs earth + atmosphere).")
+        return 1
+    s = a.summary
+    q = s["quality"]
+    print(
+        f"atmosphere {s['algorithm_version']} mode {s['mode']}, domain {q['domain']}, "
+        f"grid {s['grid']['shape']} x {s['grid']['cell_km']:.0f} km"
+    )
+    wc = s["world_climate"]
+    print(
+        f"  precipitation coupling {wc.get('precipitation_coupling')}; ocean coupling "
+        f"{wc.get('ocean_coupling', {}).get('status')}; Hadley edge {s['hadley_edge_deg']:.1f} deg"
+    )
+    print(
+        "  land rain regimes: "
+        + ", ".join(f"{k} {100 * v:.0f}%" for k, v in s["regime_shares_land"].items())
+    )
+    st = s.get("storms") or {}
+    if st:
+        print(
+            f"  TC geneses {st['tc_genesis_per_yr']:.2f}/yr, track stats {st['track_statistics']}"
+        )
+    wy = s.get("weather_year")
+    if wy:
+        print(
+            f"  weather year {wy['year_seed']}#{wy['year']}: {wy['event_counts']}, "
+            f"interannual {wy['interannual']['mode']}"
+        )
+    print(f"  validation: {a.validation.get('ok')} {a.validation.get('checks')}")
+    print("  month   E kg        P kg        import kg   export kg   dStore kg   rel.resid")
+    for r in s.get("budget_months", []):
+        print(
+            f"  {r['month']:5d} {r['evaporation_kg']:11.3e} {r['precipitation_kg']:11.3e} "
+            f"{r['import_kg']:11.3e} {r['export_kg']:11.3e} {r['storage_change_kg']:11.3e} "
+            f"{r['relative_residual']:.1e}"
+        )
+    if args.wind:
+        from .atmosphere.circulation import QUALITY_NAMES
+        from .pipeline_v54 import wind_at_world
+
+        x, y, month, level = args.wind
+        kw = {"pressure_pa": level} if level > 1500 else {"altitude_m": level}
+        u, v, qc = wind_at_world(a, [x], [y], int(month) - 1, **kw)
+        where = f"p={level:g} Pa" if level > 1500 else f"z={level:g} m"
+        print(
+            f"  windAt({x:g} km, {y:g} km, month {int(month)}, {where}): "
+            f"u={u[0]:.1f} v={v[0]:.1f} m/s ({QUALITY_NAMES[int(qc[0])]})"
+        )
+    if args.export:
+        from .atmosphere.export import export_all
+
+        print("  exported:", export_all(a, args.export))
+    return 0
+
+
 def cmd_terrain(args) -> int:
     """Print the v4.6 summary of a project: sea floor, basins, water, massifs."""
     project = load_project(args.project)
@@ -1209,6 +1269,22 @@ def build_parser() -> argparse.ArgumentParser:
     vo.add_argument("project")
     vo.add_argument("--events", type=int, default=10, help="list this many recent events")
     vo.set_defaults(func=cmd_volcanism)
+
+    at = sub.add_parser("atmosphere", help="v5.4 summary, vapour budget, windAt, export")
+    at.add_argument("project")
+    at.add_argument(
+        "--wind",
+        type=float,
+        nargs=4,
+        metavar=("X_KM", "Y_KM", "MONTH", "LEVEL"),
+        help="windAt: LEVEL > 1500 is a pressure in Pa, else a height in m",
+    )
+    at.add_argument(
+        "--export",
+        metavar="DIR",
+        help="write weather_events.csv, world_metric JSON, budget CSV, grid npz",
+    )
+    at.set_defaults(func=cmd_atmosphere)
 
     se = sub.add_parser("section", help="vertical cross-section along a line (v4.6)")
     se.add_argument("project")
