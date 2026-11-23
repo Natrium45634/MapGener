@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S03",
+  "scenario": "Два разъединённых океана",
+  "expected": "независимые циркуляции/теплобалансы",
+  "negative_control": "телепортация тепла через сушу",
+  "tests": [
+    "tests/test_v53.py::test_t12_disconnected_basins_do_not_share_heat"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S14",
+  "scenario": "Лава на мелководье",
+  "expected": "новая суша, обновлённый берег",
+  "negative_control": "остров иконкой",
+  "tests": [
+    "tests/test_v53_volcano_terrain.py::test_t75_lava_entering_the_sea_makes_new_land"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

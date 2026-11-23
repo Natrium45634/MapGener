@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S16",
+  "scenario": "Тропические высокогорья",
+  "expected": "парамо",
+  "negative_control": "степь как парамо",
+  "tests": [
+    "tests/test_v53_ecology.py::test_t62_paramo_needs_cold_without_winter"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

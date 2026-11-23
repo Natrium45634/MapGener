@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S09",
+  "scenario": "Потепление и дегляциация",
+  "expected": "подъём коры с лагом, рост уровня моря",
+  "negative_control": "увеличение массы океана при таянии sea ice",
+  "tests": [
+    "tests/test_v53_cryo.py::test_n_ice_mass_and_sea_level"
+  ],
+  "status": "OPEN: isostasy and sea level are diagnostic layers, not applied to the relief / rivers (5.3-recovery backlog)",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S24",
+  "scenario": "Один гекс с горой и морем",
+  "expected": "subhex доли snow/ice/forest/shoreline",
+  "negative_control": "один ледник = весь гекс",
+  "tests": [
+    "tests/test_v50.py::test_v2_t06_mixed_hex_fractions",
+    "tests/test_v50.py::test_v4_cover_never_exceeds_open_share"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

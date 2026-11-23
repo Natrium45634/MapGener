@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S02",
+  "scenario": "Холодное течение у западного берега в субтропиках",
+  "expected": "апвеллинг",
+  "negative_control": "автоматическая пустыня при любом холодном течении",
+  "tests": [
+    "tests/test_v53.py::test_t16_upwelling_on_an_eastern_boundary_with_equatorward_wind"
+  ],
+  "status": "PARTIAL: upwelling tested; fog potential not modelled",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

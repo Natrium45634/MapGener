@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S05",
+  "scenario": "Полярное сухое нагорье без истории оледенения",
+  "expected": "полярная пустыня/скалы",
+  "negative_control": "щит только из широты",
+  "tests": [
+    "tests/test_v53_cryo.py::test_t38_dry_polar_land_stays_bare_with_negative_balance",
+    "tests/test_v50.py::test_v5_paleo_seed_needs_cold_and_snow"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

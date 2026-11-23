@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S06",
+  "scenario": "Холодный материк с положительным SMB и долгой историей",
+  "expected": "толстый щит",
+  "negative_control": "100-летний псевдоравновесный тонкий лёд",
+  "tests": [
+    "tests/test_v53_cryo.py::test_sia_steady_state_matches_vialov",
+    "tests/test_v53_cryo.py::test_t36_cold_start_short_run_is_not_called_equilibrium"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

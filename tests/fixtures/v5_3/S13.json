@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S13",
+  "scenario": "Река и молодой вулкан",
+  "expected": "лавовая запруда, озеро",
+  "negative_control": "река под лавой",
+  "tests": [
+    "tests/test_v53_volcano_terrain.py::test_t74_lava_dam_creates_an_inland_lake"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

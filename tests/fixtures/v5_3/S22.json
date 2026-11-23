@@ -1,0 +1,14 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S22",
+  "scenario": "Планета с осью 60°",
+  "expected": "длинные полярные сезоны",
+  "negative_control": "жёсткие земные пояса",
+  "tests": [
+    "tests/test_v53.py::test_tilt_scales_seasonality",
+    "tests/test_v541_ocean.py::test_t35_ebm_is_planet_physics_not_a_table",
+    "tests/test_v54_atmosphere.py::test_t14_rotation_changes_the_belts_not_fixed_30_60"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

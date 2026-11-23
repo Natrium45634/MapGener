@@ -1,0 +1,14 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S08",
+  "scenario": "Берег с ледником/шельфом",
+  "expected": "grounding line, плавучая часть, кальвинг",
+  "negative_control": "sea ice вместо shelf",
+  "tests": [
+    "tests/test_v53_cryo.py::test_t42_cold_ocean_alone_makes_no_shelf",
+    "tests/test_v53_cryo.py::test_t43_t44_shelf_flux_is_conserved_and_calving_booked",
+    "tests/test_v53_cryo.py::test_t45_basal_melt_uses_ocean_heat"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

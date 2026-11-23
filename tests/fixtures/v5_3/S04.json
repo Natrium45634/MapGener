@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S04",
+  "scenario": "Полярный океан",
+  "expected": "зимний лёд, летнее отступление",
+  "negative_control": "море становится материком",
+  "tests": [
+    "tests/test_v53.py::test_t17_t18_polar_ocean_freezes_in_winter_and_retreats_in_summer",
+    "tests/test_v53.py::test_t24_types_and_realms_distinguished"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S23",
+  "scenario": "Закрытый бассейн ниже моря",
+  "expected": "отдельное озеро/сухая низменность",
+  "negative_control": "мировой океан внутри бессточного бассейна",
+  "tests": [
+    "tests/test_v46.py::test_closed_basin_below_sea_level_is_not_ocean",
+    "tests/test_v53_volcano_terrain.py::test_closed_depression_below_sea_level_is_not_ocean",
+    "tests/test_v50.py::test_v2_t08_dry_depression_is_not_ocean"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

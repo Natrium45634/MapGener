@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S18",
+  "scenario": "Сезонно сухие тропики",
+  "expected": "каатинга",
+  "negative_control": "влажный лес как каатинга",
+  "tests": [
+    "tests/test_v53_ecology.py::test_t64_thorn_scrub_needs_a_long_dry_season"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

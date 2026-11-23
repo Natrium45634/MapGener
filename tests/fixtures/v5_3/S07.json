@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S07",
+  "scenario": "Древний щит при современных сухих условиях",
+  "expected": "медленно истончающийся лёд",
+  "negative_control": "мгновенное исчезновение",
+  "tests": [
+    "tests/test_v53_cryo.py::test_old_ice_under_negative_smb_thins_but_does_not_vanish_at_once"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

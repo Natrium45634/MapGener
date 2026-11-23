@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S11",
+  "scenario": "Влажный защищённый материк",
+  "expected": "слабый перенос песка",
+  "negative_control": "барханы на мокром лесу",
+  "tests": [
+    "tests/test_v53_morpho.py::test_t51_vegetation_and_moisture_hold_the_sand"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

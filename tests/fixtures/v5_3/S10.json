@@ -1,0 +1,14 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S10",
+  "scenario": "Пустыня с сильными ветрами",
+  "expected": "дюны, дефляция, лёсс",
+  "negative_control": "песок из пустоты",
+  "tests": [
+    "tests/test_v53_morpho.py::test_t50_dry_fetch_conserves_sand_and_moves_it_downwind",
+    "tests/test_v53_morpho.py::test_t52_dust_is_a_separate_fraction_and_closes",
+    "tests/test_v53_morpho.py::test_no_dunes_without_sand"
+  ],
+  "status": "PARTIAL: dunes / loess as layers, not added to the relief",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S01",
+  "scenario": "Умеренный океанический материк с западными ветрами",
+  "expected": "перенос тепла морем, влажное наветренное побережье",
+  "negative_control": "одинаковая SST вдоль широты независимо от течения",
+  "tests": [
+    "tests/test_v53.py::test_sst_not_latitude_only",
+    "tests/test_v53.py::test_subtropical_gyre_has_a_western_boundary_current"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

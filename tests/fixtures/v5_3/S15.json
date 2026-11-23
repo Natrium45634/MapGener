@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S15",
+  "scenario": "Извержение подо льдом",
+  "expected": "meltwater + изменение льда",
+  "negative_control": "произвольная толщина льда",
+  "tests": [
+    "tests/test_v53_volcano_terrain.py::test_t77_subglacial_uses_the_ice_sheet_when_present",
+    "tests/test_v51.py::test_g4_melt_is_energy_limited_and_capped_by_ice"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}

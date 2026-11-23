@@ -1,0 +1,13 @@
+{
+  "schema_version": "5.3-fixture-1",
+  "id": "v5_3::S12",
+  "scenario": "Песчаный низкий берег",
+  "expected": "вдольбереговой перенос",
+  "negative_control": "клиф как дюна",
+  "tests": [
+    "tests/test_v53_morpho.py::test_t53_longshore_sand_is_conserved_along_the_coast",
+    "tests/test_v53_morpho.py::test_t54_cliff_follows_the_rock_law_not_the_sand_law"
+  ],
+  "status": "PASS",
+  "generator": "synthetic minimal geometry inside each named test (deterministic, documented there)"
+}
