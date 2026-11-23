@@ -38,6 +38,7 @@ GROUPS = (
     ("topo", "Высотные пояса"),
     ("biomes", "Биомы и лёд"),
     ("volcanism", "Вулканизм"),
+    ("earth", "Планета, океан, лёд"),
     ("technical", "Технические"),
 )
 
@@ -1570,6 +1571,150 @@ PARAMS: tuple[Param, ...] = (
         unit="ppm",
         tech=True,
     ),
+    # -- planet, ocean, sea ice, winds aloft (v5.3) ----------------------------------------------------------
+    _p("earth.enabled", "Земная система v5.3 (океан, лёд, ветры)", "earth", "bool", tech=True),
+    _p(
+        "earth.obliquity_deg",
+        "Наклон оси планеты",
+        "earth",
+        "float",
+        0,
+        90,
+        (15, 35),
+        1,
+        unit="°",
+        help="0° — нет сезонов; 60° — долгие полярные день и ночь.",
+    ),  # fmt: skip
+    _p(
+        "earth.day_length_h",
+        "Длина суток",
+        "earth",
+        "float",
+        4,
+        1000,
+        None,
+        1,
+        log=True,
+        unit="ч",
+        help="Меняет силу Кориолиса: течения и ветры на высотах.",
+    ),  # fmt: skip
+    _p(
+        "earth.year_length_days",
+        "Длина года",
+        "earth",
+        "float",
+        50,
+        2000,
+        None,
+        1,
+        log=True,
+        unit="сут",
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.solar_constant_wm2",
+        "Солнечная постоянная",
+        "earth",
+        "float",
+        900,
+        2000,
+        None,
+        0,
+        unit="Вт/м²",
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.planet_radius_km",
+        "Радиус планеты",
+        "earth",
+        "float",
+        1000,
+        20000,
+        None,
+        0,
+        unit="км",
+        tech=True,
+    ),  # fmt: skip
+    _p("earth.ocean", "Океанские течения и перенос тепла", "earth", "bool", tech=True),
+    _p(
+        "earth.mixed_layer_m",
+        "Перемешанный слой океана",
+        "earth",
+        "float",
+        10,
+        200,
+        None,
+        0,
+        unit="м",
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.wind_drag_cd",
+        "Коэффициент трения ветра о воду",
+        "earth",
+        "float",
+        5e-4,
+        3e-3,
+        None,
+        4,
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.eddy_diffusivity_m2_s",
+        "Вихревая диффузия тепла",
+        "earth",
+        "float",
+        0,
+        1e5,
+        None,
+        0,
+        unit="м²/с",
+        tech=True,
+    ),  # fmt: skip
+    _p("earth.sea_ice", "Морской лёд", "earth", "bool", tech=True),
+    _p("earth.upper_winds", "Ветры на высотах (850/500/250 гПа)", "earth", "bool", tech=True),
+    _p(
+        "earth.pet_method",
+        "Испаряемость",
+        "earth",
+        "choice",
+        choices=(
+            ("fao56", "FAO-56 Пенман–Монтейт"),
+            ("hargreaves", "Харгривс"),
+            ("legacy", "старая (по температуре)"),
+        ),
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.coupler_max_iter",
+        "Итераций сопряжения океан–климат",
+        "earth",
+        "int",
+        1,
+        30,
+        None,
+        0,
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.coupler_relaxation",
+        "Демпфирование сопряжения",
+        "earth",
+        "float",
+        0.1,
+        1.0,
+        None,
+        2,
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.quality",
+        "Точность океана",
+        "earth",
+        "choice",
+        choices=(("fast", "быстро"), ("balanced", "сбалансированно"), ("high", "точно")),
+        tech=True,
+    ),  # fmt: skip
     # -- volcanism (v5.1) --------------------------------------------------------------------------------------
     _p("volcanism.enabled", "Вулканизм (v5.1)", "volcanism", "bool", tech=True),
     _p(

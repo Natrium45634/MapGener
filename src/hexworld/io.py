@@ -49,6 +49,7 @@ from .version import (
     CLIMATE_ALGORITHM_VERSION,
     CONTINENTS_ALGORITHM_VERSION,
     COORDINATE_VERSION,
+    EARTH_ALGORITHM_VERSION,
     ENV_ALGORITHM_VERSION,
     GENERATOR_VERSION,
     HISTORY_ALGORITHM_VERSION,
@@ -78,6 +79,7 @@ V50_DATA_FILES = (
     "biomes.json",
 )
 V51_DATA_FILES = ("volcanism_fields.npz", "volcanism.json")
+V53_DATA_FILES = ("earth_fields.npz", "earth.json")
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -545,6 +547,32 @@ def _write_v51_data(project: Project, path: Path) -> None:
     )  # fmt: skip
 
 
+def _earth_hash(earth) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(earth.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    return h.hexdigest()
+
+
+def _write_v53_data(project: Project, path: Path) -> None:
+    e = project.earth
+    np.savez_compressed(path / "earth_fields.npz", **e.layers)
+    _write_json(
+        path / "earth.json",
+        _plain({
+            "world_id": project.world_id,
+            "stage": "earth_5_3a",
+            "algorithm_version": EARTH_ALGORITHM_VERSION,
+            "summary": e.summary,
+            "provenance": e.provenance,
+            "stage_keys": e.stage_keys,
+            "warnings": e.warnings,
+            "timings_s": e.timings,
+            "nodata": "not generated = no earth section (not 'no ocean' or 'no sea ice')",
+        }),
+    )  # fmt: skip
+
+
 def _terrain_hash(terrain) -> str:
     h = hashlib.sha256()
     for key, value in sorted(terrain.content_hashes().items()):
@@ -637,6 +665,12 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             or (bio_now is not None
                 and (existing.get("v50") or {}).get("biome_hash") == _biome_hash(bio_now))
         )  # fmt: skip
+        earth_now = getattr(project, "earth", None)
+        env_same = env_same and (
+            (earth_now is None and not existing.get("v53"))
+            or (earth_now is not None
+                and (existing.get("v53") or {}).get("earth_hash") == _earth_hash(earth_now))
+        )  # fmt: skip
         volc_now = getattr(project, "volcanism", None)
         env_same = env_same and (
             (volc_now is None and not existing.get("v51"))
@@ -721,6 +755,26 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         }
     else:
         for name in V50_DATA_FILES:
+            (path / name).unlink(missing_ok=True)
+    v53_manifest = None
+    earth = getattr(project, "earth", None)
+    if earth is not None and project.env is not None:
+        e_hash = _earth_hash(earth)
+        if not (
+            same_geology and (existing.get("v53") or {}).get("earth_hash") == e_hash
+            and all((path / n).exists() for n in V53_DATA_FILES)
+        ):  # fmt: skip
+            _write_v53_data(project, path)
+        files += list(V53_DATA_FILES)
+        v53_manifest = {
+            "algorithm_version": EARTH_ALGORITHM_VERSION,
+            "files": list(V53_DATA_FILES),
+            "earth_hash": e_hash,
+            "content_hashes": earth.content_hashes(),
+            "stage_keys": earth.stage_keys,
+        }
+    else:
+        for name in V53_DATA_FILES:
             (path / name).unlink(missing_ok=True)
     v51_manifest = None
     volc = getattr(project, "volcanism", None)
@@ -915,6 +969,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v47": v47_manifest,
         "v50": v50_manifest,
         "v51": v51_manifest,
+        "v53": v53_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -1090,6 +1145,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_hydro(project, path, manifest, config, verify)
     _load_env(project, path, manifest, config, verify)
     _load_topo(project, path, manifest, config, verify)
+    _load_earth(project, path, manifest, config, verify)
     _load_volcanism(project, path, manifest, config, verify)
     _load_biomes(project, path, manifest, config, verify)
     return project
@@ -1232,6 +1288,47 @@ def _load_env(project: Project, path: Path, manifest: dict, config, verify) -> N
     project.env = env
     env.validation = validate_env(project)
     project.cache["v45_environment"] = env
+
+
+def _load_earth(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v5.3a data, or say why not (missing = not generated, never zeros)."""
+    from .pipeline_v53 import earth_stage_keys
+    from .project import EarthData
+    from .stages.validate import validate_earth
+
+    v53 = manifest.get("v53")
+    if not v53 or project.env is None:
+        return
+    if not all((path / name).exists() for name in V53_DATA_FILES):
+        project.warnings.append("The manifest lists v5.3 data, but its files are missing.")
+        return
+    doc = json.loads((path / "earth.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != EARTH_ALGORITHM_VERSION:
+        project.warnings.append(
+            f"The stored Earth system was produced by {doc.get('algorithm_version')}, this "
+            f"build uses {EARTH_ALGORITHM_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    keys = earth_stage_keys(config, project)
+    if keys["v53_earth"] != doc["stage_keys"].get("v53_earth"):
+        project.warnings.append(
+            "The stored Earth system belongs to another climate state or configuration: "
+            "NOT loaded (not generated)."
+        )
+        return
+    with np.load(path / "earth_fields.npz") as data:
+        layers = {k: data[k] for k in data.files}
+    e = EarthData(layers=layers, summary=doc["summary"], provenance=doc["provenance"],
+                  stage_keys=dict(doc["stage_keys"]), warnings=list(doc.get("warnings", [])),
+                  timings=dict(doc.get("timings_s", {})))  # fmt: skip
+    if verify:
+        actual = e.content_hashes()
+        for key, expected in v53["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.earth = e
+    e.validation = validate_earth(project)
+    project.cache["v53_earth"] = e
 
 
 def _load_volcanism(project: Project, path: Path, manifest: dict, config, verify) -> None:

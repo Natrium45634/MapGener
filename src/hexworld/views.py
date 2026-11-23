@@ -79,7 +79,7 @@ class ViewSpec:
         if project is None:
             return False, "Нет проекта"
         if (
-            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50")
+            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53")
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -99,6 +99,8 @@ class ViewSpec:
             return False, f"«{self.title}»: топоклимат (v4.7) не рассчитан"
         if self.stage == "v50" and getattr(project, "biomes", None) is None:
             return False, f"«{self.title}»: биомы (v5.0) не сгенерированы"
+        if self.stage == "v53" and getattr(project, "earth", None) is None:
+            return False, f"«{self.title}»: земная система (v5.3) не рассчитана"
         if self.stage == "v51" and getattr(project, "volcanism", None) is None:
             return False, f"«{self.title}»: вулканизм (v5.1) не рассчитан"
         return True, ""
@@ -4226,3 +4228,243 @@ register_view(
         vectors=_vectors_eruptions,
     )
 )
+
+
+# -- v5.3a: ocean, sea ice, atmosphere, evapotranspiration ------------------------------------
+_V53_OVERLAYS = (Option("coast", "Берег", True),)
+_SEASON_OF_MONTH = (0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 0)
+_SEASON_TITLES = ("зима (ДЯФ)", "весна (МАМ)", "лето (ИИА)", "осень (СОН)")
+
+
+def _v53_base(project, rgb, overlays):
+    land = project.hydro.layers["land_mask"]
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.4)
+    return rgb
+
+
+def _grey_land(project, rgb):
+    land = ~project.hydro.layers["ocean_mask"].astype(bool)
+    rgb[land] = (200, 196, 188)
+    return rgb
+
+
+def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    E = project.earth.layers
+    m = _month_of(overlays)
+    if mode == "sst":
+        rgb = _ramp_rgb(E["sst_monthly_c"][m].astype(float), -2.0, 30.0)
+    elif mode == "sst_anomaly":
+        from .earth.ocean import sst_target
+
+        a = E["sst_monthly_c"].astype(float).mean(axis=0) - sst_target(
+            project.hydro.layers["latitude_deg"]
+        )
+        rgb = _diverging(np.nan_to_num(a), 4.0)
+    elif mode == "currents":
+        s = _SEASON_OF_MONTH[m]
+        sp = np.hypot(E["current_u_ms"][s].astype(float), E["current_v_ms"][s].astype(float))
+        rgb = _ramp_rgb(sp, 0.0, 0.4, 0.6)
+    elif mode == "upwelling":
+        s = _SEASON_OF_MONTH[m]
+        rgb = _diverging(E["upwelling_m_day"][s].astype(float), 1.0)
+    elif mode == "basins":
+        b = E["ocean_basin_id"].astype(int)
+        cols = id_colors(int(b.max()) + 2, 0.3)
+        rgb = cols[np.maximum(b, 0)].copy()
+    elif mode == "salinity":
+        rgb = _ramp_rgb(np.nan_to_num(E["sea_surface_salinity_psu"], nan=34.0), 32.0, 36.5)
+    else:
+        raise KeyError(mode)
+    return _v53_base(project, _grey_land(project, np.asarray(rgb, np.uint8).copy()), overlays)
+
+
+def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
+    c = project.earth.summary.get("coupler", {})
+    o = c.get("ocean") or {}
+    head = LegendItem(
+        f"течения: функция тока Стоммела по ветру (до {o.get('streamfunction_max_sv', 0):.0f} Св),"
+        f" сопряжение {c.get('status')}, баланс тепла {o.get('heat_relative_residual', 0):.0e}"
+    )
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    t = {
+        "sst": ("−2 °C", "30 °C"), "currents": ("0", "≥ 0,4 м/с"),
+        "salinity": ("32 ‰ (качественно)", "36,5 ‰"), "basins": ("бассейн", ""),
+        "sst_anomaly": ("холоднее зонального на 4 К", "теплее на 4 К"),
+        "upwelling": ("опускание", "подъём 1 м/сут"),
+    }[mode]  # fmt: skip
+    return [head, LegendItem(t[0], lo), LegendItem(t[1], hi)]
+
+
+def _vectors_ocean(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    if mode != "currents":
+        return []
+    E = project.earth.layers
+    s = _SEASON_OF_MONTH[_month_of(overlays)]
+    u = E["current_u_ms"][s].astype(float)
+    v = E["current_v_ms"][s].astype(float)
+    lay = project.layout
+    step = max(2, int(np.sqrt(lay.width * lay.height / 1500.0)))
+    rows, cols = np.mgrid[0 : lay.height : step, 0 : lay.width : step]
+    ok = project.hydro.layers["ocean_mask"][rows, cols] & (np.hypot(u, v)[rows, cols] > 0.01)
+    rows, cols = rows[ok], cols[ok]
+    x, y = lay.center(cols, rows)
+    scale = lay.spacing_km * step * 0.9 / 0.3  # 0.3 m/s spans one arrow cell
+    xs = [np.array([a, a + uu * scale]) for a, uu in zip(x, u[rows, cols], strict=True)]
+    ys = [np.array([b, b + vv * scale]) for b, vv in zip(y, v[rows, cols], strict=True)]
+    return [VectorLayer("lines", xs, ys, (30, 40, 60), 1.0, True, "currents")] if xs else []
+
+
+def _render_seaice(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    E = project.earth.layers
+    m = _month_of(overlays)
+    ocean = project.hydro.layers["ocean_mask"].astype(bool)
+    if mode == "concentration":
+        rgb = _ramp_rgb(E["sea_ice_concentration_monthly"][m].astype(float), 0.0, 1.0)
+    elif mode == "thickness":
+        rgb = _ramp_rgb(E["sea_ice_thickness_monthly_m"][m].astype(float), 0.0, 3.0, 0.7)
+    elif mode == "type":
+        cols = np.array([[40, 70, 130], [150, 200, 240], [235, 245, 255], [200, 170, 230],
+                         [120, 200, 220]], dtype=np.uint8)  # fmt: skip
+        rgb = cols[E["ice_cover"].astype(int)].copy()
+        rgb[~ocean & (E["ice_cover"] == 0)] = (200, 196, 188)
+        return _v53_base(project, rgb, overlays)
+    elif mode == "lake_ice":
+        rgb = _ramp_rgb(E["lake_ice_months"].astype(float), 0.0, 12.0)
+        rgb[E["lake_ice_months"] == 0] = (200, 196, 188)
+        return _v53_base(project, rgb, overlays)
+    else:
+        raise KeyError(mode)
+    return _v53_base(project, _grey_land(project, np.asarray(rgb, np.uint8).copy()), overlays)
+
+
+def _legend_seaice(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "type":
+        return [LegendItem("открытая вода", (40, 70, 130)),
+                LegendItem("сезонный морской лёд", (150, 200, 240)),
+                LegendItem("многолетний морской лёд", (235, 245, 255)),
+                LegendItem("припай", (200, 170, 230)),
+                LegendItem("озёрный лёд (не морской)", (120, 200, 220))]  # fmt: skip
+    t = {"concentration": ("0", "100 % (сплочённость)"), "thickness": ("0", "≥ 3 м"),
+         "lake_ice": ("0", "12 месяцев льда на озере")}[mode]  # fmt: skip
+    return [LegendItem("морской лёд из баланса энергии моря; шельфовый лёд — не морской"),
+            LegendItem(t[0], lo), LegendItem(t[1], hi)]  # fmt: skip
+
+
+_LEVEL_MODES = {"wind850": 0, "wind500": 1, "wind250": 2}
+
+
+def _render_atmo(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    E = project.earth.layers
+    s = _SEASON_OF_MONTH[_month_of(overlays)]
+    if mode in _LEVEL_MODES:
+        k = _LEVEL_MODES[mode]
+        sp = np.hypot(E["winds_aloft_u_ms"][s, k].astype(float),
+                      E["winds_aloft_v_ms"][s, k].astype(float))  # fmt: skip
+        rgb = _ramp_rgb(sp, 0.0, 50.0 if k == 2 else 25.0)
+        rgb[E["winds_aloft_below_ground"][s, k]] = (90, 80, 70)
+    elif mode == "jet":
+        rgb = _ramp_rgb(E["jet_intensity_ms"][s].astype(float), 0.0, 50.0)
+    elif mode == "surface":
+        L = project.hydro.layers
+        rgb = _ramp_rgb(np.hypot(L["wind_u_ms"], L["wind_v_ms"]).astype(float), 0.0, 10.0)
+    else:
+        raise KeyError(mode)
+    return _v53_base(project, np.asarray(rgb, np.uint8).copy(), overlays)
+
+
+def _legend_atmo(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    top = {"wind850": "25", "wind500": "25", "wind250": "50", "jet": "50", "surface": "10"}[mode]
+    out = [LegendItem("термический ветер от сезонной температуры; у экватора — приближение"),
+           LegendItem("0 м/с", lo), LegendItem(f"≥ {top} м/с", hi)]  # fmt: skip
+    if mode in _LEVEL_MODES:
+        out.append(LegendItem("уровень ниже поверхности (горы)", (90, 80, 70)))
+    return out
+
+
+def _vectors_atmo(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    if mode not in _LEVEL_MODES:
+        return []
+    E = project.earth.layers
+    s = _SEASON_OF_MONTH[_month_of(overlays)]
+    k = _LEVEL_MODES[mode]
+    u = E["winds_aloft_u_ms"][s, k].astype(float)
+    v = E["winds_aloft_v_ms"][s, k].astype(float)
+    lay = project.layout
+    step = max(3, int(np.sqrt(lay.width * lay.height / 900.0)))
+    rows, cols = np.mgrid[0 : lay.height : step, 0 : lay.width : step]
+    x, y = lay.center(cols.ravel(), rows.ravel())
+    uu, vv = u[rows, cols].ravel(), v[rows, cols].ravel()
+    scale = lay.spacing_km * step * 0.9 / 30.0
+    xs = [np.array([a, a + q * scale]) for a, q in zip(x, uu, strict=True)]
+    ys = [np.array([b, b + q * scale]) for b, q in zip(y, vv, strict=True)]
+    return [VectorLayer("lines", xs, ys, (20, 20, 20), 1.0, True, "winds_aloft")]
+
+
+def _render_pet(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    M = project.env.monthly
+    m = _month_of(overlays)
+    land = project.hydro.layers["land_mask"]
+    if mode == "et0_annual":
+        rgb = _ramp_rgb(np.nan_to_num(project.earth.layers["et0_annual_mm"]), 0.0, 2200.0)
+    elif mode == "et0_month":
+        rgb = _ramp_rgb(M["pet_monthly_mm"][m].astype(float), 0.0, 250.0)
+    elif mode == "aet_month":
+        rgb = _ramp_rgb(np.nan_to_num(M["aet_monthly_mm"][m].astype(float)), 0.0, 200.0)
+    else:
+        raise KeyError(mode)
+    rgb = np.asarray(rgb, np.uint8).copy()
+    rgb[~land] = (160, 185, 210)
+    return _v53_base(project, rgb, overlays)
+
+
+def _legend_pet(project: Project, mode: str) -> list[LegendItem]:
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    meth = project.env.summary.get("pet_method", "?")
+    top = {"et0_annual": "2200 мм/год", "et0_month": "250 мм", "aet_month": "200 мм"}[mode]
+    return [LegendItem(f"метод: {meth} (влажность и радиация — оценки FAO для нехватки данных)"),
+            LegendItem("0", lo), LegendItem(top, hi)]  # fmt: skip
+
+
+for _spec in (
+    ViewSpec(id="ocean", title="Океан (v5.3)", stage="v53",
+             layers=("sst_monthly_c", "current_u_ms", "upwelling_m_day"),
+             modes=(Option("sst", "Температура поверхности моря"),
+                    Option("sst_anomaly", "Отклонение от зонального среднего"),
+                    Option("currents", "Течения (стрелки)"),
+                    Option("upwelling", "Апвеллинг / опускание"),
+                    Option("basins", "Океанские бассейны"),
+                    Option("salinity", "Солёность (качественно)")),
+             overlays=_V53_OVERLAYS, months=True,
+             note="Ветровые течения и перенос тепла на маске связного океана",
+             render=_render_ocean, legend=_legend_ocean, vectors=_vectors_ocean),
+    ViewSpec(id="sea_ice", title="Морской лёд (v5.3)", stage="v53",
+             layers=("sea_ice_concentration_monthly", "sea_ice_thickness_monthly_m"),
+             modes=(Option("concentration", "Сплочённость по месяцам"),
+                    Option("thickness", "Толщина по месяцам"),
+                    Option("type", "Сезонный / многолетний / припай / озёрный"),
+                    Option("lake_ice", "Ледостав на озёрах")),
+             overlays=_V53_OVERLAYS, months=True,
+             note="Морской лёд ≠ шельфовый ледник ≠ озёрный лёд",
+             render=_render_seaice, legend=_legend_seaice),
+    ViewSpec(id="atmosphere", title="Атмосфера (v5.3)", stage="v53",
+             layers=("winds_aloft_u_ms", "winds_aloft_v_ms", "jet_intensity_ms"),
+             modes=(Option("surface", "Ветер у поверхности"),
+                    Option("wind850", "850 гПа (~1,5 км)"),
+                    Option("wind500", "500 гПа (~5,5 км)"),
+                    Option("wind250", "250 гПа (~10 км)"),
+                    Option("jet", "Струйное течение")),
+             overlays=_V53_OVERLAYS, months=True,
+             note="Сезон берётся по выбранному месяцу; ниже поверхности — маска",
+             render=_render_atmo, legend=_legend_atmo, vectors=_vectors_atmo),
+    ViewSpec(id="evapotranspiration", title="Испаряемость (v5.3)", stage="v53",
+             layers=("et0_annual_mm",),
+             modes=(Option("et0_annual", "ET0 за год"), Option("et0_month", "ET0 месяца"),
+                    Option("aet_month", "Фактическое испарение месяца")),
+             overlays=_V53_OVERLAYS, months=True,
+             note="FAO-56 Пенман–Монтейт: радиация, влажность, ветер и температура",
+             render=_render_pet, legend=_legend_pet),
+):  # fmt: skip
+    register_view(_spec)

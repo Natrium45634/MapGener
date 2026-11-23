@@ -157,7 +157,7 @@ def seasonal_inputs(config, project) -> dict:
         latitude = resolve_latitude(config.climate, project.geometry.simulation_bounds)
         wc = world_climate(
             config.climate, hist.world["grid"], hist.world["elevation_m"], hist.sea_level_m,
-            latitude,
+            latitude, earth=config.earth,
         )  # fmt: skip
     z = hydro.layers["elevation_m"].astype(np.float64)
     lakes = hydro.layers["lake_id"] >= 0
@@ -205,6 +205,27 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     t_m = env.monthly_temperature(seasons["t"], L["temperature_mean_c"])
     p_m = env.monthly_precipitation(seasons["p"])
     pet_m = env.monthly_pet(seasons["pet"], t_m, lat)
+    pet_method = "v4_temperature_index"
+    earth = getattr(config, "earth", None)
+    if earth is not None and earth.enabled and earth.pet_method != "legacy":
+        from .earth.pet import fao56_monthly, hargreaves_monthly
+        from .earth.planet import Planet
+
+        planet = Planet.from_params(earth)
+        flat_ = lambda a: a.reshape(a.shape[0], -1) if a.ndim == 3 else a.ravel()  # noqa: E731
+        speed = np.hypot(L["wind_u_ms"].astype(np.float64), L["wind_v_ms"].astype(np.float64))
+        coast_mask = L["coast_type"] > 0 if "coast_type" in L else None
+        if earth.pet_method == "fao56":
+            coast_flat = None if coast_mask is None else coast_mask.ravel()
+            height = np.maximum(z - sea_level, 0.0).ravel()
+            pet_new, _x = fao56_monthly(
+                flat_(t_m), flat_(p_m), speed.ravel(), lat.ravel(), height, planet, coast_flat
+            )
+            pet_method = "FAO56_PM_estimated_inputs"
+        else:
+            pet_new, _x = hargreaves_monthly(flat_(t_m), flat_(p_m), lat.ravel(), planet)
+            pet_method = "Hargreaves_temperature_radiation"
+        pet_m = pet_new.reshape(t_m.shape)
     # radiation and day length month by month: only their annual summaries are kept
     ra_mean = np.zeros(shape)
     day_max = np.full(shape, -np.inf)
@@ -486,6 +507,12 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
         / max(float(v4_runoff[lw].sum()), 1e-9)
     )
     summary = {
+        "pet_method": pet_method,
+        "pet_quality": "CALIBRATED_APPROXIMATION"
+        if pet_method.startswith("FAO56")
+        else (
+            "SYNTHETIC_PROXY" if pet_method.startswith("Hargreaves") else "LEGACY_POTENTIAL_ONLY"
+        ),
         "calendar": {
             "year_days": int(env.YEAR_DAYS),
             "month_lengths": env.MONTH_DAYS.astype(int).tolist(),

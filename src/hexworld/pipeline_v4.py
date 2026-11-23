@@ -47,7 +47,7 @@ from .stages.hydrology import (
 )
 from .stages.landscape import evolve
 from .stages.sea import label_mask
-from .version import CLIMATE_ALGORITHM_VERSION, HYDRO_ALGORITHM_VERSION
+from .version import CLIMATE_ALGORITHM_VERSION, EARTH_ALGORITHM_VERSION, HYDRO_ALGORITHM_VERSION
 
 
 def _key(*parts) -> str:
@@ -83,6 +83,12 @@ def v4_stage_keys(config, hist_keys: dict, sea_level_m: float) -> dict:
         # the climate entry also carries the inflow and the edge outlets of the window
         config.hydrology.external_inflow,
         config.hydrology.edge_outlets,
+        # v5.3 Earth system: only when on, so the keys of older projects do not change
+        *(
+            [("earth", EARTH_ALGORITHM_VERSION, asdict(config.earth))]
+            if config.earth.enabled
+            else []
+        ),
     )
     hydro = asdict(config.hydrology)
     threshold = tuple(
@@ -226,7 +232,12 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
     if climate_entry is None:
         latitude = resolve_latitude(config.climate, geometry.simulation_bounds)
         wc = world_climate(
-            config.climate, hist.world["grid"], hist.world["elevation_m"], sea_level, latitude
+            config.climate,
+            hist.world["grid"],
+            hist.world["elevation_m"],
+            sea_level,
+            latitude,
+            earth=config.earth,
         )
         drainage = _world_drainage(
             config, wc, hist.world["elevation_m"], sea_level, geometry.viewport_bounds

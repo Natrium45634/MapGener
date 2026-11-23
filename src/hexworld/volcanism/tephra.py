@@ -26,6 +26,7 @@ import numpy as np
 
 from .. import hexgrid
 from ..stages.raster import neighbor_index
+from .units import stable_uniform
 
 #: (name, diameter mm, settling speed m/s, release height as a share of the column) [H].
 BINS = (
@@ -120,9 +121,30 @@ def transport(project, event, n_bins: int, quality: str) -> dict | None:
     vs = np.array([BINS[i][2] for i in range(nb_)])
     rel = np.array([BINS[i][3] for i in range(nb_)]) * column
     t_fall = rel / vs
-    w = np.clip(rel / 10000.0, 0.0, 1.0)  # weight of the upper wind
-    u = (1 - w)[:, None] * u_s[None, :] + w[:, None] * (u_s + u_up)[None, :]
-    v = (1 - w)[:, None] * v_s[None, :] + w[:, None] * v_s[None, :]
+    earth = getattr(project, "earth", None)
+    wind_flag = "synthetic_upper_wind"
+    if earth is not None and "winds_aloft_u_ms" in earth.layers:
+        # the climate's own winds aloft (v5.3 thermal wind) at each bin's release height,
+        # for the season of the event (deterministic from its id)
+        from ..earth.winds import wind_at_height
+
+        season = int(stable_uniform(event.event_id, "season") * 4) % 4
+        E = earth.layers
+        ua = E["winds_aloft_u_ms"][season].reshape(E["winds_aloft_u_ms"].shape[1], -1)
+        va = E["winds_aloft_v_ms"][season].reshape(ua.shape)
+        za = E["winds_aloft_height_m"][season].reshape(ua.shape)
+        ua, va, za = (np.asarray(a[:, win.flat], dtype=np.float64) for a in (ua, va, za))
+        u = np.empty((nb_, win.size))
+        v = np.empty((nb_, win.size))
+        for b in range(nb_):
+            u[b], v[b] = wind_at_height(ua, va, za, u_s, v_s, rel[b])
+        wind_flag = "thermal_wind_aloft_v53"
+        if column > float(np.nanmax(za)):
+            wind_flag += "+extrapolated_above_top_level"
+    else:
+        w = np.clip(rel / 10000.0, 0.0, 1.0)  # weight of the upper wind
+        u = (1 - w)[:, None] * u_s[None, :] + w[:, None] * (u_s + u_up)[None, :]
+        v = (1 - w)[:, None] * v_s[None, :] + w[:, None] * v_s[None, :]
     dirs = hexgrid.direction_unit_vectors()  # (6, 2) towards each neighbour
     un = u[:, :, None] * dirs[None, None, :, 0] + v[:, :, None] * dirs[None, None, :, 1]
     un = np.maximum(un, 0.0)  # outward normal speed per face (b, i, k)
@@ -181,7 +203,7 @@ def transport(project, event, n_bins: int, quality: str) -> dict | None:
         "dt_s": dt,
         "window_hexes": win.size,
         "area_over_1mm_km2": float((load > 1.0).sum() * lay.hex_area_km2),
-        "quality_flags": ["synthetic_upper_wind", "approximated_column_release"],
+        "quality_flags": [wind_flag, "approximated_column_release"],
     }
 
 

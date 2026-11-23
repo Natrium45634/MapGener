@@ -213,7 +213,13 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         old_geo_warnings |= set(base.hydro.warnings)
     if base.terrain is not None:
         old_geo_warnings |= set(base.terrain.warnings)
-    for later in (base.env, base.topo, base.biomes, getattr(base, "volcanism", None)):
+    for later in (
+        base.env,
+        base.topo,
+        base.biomes,
+        getattr(base, "volcanism", None),
+        getattr(base, "earth", None),
+    ):
         if later is not None:
             old_geo_warnings |= set(later.warnings)
     project = replace(
@@ -228,6 +234,7 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         topo=None,
         biomes=None,
         volcanism=None,
+        earth=None,
         warnings=[w for w in base.warnings if w not in old_geo_warnings],
         timings={},
         stats=dict(base.stats, reused_stages=list(STAGES)),
@@ -262,6 +269,8 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         _add_hydro(config, geometry, project, base, report)
     if through in ("v45", "v47", "v51", "v50") and config.environment.enabled:
         _add_env(config, geometry, project, base, report)
+        if config.earth.enabled:
+            _add_earth(config, geometry, project, base, report)
         if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, base, report)
         if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:
@@ -352,6 +361,23 @@ def _add_topo(config, geometry, project: Project, previous: Project | None, repo
     project.timings.update(topo.timings)
     topo.validation = validate_topo(project)
     project.warnings.extend(topo.warnings)
+
+
+def _add_earth(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v5.3a Earth-system stage (hex fields of ocean, sea ice, winds aloft)."""
+    from .pipeline_v53 import run_v53
+    from .stages.validate import validate_earth
+
+    prev = getattr(previous, "earth", None) if previous is not None else None
+    old_keys = prev.stage_keys if prev is not None else {}
+    old_cache = previous.cache if previous is not None else {}
+    data, cache, reused = run_v53(config, geometry, project, old_keys, old_cache, report)
+    project.earth = data
+    project.cache.update(cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
+    project.timings.update(data.timings)
+    data.validation = validate_earth(project)
+    project.warnings.extend(data.warnings)
 
 
 def _add_volcanism(config, geometry, project: Project, previous: Project | None, report) -> None:
@@ -644,6 +670,8 @@ def generate(
         _add_hydro(config, geometry, project, reuse, report)
     if through in ("v45", "v47", "v51", "v50") and config.environment.enabled:
         _add_env(config, geometry, project, reuse, report)
+        if config.earth.enabled:
+            _add_earth(config, geometry, project, reuse, report)
         if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, reuse, report)
         if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:

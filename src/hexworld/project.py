@@ -421,6 +421,22 @@ class TopoData:
 
 
 @dataclass
+class EarthData:
+    """Results of v5.3a on the hexes: ocean, sea ice, winds aloft, lake ice, realm/cover."""
+
+    layers: dict  # (H, W), (4, H, W), (12, H, W) or (4, L, H, W) arrays
+    summary: dict
+    provenance: dict
+    stage_keys: dict
+    warnings: list = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
+
+    def content_hashes(self) -> dict:
+        return {f"earth/{k}": array_hash(v) for k, v in self.layers.items()}
+
+
+@dataclass
 class VolcanismData:
     """Results of v5.1: hex layers, systems, eruption events and their products."""
 
@@ -538,6 +554,8 @@ class Project:
     biomes: BiomeData | None = None
     #: v5.1 volcanism (systems, eruptions, products, ecology forcing); ``None`` if absent.
     volcanism: VolcanismData | None = None
+    #: v5.3a Earth system on the hexes (ocean, sea ice, winds aloft); ``None`` if absent.
+    earth: EarthData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

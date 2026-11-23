@@ -499,6 +499,40 @@ def validate_biomes(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
 
 
+def validate_earth(project) -> dict:
+    """Invariants of v5.3a: closed heat budget, valid ranges, ice in the right realm."""
+    e = project.earth
+    L = e.layers
+    s = e.summary
+    errors: list[str] = []
+    oc = (s.get("coupler") or {}).get("ocean") or {}
+    checks = {
+        "heat_relative_residual": float(oc.get("heat_relative_residual", 0.0)),
+        "coupler_status": (s.get("coupler") or {}).get("status"),
+    }
+    if checks["heat_relative_residual"] > 1e-9:
+        errors.append("v5.3: the mixed-layer heat budget does not close")
+    ocean = project.hydro.layers["ocean_mask"].astype(bool)
+    if "sst_monthly_c" in L:
+        sst = L["sst_monthly_c"][:, ocean]
+        if not np.isfinite(sst).all():
+            errors.append("v5.3: non-finite SST on the ocean")
+        if sst.size and float(sst.min()) < -1.9:
+            errors.append("v5.3: SST below the freezing point of sea water")
+    if "sea_ice_concentration_monthly" in L:
+        c = L["sea_ice_concentration_monthly"].astype(np.float32)
+        if (c < 0).any() or (c > 1.0001).any():
+            errors.append("v5.3: sea-ice concentration outside [0, 1]")
+        if (c[:, ~ocean] > 0).any():
+            errors.append("v5.3: sea ice on land or on a lake")
+        if (L["sea_ice_thickness_monthly_m"].astype(np.float32) < 0).any():
+            errors.append("v5.3: negative sea-ice thickness")
+    lake = (project.hydro.layers["lake_id"] >= 0) & ~ocean
+    if (L["lake_ice_months"][~lake] > 0).any():
+        errors.append("v5.3: lake ice outside lakes")
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
 def validate_volcanism(project) -> dict:
     """Invariants of v5.1: closed reservoir / lava / tephra / PDC / lahar budgets, ranges."""
     v = project.volcanism

@@ -336,9 +336,11 @@ class WorldClimate:
     seasonal_precipitation: np.ndarray | None = None
     seasonal_wind_u: np.ndarray | None = None
     seasonal_wind_v: np.ndarray | None = None
+    #: v5.3 Earth system state (ocean, sea ice, winds aloft, coupler report) or None
+    earth: object | None = None
 
 
-def seasonal_winds(params, lat, cont, seasonal, land_h, cell_km):
+def seasonal_winds(params, lat, cont, seasonal, land_h, cell_km, declination_deg=None):
     """Winds of the four seasons: belts follow the sun, land-sea contrast drives monsoons.
 
     * the wind and rain belts are those of ``lat - shift``: the thermal equator moves toward
@@ -359,7 +361,8 @@ def seasonal_winds(params, lat, cont, seasonal, land_h, cell_km):
     out = []
     for s in range(4):
         # the shift fades toward the poles, so the polar belts stay on the map
-        shift = DECLINATION_DEG * SEASON_PHASE[s] * (SHIFT_OCEAN + SHIFT_LAND * cont_broad) * taper
+        decl = DECLINATION_DEG if declination_deg is None else declination_deg
+        shift = decl * SEASON_PHASE[s] * (SHIFT_OCEAN + SHIFT_LAND * cont_broad) * taper
         lat_eff = np.clip(lat - shift, -90.0, 90.0)
         u, v = prevailing_wind(lat_eff, params.wind_strength)
         anomaly = SEASON_MEAN_FACTOR * seasonal * SEASON_PHASE[s] * hemi
@@ -374,9 +377,20 @@ def seasonal_winds(params, lat, cont, seasonal, land_h, cell_km):
 
 
 def world_climate(
-    params, grid: dict, elevation_m: np.ndarray, sea_level_m: float, latitude: Latitude
+    params,
+    grid: dict,
+    elevation_m: np.ndarray,
+    sea_level_m: float,
+    latitude: Latitude,
+    earth=None,
 ) -> WorldClimate:
-    """Four seasons of temperature, wind and a mass-conservative moisture budget."""
+    """Four seasons of temperature, wind and a mass-conservative moisture budget.
+
+    ``earth`` (``EarthParams`` with ``enabled``) switches on the v5.3 Earth system: the
+    planet's insolation, a wind-driven ocean with heat transport, sea ice and winds aloft,
+    coupled to this model by :func:`hexworld.earth.coupler.couple` (see its docstring).
+    Without it the climate is bit-identical to v4 (latitude SST, heuristic sea ice).
+    """
     ny, nx = elevation_m.shape
     cell_km = float(grid["cell_km"])
     cell_m = cell_km * 1000.0
@@ -384,6 +398,15 @@ def world_climate(
     lat = np.repeat(latitude.at(ys)[:, None], nx, axis=1)
     height = np.asarray(elevation_m, dtype=np.float64) - sea_level_m
     sea = height <= 0.0
+    use_earth = earth is not None and getattr(earth, "enabled", False)
+    if use_earth:
+        from ..earth.ocean import ocean_mask
+        from ..earth.planet import Planet
+
+        planet = Planet.from_params(earth)
+        # only sea connected to the world ocean is ocean; a closed depression below sea
+        # level is land for the climate (the hydrology decides whether it holds a lake)
+        sea, _basins = ocean_mask(sea)
     land_h = np.maximum(height, 0.0)
     profile = params.profile
 
@@ -395,6 +418,10 @@ def world_climate(
     t_zone = (
         zonal_temperature(lat) + PROFILE_T_OFFSET.get(profile, 0.0) + params.temperature_offset_c
     )
+    if use_earth:
+        from ..earth.planet import annual_temperature_shift
+
+        t_zone = t_zone + annual_temperature_shift(planet, lat)
     # seas that freeze in winter (zonal mean below ~ -3 degC) make their coasts continental:
     # no winter warmth from the water, a large annual range (Arctic coasts)
     sea_ice = _smooth01((2.0 - t_zone) / 10.0)
@@ -415,7 +442,16 @@ def world_climate(
         * (1.0 + 0.32 * phi)
         * (COAST_SEASONALITY + (1.0 - COAST_SEASONALITY) * cont_season)
     )
-    winds = seasonal_winds(params, lat, cont, seasonal, land_h, cell_km)
+    earth_state = None
+    if use_earth:
+        from ..earth.coupler import couple
+
+        earth_state = couple(
+            params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, sea_ice
+        )
+        t_sl, seasonal, winds = earth_state.t_sl, earth_state.seasonal, earth_state.winds
+    else:
+        winds = seasonal_winds(params, lat, cont, seasonal, land_h, cell_km)
 
     # -- conservative moisture transport, season by season -------------------------------
     smax = max(max(float(np.hypot(u, v).max()) for _, u, v in winds), 1e-6)
@@ -451,6 +487,8 @@ def world_climate(
         lat_eff, u, v = winds[s]
         t_s = season_temperature(t_sl, seasonal, lat, s)
         t_s = np.where(sea, np.maximum(t_s, -1.8), t_s)
+        if earth_state is not None:
+            t_s = np.where(sea, earth_state.sst_season[s], t_s)
         t_air = t_s - params.lapse_rate_c_per_km * land_h / 1000.0
         qs_air = q_sat(t_air)
         qs_sea = q_sat(t_s)
@@ -462,7 +500,12 @@ def world_climate(
             * np.clip((t_air - 20.0) / 8.0, 0.0, 1.0)
             * np.clip(circ / 0.6, 0.0, 1.5)
         )
-        w_up = u * gxh + v * gyh  # m/s of forced ascent (+ windward, - leeward)
+        if earth_state is not None and earth_state.aloft is not None:
+            # air is lifted over the barrier by the wind of the lower troposphere (850 hPa)
+            u_o, v_o = earth_state.aloft.u[s, 0], earth_state.aloft.v[s, 0]
+        else:
+            u_o, v_o = u, v
+        w_up = u_o * gxh + v_o * gyh  # m/s of forced ascent (+ windward, - leeward)
         k_oro = RATES["orographic"] * np.clip(w_up / 0.01, 0.0, RATES["orographic_cap"])
         k_total = per_step(np.clip(k_zone + k_conv + k_oro, 0.0, 0.5))
         uf, vf = _faces(u, v)
@@ -479,6 +522,8 @@ def world_climate(
         op, b_in, b_out = upwind_operator(cxf / nsub, cyf / nsub)
         qs_air, qs_sea, k_total = qs_air.ravel(), qs_sea.ravel(), k_total.ravel()
         e_sat = sea_f * r_ocean
+        if earth_state is not None:  # sea ice shuts the evaporation off
+            e_sat = e_sat * (1.0 - earth_state.ice_season[s].ravel())
         # land evapotranspiration returns the Budyko share of the rain that fell (moisture
         # recycling): AET/P from Fu's curve of the local PET/P, the rest is runoff
         pet_land = potential_et(t_air).ravel()[land_idx]
@@ -562,6 +607,7 @@ def world_climate(
         seasonal_precipitation=seasonal_p * scale,
         seasonal_wind_u=np.stack([w[1] for w in winds]),
         seasonal_wind_v=np.stack([w[2] for w in winds]),
+        earth=earth_state,
     )
 
 

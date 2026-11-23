@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from .project import Project
 
 MONTHS = ("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
@@ -488,6 +490,11 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
             s.add("Фирн", _n(bio["firn_swe_mm"], 0, "мм в. э."))
         sections.append(s)
 
+    # -- Earth system (v5.3) ------------------------------------------------------------------
+    earth = getattr(project, "earth", None)
+    if earth is not None:
+        _earth_section(project, earth, col, row, sections)
+
     # -- volcanism (v5.1) -------------------------------------------------------------------
     volc = getattr(project, "volcanism", None)
     if volc is not None:
@@ -538,6 +545,52 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
 
     sections = [s for s in sections if s.rows]
     return HexReport(col, row, title, " · ".join(sub), sections, climate)
+
+
+_REALM = {1: "суша", 2: "внутренние воды", 3: "океан"}
+_ICE_COVER = {0: None, 1: "сезонный морской лёд", 2: "многолетний морской лёд",
+              3: "припай", 4: "озёрный лёд"}  # fmt: skip
+
+
+def _earth_section(project, earth, col, row, sections) -> None:
+    E = earth.layers
+    s = Section("earth", "Океан, лёд и атмосфера (v5.3)")
+    realm = int(E["realm"][row, col])
+    s.add("Среда", _REALM.get(realm))
+    s.add("Покров льда", _ICE_COVER.get(int(E["ice_cover"][row, col])))
+    if realm == 3 and "sst_monthly_c" in E:
+        sst = E["sst_monthly_c"][:, row, col].astype(float)
+        s.add("Температура моря", f"{sst.min():+.1f} … {sst.max():+.1f} °C (мин./макс. месяца)")
+        c = E["sea_ice_concentration_monthly"][:, row, col].astype(float)
+        if c.max() > 0.01:
+            h = E["sea_ice_thickness_monthly_m"][:, row, col].astype(float)
+            s.add(
+                "Морской лёд", f"сплочённость до {100 * c.max():.0f} %, толщина до {h.max():.1f} м"
+            )
+        u = E["current_u_ms"][:, row, col].astype(float).mean()
+        v = E["current_v_ms"][:, row, col].astype(float).mean()
+        sp = float(np.hypot(u, v))
+        if sp > 0.005:
+            s.add("Течение", f"{100 * sp:.0f} см/с, {_direction(u, v)}")
+        up = float(E["upwelling_m_day"][:, row, col].astype(float).mean())
+        if E["coastal_upwelling"][row, col] or up > 0.2:
+            s.add("Апвеллинг", f"{up:+.2f} м/сут (подъём холодной воды)")
+    if realm == 2 and E["lake_ice_months"][row, col] > 0:
+        s.add("Ледостав на озере", f"{int(E['lake_ice_months'][row, col])} мес.")
+    if "winds_aloft_u_ms" in E:
+        lv = earth.summary.get("levels_hpa", [850, 500, 250])
+        parts = []
+        for k, p in enumerate(lv):
+            u = float(E["winds_aloft_u_ms"][0, k, row, col])
+            v = float(E["winds_aloft_v_ms"][0, k, row, col])
+            below = bool(E["winds_aloft_below_ground"][0, k, row, col])
+            parts.append(f"{int(p)} гПа: " + ("ниже поверхности" if below else
+                         f"{np.hypot(u, v):.0f} м/с {_direction(u, v)}"))  # fmt: skip
+        s.add("Ветер на высотах (зима)", "; ".join(parts))
+    if realm == 1 and np.isfinite(E["et0_annual_mm"][row, col]):
+        s.add("Испаряемость ET0", _n(float(E["et0_annual_mm"][row, col]), 0, "мм/год"))
+    if s.rows:
+        sections.append(s)
 
 
 def _volcanism_section(project, volc, col, row, sections) -> None:

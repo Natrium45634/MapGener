@@ -306,7 +306,12 @@ def generate_climate(project: Project, config: Config | None = None):
     hist = project.hist
     latitude = resolve_latitude(cfg.climate, project.geometry.simulation_bounds)
     wc = world_climate(
-        cfg.climate, hist.world["grid"], hist.world["elevation_m"], hist.sea_level_m, latitude
+        cfg.climate,
+        hist.world["grid"],
+        hist.world["elevation_m"],
+        hist.sea_level_m,
+        latitude,
+        earth=cfg.earth,
     )
     return wc, hex_climate(
         cfg.climate, wc, project.layout, hist.layers["elevation_m"], hist.sea_level_m

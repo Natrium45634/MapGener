@@ -451,6 +451,41 @@ class VolcanismParams:
 
 
 @dataclass(frozen=True)
+class EarthParams:
+    """v5.3 Earth system: planet, upper winds, ocean, sea ice, FAO-56 evapotranspiration.
+
+    A project saved before v5.3 has no ``earth`` section; it loads with ``enabled=False``
+    so its stored climate stays bit-identical (``Config.from_dict``). New worlds have the
+    physics on.
+    """
+
+    enabled: bool = True
+    #: Planet (circular orbit; eccentricity is not modelled).
+    obliquity_deg: float = 23.44
+    day_length_h: float = 24.0
+    year_length_days: float = 365.25
+    solar_constant_wm2: float = 1361.0
+    planet_radius_km: float = 6371.0
+    #: Wind-driven ocean circulation and conservative heat transport of the sea surface.
+    ocean: bool = True
+    mixed_layer_m: float = 40.0
+    wind_drag_cd: float = 1.3e-3
+    #: Horizontal eddy diffusivity of heat in the mixed layer, m^2/s.
+    eddy_diffusivity_m2_s: float = 2.0e4
+    #: Sea ice: energy budget, albedo, drift with wind and current.
+    sea_ice: bool = True
+    #: Winds at 850 / 500 / 250 hPa from the thermal wind of the season's temperature.
+    upper_winds: bool = True
+    #: ``fao56`` (Penman-Monteith with FAO fallbacks for missing inputs), ``hargreaves``,
+    #: or ``legacy`` (the temperature-index PET of v4).
+    pet_method: str = "fao56"
+    #: Ocean-ice-climate coupler: iterations and under-relaxation.
+    coupler_max_iter: int = 8
+    coupler_relaxation: float = 0.6
+    quality: str = "balanced"
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -482,6 +517,7 @@ class Config:
     topoclimate: TopoclimateParams = field(default_factory=TopoclimateParams)
     biomes: BiomeParams = field(default_factory=BiomeParams)
     volcanism: VolcanismParams = field(default_factory=VolcanismParams)
+    earth: EarthParams = field(default_factory=EarthParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -680,6 +716,31 @@ class Config:
             raise ConfigError("biomes.cryo_spinup_years must be within [0, 2000]")
         if bp.annual_pet_epsilon_mm <= 0:
             raise ConfigError("biomes.annual_pet_epsilon_mm must be positive")
+        ep = self.earth
+        if not abs(ep.obliquity_deg) <= 90.0:
+            raise ConfigError("earth.obliquity_deg must be within [-90, 90]")
+        if not 1.0 <= ep.day_length_h <= 10000.0:
+            raise ConfigError("earth.day_length_h must be within [1, 10000]")
+        if not 10.0 <= ep.year_length_days <= 100000.0:
+            raise ConfigError("earth.year_length_days must be within [10, 1e5]")
+        if not 100.0 <= ep.solar_constant_wm2 <= 5000.0:
+            raise ConfigError("earth.solar_constant_wm2 must be within [100, 5000]")
+        if not 500.0 <= ep.planet_radius_km <= 100000.0:
+            raise ConfigError("earth.planet_radius_km must be within [500, 1e5]")
+        if not 5.0 <= ep.mixed_layer_m <= 500.0:
+            raise ConfigError("earth.mixed_layer_m must be within [5, 500]")
+        if not 1e-4 <= ep.wind_drag_cd <= 1e-2:
+            raise ConfigError("earth.wind_drag_cd must be within [1e-4, 1e-2]")
+        if not 0.0 <= ep.eddy_diffusivity_m2_s <= 1e6:
+            raise ConfigError("earth.eddy_diffusivity_m2_s must be within [0, 1e6]")
+        if ep.pet_method not in ("fao56", "hargreaves", "legacy"):
+            raise ConfigError("earth.pet_method: fao56, hargreaves or legacy")
+        if not 1 <= int(ep.coupler_max_iter) <= 100:
+            raise ConfigError("earth.coupler_max_iter must be within [1, 100]")
+        if not 0.05 <= ep.coupler_relaxation <= 1.0:
+            raise ConfigError("earth.coupler_relaxation must be within [0.05, 1]")
+        if ep.quality not in ("fast", "balanced", "high"):
+            raise ConfigError("earth.quality: fast, balanced or high")
         vp = self.volcanism
         if vp.world_profile not in ("earthlike_silicate", "icy_world"):
             raise ConfigError("volcanism.world_profile: earthlike_silicate or icy_world")
@@ -731,6 +792,7 @@ class Config:
             "topoclimate": TopoclimateParams,
             "biomes": BiomeParams,
             "volcanism": VolcanismParams,
+            "earth": EarthParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
@@ -751,6 +813,8 @@ class Config:
                 kwargs[key] = None if value is None else tuple(float(v) for v in value)
             else:
                 kwargs[key] = value
+        if "earth" not in data:  # saved before v5.3: keep its climate exactly as it was
+            kwargs["earth"] = EarthParams(enabled=False)
         return cls(**kwargs)
 
     def to_json(self) -> str:
