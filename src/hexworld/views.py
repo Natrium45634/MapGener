@@ -4671,7 +4671,7 @@ _REGIME_TITLES = (
     "летние дожди без муссона",
     "равномерный / иной",
 )
-_LEVEL_MODES = {"wind_850": 1, "wind_500": 2, "wind_250": 3}
+_V54_LEVEL_MODES = {"wind_850": 1, "wind_500": 2, "wind_250": 3}
 
 
 def _atm_hex(project, field_):
@@ -4681,15 +4681,15 @@ def _atm_hex(project, field_):
     return sample(project.atmosphere.grid, field_, hx, hy)
 
 
-def _render_atmosphere(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+def _render_atm54(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
     a = project.atmosphere
     G, L = a.grid_fields, a.layers
     m = _month_of(overlays)
     land = project.hydro.layers["land_mask"].astype(bool)
     if mode == "pressure":
         rgb = _diverging(_atm_hex(project, G["slp_pa"][m]) / 100.0 - 1012.0, 20.0)
-    elif mode in _LEVEL_MODES:
-        k = _LEVEL_MODES[mode]
+    elif mode in _V54_LEVEL_MODES:
+        k = _V54_LEVEL_MODES[mode]
         sp = np.hypot(
             _atm_hex(project, G["wind_u_ms"][m, k]), _atm_hex(project, G["wind_v_ms"][m, k])
         )
@@ -4757,7 +4757,7 @@ def _render_atmosphere(project: Project, mode: str, overlays: frozenset) -> np.n
     return _v53_base(project, rgb, overlays)
 
 
-def _legend_atmosphere(project: Project, mode: str) -> list[LegendItem]:
+def _legend_atm54(project: Project, mode: str) -> list[LegendItem]:
     a = project.atmosphere
     q = a.summary.get("quality", {})
     head = [
@@ -4812,11 +4812,11 @@ def _legend_atmosphere(project: Project, mode: str) -> list[LegendItem]:
     return head + [LegendItem(texts[0], lo), LegendItem(texts[1], hi)]
 
 
-def _vectors_atmosphere(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+def _vectors_atm54(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
     a = project.atmosphere
     out = []
-    if mode in ("pressure", "surface_wind") or mode in _LEVEL_MODES:
-        k = _LEVEL_MODES.get(mode, 0)
+    if mode in ("pressure", "surface_wind") or mode in _V54_LEVEL_MODES:
+        k = _V54_LEVEL_MODES.get(mode, 0)
         m = _month_of(overlays)
         G = a.grid_fields
         lay = project.layout
@@ -4889,8 +4889,8 @@ register_view(
         months=True,
         note="Месячные нормы циркуляции и влагопереноса; штормы — климатология и "
         "отдельные события погодного года",
-        render=_render_atmosphere,
-        legend=_legend_atmosphere,
-        vectors=_vectors_atmosphere,
+        render=_render_atm54,
+        legend=_legend_atm54,
+        vectors=_vectors_atm54,
     )
 )
