@@ -499,6 +499,44 @@ def validate_biomes(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
 
 
+def validate_volcanism(project) -> dict:
+    """Invariants of v5.1: closed reservoir / lava / tephra / PDC / lahar budgets, ranges."""
+    v = project.volcanism
+    s = v.summary
+    b = s.get("budgets", {})
+    errors: list[str] = []
+    rel = lambda a, d: abs(b.get(a, 0.0)) / max(b.get(d, 0.0), 1.0)  # noqa: E731
+    checks = {
+        "reservoir_relative_residual": s["reservoir_max_relative_residual"],
+        "lava_relative_residual": rel("lava_residual_m3", "lava_injected_m3"),
+        "tephra_relative_residual": rel("tephra_residual_kg", "tephra_source_kg"),
+        "pdc_relative_residual": rel("pdc_residual_m3", "pdc_m3"),
+        "lahar_relative_residual": rel("lahar_residual_m3", "lahar_m3"),
+    }
+    for k, val in checks.items():
+        if val > 1e-6:
+            errors.append(f"v5.1 mass budget does not close: {k} = {val:.2e}")
+    L = v.layers
+    for name in ("lava_fraction", "pdc_deposit_fraction", "lahar_fraction",
+                 "volcanic_barren_fraction", "pdc_hazard_fraction"):  # fmt: skip
+        a = np.nan_to_num(L[name])
+        if (a < -1e-9).any() or (a > 1 + 1e-6).any():
+            errors.append(f"{name} outside [0, 1]")
+    if (np.nan_to_num(L["tephra_load_kg_m2"]) < 0).any():
+        errors.append("negative tephra load")
+    ocean = project.hydro.layers["ocean_mask"]
+    if (np.nan_to_num(L["volcanic_barren_fraction"])[ocean] > 0).any():
+        errors.append("volcanic barren land in the sea")
+    if s["world_profile"] != "icy_world" and any(
+        "cryovolcanic" in e.get("quality_flags", []) for e in v.events
+    ):  # fmt: skip
+        errors.append("cryovolcanism on a silicate world")
+    ids = [e["event_id"] for e in v.events]
+    if len(set(ids)) != len(ids):
+        errors.append("duplicate eruption event ids")
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
 def validate_terrain(project) -> dict:
     """Invariants of v4.6: one finite surface, bedrock under sediment, kept continents."""
     t = project.terrain

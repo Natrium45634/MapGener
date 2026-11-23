@@ -30,6 +30,7 @@ from .biomes.registry import (
     BIOMES,
     COVER_CLASSES,
     INDEX,
+    MOD_BIT,
     PFT_REGISTRY_VERSION,
     REGISTRY_VERSION,
 )
@@ -54,10 +55,12 @@ def biome_stage_keys(config, upstream: dict) -> dict:
 
 def upstream_keys(project) -> dict:
     topo = getattr(project, "topo", None)
+    volc = getattr(project, "volcanism", None)
     return {
         "env": project.env.stage_keys,
         "topo": topo.stage_keys if topo is not None else {},
         "hydro": project.hydro.stage_keys,
+        "volcanism": volc.stage_keys if volc is not None else {},
     }
 
 
@@ -472,6 +475,13 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         uh, w, biome, dry, d["slope"], flat(L["coast_type"]) if "coast_type" in L else None,
         t_hex.min(axis=0), t_hex.max(axis=0), ai_hex, layout.spacing_km, n_hex,
     )  # fmt: skip
+    f_dry0 = np.concatenate([dry, np.ones(f_uh.size - uh.size, dtype=bool)])
+    volc = getattr(project, "volcanism", None)
+    volc_info = {"hexes": 0}
+    if volc is not None:
+        f_uh, f_w, f_b, volc_info = volcanic_fringe(
+            f_uh, f_w, f_b, f_dry0, flat(volc.layers["volcanic_barren_fraction"]), n_hex
+        )
     fractions, fr, hex_of, dominant = aggregate_fractions(f_uh, f_w, f_b, n_hex)
     offsets = fractions["offsets"]
     f_dry = np.concatenate([dry, np.ones(f_uh.size - uh.size, dtype=bool)])
@@ -492,6 +502,17 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     np.bitwise_or.at(lim_hex, uh[dry], limiting[dry])
     mod_hex = np.zeros(n_hex, dtype=np.int64)
     np.bitwise_or.at(mod_hex, uh[dry], modifiers[dry])
+    if volc is not None:  # v5.1 habitat modifiers
+        V = volc.layers
+        heat = flat(V["geothermal_heat_mw"]) > 0
+        kind = flat(V["hydrothermal_kind"])
+        mod_hex |= np.where(heat & land_hex, MOD_BIT["geothermal_habitat"], 0)
+        mod_hex |= np.where(flat(V["degassing_stress_fraction"]) > 0,
+                            MOD_BIT["volcanic_degassing_stress"], 0)  # fmt: skip
+        mod_hex |= np.where(flat(V["volcanic_ash_stress"]) > 0.2,
+                            MOD_BIT["volcanic_ash_young"], 0)  # fmt: skip
+        mod_hex |= np.where(~land_hex & (kind >= 1) & (kind <= 3),
+                            MOD_BIT["hydrothermal_vent_field"], 0)  # fmt: skip
     lim_share = np.stack([np.nan_to_num(hmean(((limiting >> b) & 1).astype(float), dry))
                           for b in range(15)])  # fmt: skip
     main_lim = np.where(lim_share.max(0) > 0, lim_share.argmax(0) + 1, 0).astype(np.uint8)
@@ -569,6 +590,7 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         "units": int(U),
         "dry_units": int(dry.sum()),
         "input_quality": d["quality"],
+        "volcanic_fringe": volc_info,
         "classes_present_land": int((shares > 0).sum()),
         "land_shares_top": {BIOMES[i].id: round(float(shares[i] / tot_dry), 4)
                             for i in top if shares[i] > 0},
@@ -703,6 +725,31 @@ def tidal_fringe(uh, w, biome, dry, slope, coast, tc_hex, tw_hex, ai_hex, spacin
         np.concatenate([w2, *new_w]),
         np.concatenate([biome, *[b.astype(biome.dtype) for b in new_b]]),
         info,
+    )
+
+
+def volcanic_fringe(uh, w, biome, dry, barren_hex, n_hex):
+    """v5.1 fresh lava / PDC / lahar / thick-ash ground as a share of the hex's dry land.
+
+    The share (``volcanic_barren_fraction`` of v5.1, already reduced by the vegetation
+    recovery of its age and climate) is taken out of the dry units of the hex and given
+    to one ``barren_volcanic_recent`` unit: a 4 km flow is a few per cent of a 25 km hex,
+    not the hex.
+    """
+    barren = np.clip(np.nan_to_num(np.asarray(barren_hex, dtype=np.float64)), 0.0, 0.95)
+    dry_w = np.bincount(uh[dry], weights=w[dry], minlength=n_hex)
+    share = barren * dry_w
+    hx = np.nonzero((share > 1e-4) & (dry_w > 0))[0]
+    if hx.size == 0:
+        return uh, w, biome, {"hexes": 0}
+    scale = np.ones(n_hex)
+    scale[hx] = 1.0 - share[hx] / dry_w[hx]
+    w2 = np.where(dry, w * scale[uh], w)
+    return (
+        np.concatenate([uh, hx]),
+        np.concatenate([w2, share[hx]]),
+        np.concatenate([biome, np.full(hx.size, INDEX["barren_volcanic_recent"], biome.dtype)]),
+        {"hexes": int(hx.size), "area_share_sum": float(share[hx].sum())},
     )
 
 

@@ -578,6 +578,9 @@ MODIFIERS = (
     "peat_accumulation",
     "fire_prone",
     "glacial_moraine",
+    "geothermal_habitat",  # v5.1: hot ground, springs, fumaroles
+    "volcanic_degassing_stress",  # v5.1: SO2 / acid damage downwind of an open vent
+    "hydrothermal_vent_field",  # v5.1: sea-floor vents (chemosynthetic communities)
 )
 MOD_BIT = {name: 1 << i for i, name in enumerate(MODIFIERS)}
 

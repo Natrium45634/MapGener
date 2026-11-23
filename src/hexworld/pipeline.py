@@ -213,7 +213,7 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         old_geo_warnings |= set(base.hydro.warnings)
     if base.terrain is not None:
         old_geo_warnings |= set(base.terrain.warnings)
-    for later in (base.env, base.topo, base.biomes):
+    for later in (base.env, base.topo, base.biomes, getattr(base, "volcanism", None)):
         if later is not None:
             old_geo_warnings |= set(later.warnings)
     project = replace(
@@ -227,12 +227,13 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         env=None,
         topo=None,
         biomes=None,
+        volcanism=None,
         warnings=[w for w in base.warnings if w not in old_geo_warnings],
         timings={},
         stats=dict(base.stats, reused_stages=list(STAGES)),
         cache=dict(base.cache),
     )
-    if through in ("v2", "v3", "v46", "v4", "v45", "v47", "v50"):
+    if through in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -253,16 +254,18 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         report("validate", 0.79)
         geo.validation = validate_geo(project)
         project.warnings.extend(geo.warnings)
-    if through in ("v3", "v46", "v4", "v45", "v47", "v50"):
+    if through in ("v3", "v46", "v4", "v45", "v47", "v51", "v50"):
         _add_history(config, geometry, project, base, report)
-    if through in ("v46", "v4", "v45", "v47", "v50") and config.terrain.enabled:
+    if through in ("v46", "v4", "v45", "v47", "v51", "v50") and config.terrain.enabled:
         _add_terrain(config, geometry, project, base, report)
-    if through in ("v4", "v45", "v47", "v50"):
+    if through in ("v4", "v45", "v47", "v51", "v50"):
         _add_hydro(config, geometry, project, base, report)
-    if through in ("v45", "v47", "v50") and config.environment.enabled:
+    if through in ("v45", "v47", "v51", "v50") and config.environment.enabled:
         _add_env(config, geometry, project, base, report)
-        if through in ("v47", "v50") and config.topoclimate.enabled:
+        if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, base, report)
+        if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:
+            _add_volcanism(config, geometry, project, base, report)
         if through == "v50" and config.biomes.enabled:
             _add_biomes(config, geometry, project, base, report)
     project.timings["total"] = round(time.perf_counter() - t_total, 4)
@@ -351,6 +354,23 @@ def _add_topo(config, geometry, project: Project, previous: Project | None, repo
     project.warnings.extend(topo.warnings)
 
 
+def _add_volcanism(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v5.1 volcanism on a project that holds v4.7 data (before v5.0 biomes)."""
+    from .pipeline_v51 import run_v51
+    from .stages.validate import validate_volcanism
+
+    prev = getattr(previous, "volcanism", None) if previous is not None else None
+    old_keys = prev.stage_keys if prev is not None else {}
+    old_cache = previous.cache if previous is not None else {}
+    vol, cache, reused = run_v51(config, geometry, project, old_keys, old_cache, report)
+    project.volcanism = vol
+    project.cache.update(cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
+    project.timings.update(vol.timings)
+    vol.validation = validate_volcanism(project)
+    project.warnings.extend(vol.warnings)
+
+
 def _add_biomes(config, geometry, project: Project, previous: Project | None, report) -> None:
     """Run the v5.0 biomes and cryosphere on a project that holds v4.5 (+ v4.7) data."""
     from .pipeline_v50 import run_v50
@@ -380,7 +400,7 @@ def generate(
     A ``progress`` callback may raise :class:`GenerationCancelled` to abort; the
     project passed as ``reuse`` is never modified.
     """
-    if through not in ("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v50"):
+    if through not in ("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50"):
         raise ValueError('through must be "v1", "v2", "v3", "v46", "v4", "v45", "v47" or "v50"')
     report = progress or (lambda stage, fraction: None)
     timings: dict[str, float] = {}
@@ -589,7 +609,7 @@ def generate(
     )
     timed("assemble", t0)
 
-    if through in ("v2", "v3", "v46", "v4", "v45", "v47", "v50"):
+    if through in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50"):
         geo, geo_cache, geo_reused = run_v2(
             config,
             geometry,
@@ -616,16 +636,18 @@ def generate(
         project.geo.validation = validate_geo(project)
         project.warnings.extend(project.geo.warnings)
     timed("validate", t0)
-    if through in ("v3", "v46", "v4", "v45", "v47", "v50"):
+    if through in ("v3", "v46", "v4", "v45", "v47", "v51", "v50"):
         _add_history(config, geometry, project, reuse, report)
-    if through in ("v46", "v4", "v45", "v47", "v50") and config.terrain.enabled:
+    if through in ("v46", "v4", "v45", "v47", "v51", "v50") and config.terrain.enabled:
         _add_terrain(config, geometry, project, reuse, report)
-    if through in ("v4", "v45", "v47", "v50"):
+    if through in ("v4", "v45", "v47", "v51", "v50"):
         _add_hydro(config, geometry, project, reuse, report)
-    if through in ("v45", "v47", "v50") and config.environment.enabled:
+    if through in ("v45", "v47", "v51", "v50") and config.environment.enabled:
         _add_env(config, geometry, project, reuse, report)
-        if through in ("v47", "v50") and config.topoclimate.enabled:
+        if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, reuse, report)
+        if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:
+            _add_volcanism(config, geometry, project, reuse, report)
         if through == "v50" and config.biomes.enabled:
             _add_biomes(config, geometry, project, reuse, report)
     if project.stats["plates_visible"] < 2:

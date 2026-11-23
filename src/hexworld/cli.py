@@ -913,6 +913,36 @@ def cmd_units(args) -> int:
     return 0
 
 
+def cmd_volcanism(args) -> int:
+    """Print the v5.1 summary: systems, eruptions of the window, budgets, events."""
+    project = load_project(args.project)
+    v = getattr(project, "volcanism", None)
+    if v is None:
+        print("v5.1 volcanism is not calculated for this project (generate it with --through v50).")
+        return 1
+    s = v.summary
+    print(f"volcanism {s['algorithm_version']} ({s['world_profile']}), "
+          f"window {s['event_window_years']:g} years")  # fmt: skip
+    print(f"  provinces {s['provinces']}: {s['provinces_by_source']}")
+    print(f"  systems {s['systems']} (in window {s['systems_in_window']}): "
+          f"{s['systems_by_status']}")  # fmt: skip
+    print(f"  edifices: {s['systems_by_edifice']}")
+    print(f"  activity now: {s['activity_phase']}; lava lakes: {s['lava_lakes']}")
+    print(f"  eruptions {s['events']} (explicit {s['explicit_events']}), "
+          f"{s['erupted_dre_km3']} km3 DRE; VEI {s['events_by_vei']}")  # fmt: skip
+    print(f"  styles: {s['events_by_style']}")
+    print(f"  hydrothermal: {s['hydrothermal_fields']}; subglacial events "
+          f"{s['subglacial_events']}; new islands {s['emergent_islands']}; "
+          f"climate pulses {s['climate_pulses']}")  # fmt: skip
+    print(f"  validation: {v.validation.get('ok')} {v.validation.get('checks')}")
+    for e in sorted(v.events, key=lambda e: e["years_bp"])[: max(0, args.events)]:
+        p = e["products"]
+        print(f"  {e['event_id']} {e['years_bp']:9.1f} yr BP {'+'.join(e['style_phases']):38s} "
+              f"VEI {e.get('vei', 0)} DRE {p['volume_dre_m3']:.2e} m3 "
+              f"column {p['plume_height_m'] / 1000:.1f} km")  # fmt: skip
+    return 0
+
+
 def cmd_terrain(args) -> int:
     """Print the v4.6 summary of a project: sea floor, basins, water, massifs."""
     project = load_project(args.project)
@@ -984,7 +1014,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--code", help="world code «HW1-…» (seed + settings, from the GUI)")
     g.add_argument(
         "--through",
-        choices=("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v50"),
+        choices=("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50"),
         help="last stage to compute (v50 = everything, with biomes and ice)",
     )
     g.add_argument("--preset", choices=sorted(PRESETS), help="size preset")
@@ -1174,6 +1204,11 @@ def build_parser() -> argparse.ArgumentParser:
     te = sub.add_parser("terrain", help="v4.6 summary: sea floor, basins, water, massifs")
     te.add_argument("project")
     te.set_defaults(func=cmd_terrain)
+
+    vo = sub.add_parser("volcanism", help="v5.1 summary: systems, eruptions, budgets")
+    vo.add_argument("project")
+    vo.add_argument("--events", type=int, default=10, help="list this many recent events")
+    vo.set_defaults(func=cmd_volcanism)
 
     se = sub.add_parser("section", help="vertical cross-section along a line (v4.6)")
     se.add_argument("project")

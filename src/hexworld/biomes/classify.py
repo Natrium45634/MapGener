@@ -86,7 +86,9 @@ def classify_units(c: dict) -> dict:
     ice_form = c["ice_form"]  # 0 none, 1 mountain glacier, 2 ice cap, 3 ice sheet
     ablation = c["ice_balance"] < 0
     is_ice = ice_c > 0.5
-    put(is_ice & ablation & (ice_form > 0), "glacier_ablation_zone")
+    # the ablation zone is the margin that loses more than a few decimetres a year, not every
+    # part of an ice body whose balance dips below zero
+    put(is_ice & ablation & (c["ice_balance"] < -300.0) & (ice_form > 0), "glacier_ablation_zone")
     put(is_ice & (ice_form == 3), "glacier_ice_sheet")
     put(is_ice & (ice_form == 2), "glacier_ice_cap")
     put(is_ice, "glacier_mountain")
@@ -145,7 +147,8 @@ def classify_units(c: dict) -> dict:
     lim |= np.where(salt > 0.5, LF_BIT["salinity"], 0)
     mods |= np.where(salt > 0.45, MOD_BIT["saline_soil"], 0)
     put(barren & (slope > 38.0), "barren_rock_cliff")
-    polar = barren & (tw < 10.0) & cold_polar & ~mountain
+    # (polar mountains too: a summit with a -10 degC summer is rock, not alpine tundra)
+    polar = barren & (tw < 10.0) & cold_polar & (~mountain | (tw < 5.0))
     lim |= np.where(polar & (c["p_year"] < 250), LF_BIT["cold_polar_dry"], 0)
     put(polar & (v < 0.01), "barren_polar_rock")
     put(polar, "tundra_polar_desert_sparse")
@@ -257,6 +260,12 @@ def classify_units(c: dict) -> dict:
     put(woodland, "woodland_temperate_open")
 
     open_ = ~done
+    # open ground of a tundra climate (summers too cool and short) is tundra, not prairie
+    tundra_clim = open_ & ((tw < 10.0) | (gdd5 < 350.0)) & ~trop
+    put(tundra_clim & (wlog >= 2.0), "tundra_sedge_graminoid")
+    put(tundra_clim & (shrub_sh > 0.35) & (gdd0 > 300), "tundra_shrub")
+    put(tundra_clim & (gdd0 < 250), "tundra_moss_lichen")
+    put(tundra_clim, "tundra_sedge_graminoid")
     put(open_ & trop & (shrub_sh > 0.35), "savanna_shrub_grass")
     put(open_ & trop, "savanna_open_grass")
     put(open_ & (shrub_sh > 0.45) & (sdry >= 2.0) & (tc > 0), "shrubland_mediterranean")

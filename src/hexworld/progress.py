@@ -43,6 +43,7 @@ STAGES = (
     ("v45_water", "водный баланс по месяцам", (0.5, 11.0), None),
     ("v45_wetness", "увлажнение и индексы", (0.2, 2.0), None),
     ("v47_topoclimate", "высотные пояса и топоклимат", (0.5, 80.0), (0.0, 1.0)),
+    ("v51_volcanism", "вулканизм: извержения и продукты", (4.0, 10.0), (0.0, 1.0)),
     ("v50_biomes", "биомы, снег и ледники", (0.3, 50.0), (0.0, 1.0)),
     ("done", "готово", (0.0, 0.0), None),
 )
@@ -51,7 +52,7 @@ TITLES = {k: t for k, t, *_r in STAGES}
 #: which stages a generation runs, by its ``through``
 _LAST = {"v1": "assemble", "v2": "sea_level_landmasses", "v3": "v3_sea", "v46": "v46_terrain",
          "v4": "v4_network", "v45": "v45_wetness", "v47": "v47_topoclimate",
-         "v50": "v50_biomes"}  # fmt: skip
+         "v51": "v51_volcanism", "v50": "v50_biomes"}  # fmt: skip
 
 
 def sub_report(stage: str, fraction: float) -> str:

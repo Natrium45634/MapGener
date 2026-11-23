@@ -412,6 +412,45 @@ class BiomeParams:
 
 
 @dataclass(frozen=True)
+class VolcanismParams:
+    """v5.1 volcanism: provinces, magma systems, eruptions, products and their effects
+    (TZ 5.1). [H] calibration ``earthlike_balanced``, not natural constants."""
+
+    enabled: bool = True
+    #: "earthlike_silicate" (default) or "icy_world" (cryovolcanism; nothing silicate)
+    world_profile: str = "earthlike_silicate"
+    #: "fast" (analytic ash kernels), "balanced", "high_quality" (finer local lava cells)
+    physics_quality: str = "balanced"
+    #: Event time: the recent window whose eruptions are simulated, years before present.
+    event_window_years: float = 10_000.0
+    #: Eruptions with full products (lava flow, ash fall, PDC, lahar); the rest of the
+    #: window is aggregated per volcano with conserved totals.
+    max_explicit_events: int = 160
+    #: Multiplier of every eruption rate.
+    eruption_rate_scale: float = 1.0
+    #: Multiplier of the hotspot supply (Hawaii, Iceland, Yellowstone).
+    hotspot_activity: float = 1.0
+    #: Monogenetic fields and fissures in continental rifts.
+    rift_volcanism: bool = True
+    #: Fissure systems on the mid-ocean ridges (mostly submarine).
+    ridge_volcanism: bool = True
+    #: Rare persistent / transient lava lakes in open conduits.
+    lava_lakes: bool = True
+    #: Grain-size classes of the ash transport (2..4: lapilli, coarse, fine, very fine ash).
+    tephra_bins: int = 4
+    #: Large stratospheric SO2 pulses become a (decaying) climate anomaly record.
+    climate_aerosol: bool = True
+    #: Magma under ice: melting, subglacial lakes, jokulhlaups, tuyas.
+    subglacial: bool = True
+    #: Hydrothermal fields (on land and on the sea floor).
+    hydrothermal: bool = True
+    #: Non-magmatic mud volcanoes of overpressured sedimentary basins.
+    mud_volcanoes: bool = True
+    #: Cell of the local lava lattice around a vent, m.
+    lava_cell_m: float = 400.0
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -442,6 +481,7 @@ class Config:
     terrain: TerrainParams = field(default_factory=TerrainParams)
     topoclimate: TopoclimateParams = field(default_factory=TopoclimateParams)
     biomes: BiomeParams = field(default_factory=BiomeParams)
+    volcanism: VolcanismParams = field(default_factory=VolcanismParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -640,6 +680,21 @@ class Config:
             raise ConfigError("biomes.cryo_spinup_years must be within [0, 2000]")
         if bp.annual_pet_epsilon_mm <= 0:
             raise ConfigError("biomes.annual_pet_epsilon_mm must be positive")
+        vp = self.volcanism
+        if vp.world_profile not in ("earthlike_silicate", "icy_world"):
+            raise ConfigError("volcanism.world_profile: earthlike_silicate or icy_world")
+        if vp.physics_quality not in ("fast", "balanced", "high"):
+            raise ConfigError("volcanism.physics_quality: fast, balanced or high")
+        if not 100.0 <= vp.event_window_years <= 1e6:
+            raise ConfigError("volcanism.event_window_years must be within [100, 1e6]")
+        if not 0 <= int(vp.max_explicit_events) <= 5000:
+            raise ConfigError("volcanism.max_explicit_events must be within [0, 5000]")
+        if not 0.0 <= vp.eruption_rate_scale <= 20.0 or not 0.0 <= vp.hotspot_activity <= 10.0:
+            raise ConfigError("volcanism rate multipliers must be within [0, 20] / [0, 10]")
+        if not 2 <= int(vp.tephra_bins) <= 4:
+            raise ConfigError("volcanism.tephra_bins must be within [2, 4]")
+        if not 50.0 <= vp.lava_cell_m <= 5000.0:
+            raise ConfigError("volcanism.lava_cell_m must be within [50, 5000]")
         if len(self.viewport_origin_km) != 2:
             raise ConfigError("viewport_origin_km must be [x, y]")
         b = self.simulation_bounds_km
@@ -675,6 +730,7 @@ class Config:
             "terrain": TerrainParams,
             "topoclimate": TopoclimateParams,
             "biomes": BiomeParams,
+            "volcanism": VolcanismParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known

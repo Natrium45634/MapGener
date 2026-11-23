@@ -37,6 +37,7 @@ GROUPS = (
     ("soils", "Почвы и вода"),
     ("topo", "Высотные пояса"),
     ("biomes", "Биомы и лёд"),
+    ("volcanism", "Вулканизм"),
     ("technical", "Технические"),
 )
 
@@ -1569,6 +1570,98 @@ PARAMS: tuple[Param, ...] = (
         unit="ppm",
         tech=True,
     ),
+    # -- volcanism (v5.1) --------------------------------------------------------------------------------------
+    _p("volcanism.enabled", "Вулканизм (v5.1)", "volcanism", "bool", tech=True),
+    _p(
+        "volcanism.world_profile",
+        "Тип мира",
+        "volcanism",
+        "choice",
+        choices=(
+            ("earthlike_silicate", "земной (силикатный)"),
+            ("icy_world", "ледяной мир (криовулканизм)"),
+        ),
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "volcanism.physics_quality",
+        "Точность расчёта",
+        "volcanism",
+        "choice",
+        choices=(("fast", "быстро"), ("balanced", "сбалансированно"), ("high", "точно")),
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "volcanism.event_window_years",
+        "Окно недавних извержений",
+        "volcanism",
+        "float",
+        500,
+        50000,
+        None,
+        0,
+        log=True,
+        unit="лет",
+        tech=True,
+        help="Извержения этого срока до настоящего считаются по событиям.",
+    ),  # fmt: skip
+    _p(
+        "volcanism.max_explicit_events",
+        "Подробно рассчитанных извержений",
+        "volcanism",
+        "int",
+        0,
+        1000,
+        None,
+        0,
+        tech=True,
+        help="Самые крупные и недавние извержения: потоки лавы, пепел, лахары.",
+    ),  # fmt: skip
+    _p(
+        "volcanism.eruption_rate_scale",
+        "Частота извержений",
+        "volcanism",
+        "float",
+        0.1,
+        5.0,
+        (0.6, 1.6),
+        2,
+        log=True,
+    ),  # fmt: skip
+    _p(
+        "volcanism.hotspot_activity",
+        "Активность горячих точек",
+        "volcanism",
+        "float",
+        0.0,
+        3.0,
+        (0.5, 1.5),
+        2,
+    ),  # fmt: skip
+    _p("volcanism.rift_volcanism", "Вулканизм рифтов", "volcanism", "bool", rand=ON),
+    _p(
+        "volcanism.ridge_volcanism", "Вулканизм срединных хребтов", "volcanism", "bool", tech=True
+    ),  # fmt: skip
+    _p("volcanism.lava_lakes", "Лавовые озёра", "volcanism", "bool", rand=ON),
+    _p("volcanism.tephra_bins", "Фракций пепла", "volcanism", "int", 2, 4, None, 0, tech=True),
+    _p(
+        "volcanism.climate_aerosol", "Учёт вулканических аэрозолей", "volcanism", "bool", tech=True
+    ),  # fmt: skip
+    _p("volcanism.subglacial", "Подлёдные извержения", "volcanism", "bool", tech=True),
+    _p("volcanism.hydrothermal", "Гидротермальные поля", "volcanism", "bool", tech=True),
+    _p("volcanism.mud_volcanoes", "Грязевые вулканы", "volcanism", "bool", rand=ON),
+    _p(
+        "volcanism.lava_cell_m",
+        "Ячейка расчёта лавы",
+        "volcanism",
+        "float",
+        100,
+        2000,
+        None,
+        0,
+        unit="м",
+        tech=True,
+    ),  # fmt: skip
     # -- technical ------------------------------------------------------------------------------------------
     _p(
         "reference_cells",

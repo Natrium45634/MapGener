@@ -421,6 +421,30 @@ class TopoData:
 
 
 @dataclass
+class VolcanismData:
+    """Results of v5.1: hex layers, systems, eruption events and their products."""
+
+    layers: dict  # (H, W) arrays
+    systems: list  # dicts (VolcanoSystem.to_dict)
+    events: list  # dicts of the explicit events (EruptionEvent.to_dict)
+    provinces: list  # dicts
+    aggregates: dict  # volcano_id -> totals of the non-explicit events
+    summary: dict
+    provenance: dict
+    stage_keys: dict
+    warnings: list = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
+
+    def content_hashes(self) -> dict:
+        return {f"volcanism/{k}": array_hash(v) for k, v in self.layers.items()}
+
+    def system_at(self, flat_index: int) -> list[dict]:
+        """Volcano systems whose vent hex is ``flat_index``."""
+        return [s for s in self.systems if s.get("hex_flat") == int(flat_index)]
+
+
+@dataclass
 class BiomeData:
     """Results of v5.0: hex layers, sparse biome fractions, unit results."""
 
@@ -512,6 +536,8 @@ class Project:
     topo: TopoData | None = None
     #: v5.0 biomes, natural cover and cryosphere; ``None`` if not generated.
     biomes: BiomeData | None = None
+    #: v5.1 volcanism (systems, eruptions, products, ecology forcing); ``None`` if absent.
+    volcanism: VolcanismData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

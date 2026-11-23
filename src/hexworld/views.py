@@ -78,7 +78,10 @@ class ViewSpec:
             return False, "Запланировано"
         if project is None:
             return False, "Нет проекта"
-        if self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v50") and project.geo is None:
+        if (
+            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50")
+            and project.geo is None
+        ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
         if self.stage == "v4" and project.hydro is None:
             return False, f"«{self.title}»: климат и гидрология (v4) ещё не рассчитаны"
@@ -96,6 +99,8 @@ class ViewSpec:
             return False, f"«{self.title}»: топоклимат (v4.7) не рассчитан"
         if self.stage == "v50" and getattr(project, "biomes", None) is None:
             return False, f"«{self.title}»: биомы (v5.0) не сгенерированы"
+        if self.stage == "v51" and getattr(project, "volcanism", None) is None:
+            return False, f"«{self.title}»: вулканизм (v5.1) не рассчитан"
         return True, ""
 
     def default_mode(self) -> str:
@@ -4098,3 +4103,126 @@ def render_view_image(
         render.draw_motion_arrows(img, project, km_per_px)
     draw_vectors(img, view_vectors(project, view_id, mode, chosen), b.xmin, b.ymin, km_per_px)
     return img
+
+
+# -- v5.1: eruptions, products, hazards, ecology forcing --------------------------------------
+_V51_STATUS_RGB = np.array(
+    [[200, 195, 185], [120, 110, 100], [190, 170, 120], [230, 160, 60], [215, 40, 30]],
+    dtype=np.uint8,
+)
+_V51_PHASE_RGB = {
+    "erupting": (255, 40, 20), "waning": (255, 120, 40), "recovering": (240, 180, 60),
+    "unrest": (250, 90, 200), "degassing": (250, 230, 90), "quiet": (170, 160, 150),
+}  # fmt: skip
+_V51_SCALES = {
+    "lava": ("lava_fraction", 0.0, 0.3, 0.6),
+    "tephra": ("tephra_load_kg_m2", 0.0, 3000.0, 0.35),
+    "pdc": ("pdc_hazard_fraction", 0.0, 1.0, 1.0),
+    "lahar": ("lahar_fraction", 0.0, 0.3, 0.6),
+    "hazard": ("volcanic_hazard_index", 0.0, 1.0, 1.0),
+    "barren": ("volcanic_barren_fraction", 0.0, 0.3, 0.6),
+    "geothermal": ("geothermal_heat_mw", 0.0, 200.0, 0.5),
+    "degassing": ("degassing_stress_fraction", 0.0, 0.3, 1.0),
+    "deposit": ("volcanic_deposit_delta_m", 0.0, 20.0, 0.4),
+}
+
+
+def _render_eruptions(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    V = project.volcanism.layers
+    land = project.hydro.layers["land_mask"]
+    if mode == "status":
+        code = V["volcano_status"].astype(int)
+        rgb = np.where(land[..., None], np.array([200, 195, 185], np.uint8),
+                       np.array([150, 175, 200], np.uint8)).astype(np.uint8)  # fmt: skip
+        has = code > 0
+        rgb[has] = _V51_STATUS_RGB[code[has]]
+    else:
+        key, lo, hi, pw = _V51_SCALES[mode]
+        v = np.nan_to_num(V[key].astype(float))
+        rgb = _ramp_rgb(v, lo, hi, pw)
+        zero = v <= 0
+        base = np.where(land[..., None], np.array([205, 200, 190], np.uint8),
+                        np.array([160, 185, 210], np.uint8)).astype(np.uint8)  # fmt: skip
+        rgb[zero] = base[zero]
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.4)
+    if "rivers" in overlays:
+        rgb[project.hydro.layers["river_mask"]] = (40, 90, 200)
+    return rgb
+
+
+def _legend_eruptions(project: Project, mode: str) -> list[LegendItem]:
+    s = project.volcanism.summary
+    head = LegendItem(
+        f"окно {s['event_window_years']:g} лет: {s['events']} извержений, подробно "
+        f"{s['explicit_events']}; систем {s['systems']} (в окне {s['systems_in_window']})"
+    )
+    if mode == "status":
+        names = ("нет", "потухшая", "неясный статус", "спящая", "действующая")
+        return [head] + [LegendItem(n, tuple(int(c) for c in _V51_STATUS_RGB[i]))
+                         for i, n in enumerate(names) if i]  # fmt: skip
+    key, lo, hi, _pw = _V51_SCALES[mode]
+    lo_c, hi_c = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    unit = {"tephra": " кг/м²", "geothermal": " МВт", "deposit": " м"}.get(mode, " доли гекса")
+    note = {
+        "lava": "лава — доля площади гекса (поток в несколько км ≠ весь гекс)",
+        "tephra": "пепел за окно; верхний ветер синтетический (зональный)",
+        "pdc": "зона досягаемости (энергетический конус), а не отложение",
+        "lahar": "лахары и прорывные паводки по стоку v4",
+        "hazard": "сводный индекс: ПТП, лахары, пепел, лава",
+        "barren": "свежая поверхность без растительности (с учётом восстановления)",
+        "geothermal": "тепло гидротермальных полей и горячих источников",
+        "degassing": "повреждение растительности газами открытых жерл",
+        "deposit": "толщина отложений за окно (рельеф v4 не переписан)",
+    }[mode]
+    return [head, LegendItem(note), LegendItem(f"{lo:g}{unit}", lo_c),
+            LegendItem(f"≥ {hi:g}{unit}", hi_c)]  # fmt: skip
+
+
+def _vectors_eruptions(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    if "systems" not in overlays:
+        return []
+    out = []
+    for phase, color in _V51_PHASE_RGB.items():
+        pts = [
+            s
+            for s in project.volcanism.systems
+            if s["activity_phase"] == phase and s["magmatic_status"] != "extinct_system"
+        ]
+        if pts:
+            xs = np.array([p["x_km"] for p in pts])
+            ys = np.array([p["y_km"] for p in pts])
+            bold = phase in ("erupting", "unrest", "degassing")
+            out.append(VectorLayer("points", xs, ys, color, 3.0, bold, f"phase_{phase}"))
+    return out
+
+
+register_view(
+    ViewSpec(
+        id="eruptions",
+        title="Извержения (v5.1)",
+        stage="v51",
+        layers=("volcano_status", "lava_fraction", "tephra_load_kg_m2", "pdc_hazard_fraction"),
+        modes=(
+            Option("status", "Вулканические системы"),
+            Option("lava", "Лавовые потоки"),
+            Option("tephra", "Пепел (нагрузка)"),
+            Option("pdc", "Пирокластические потоки: зона"),
+            Option("lahar", "Лахары и паводки"),
+            Option("hazard", "Вулканическая опасность"),
+            Option("barren", "Свежая вулканическая пустошь"),
+            Option("geothermal", "Геотермальное тепло"),
+            Option("degassing", "Газовый стресс"),
+            Option("deposit", "Толщина отложений"),
+        ),
+        overlays=(
+            Option("systems", "Системы по фазе активности", True),
+            Option("coast", "Берег", True),
+            Option("rivers", "Реки"),
+        ),
+        note="Извержения за недавнее окно: детерминированные события, сохранение масс",
+        render=_render_eruptions,
+        legend=_legend_eruptions,
+        vectors=_vectors_eruptions,
+    )
+)

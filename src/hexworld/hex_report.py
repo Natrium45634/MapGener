@@ -66,7 +66,33 @@ _MODIFIERS = {
     "peat_accumulation": "торфонакопление",
     "fire_prone": "пожароопасность",
     "glacial_moraine": "морены",
+    "geothermal_habitat": "геотермальные местообитания",
+    "volcanic_degassing_stress": "угнетение вулканическими газами",
+    "hydrothermal_vent_field": "гидротермальные источники дна",
 }
+_MAGMA_CLASS = {
+    "basaltic": "базальтовая", "basaltic_andesitic": "андезибазальтовая",
+    "andesitic": "андезитовая", "dacitic": "дацитовая", "rhyolitic": "риолитовая",
+}  # fmt: skip
+_VOLC_STATUS = {"active_system": "действующая", "dormant_system": "спящая",
+                "uncertain": "неясный статус", "extinct_system": "потухшая"}  # fmt: skip
+_VOLC_PHASE = {"erupting": "извергается", "waning": "затухает", "recovering": "после извержения",
+               "unrest": "волнение (накопление магмы)", "degassing": "дегазация",
+               "quiet": "спокойствие"}  # fmt: skip
+_VOLC_EDIFICE = {
+    "stratocone": "стратовулкан", "shield": "щитовой вулкан", "caldera_complex": "кальдера",
+    "lava_dome_complex": "экструзивные купола", "scoria_cone": "поле шлаковых конусов",
+    "fissure_field": "трещинное поле", "submarine_seamount": "подводный вулкан",
+    "subglacial_tuya": "подлёдный вулкан (туйя)", "maar_tuff_ring": "маар",
+    "mixed": "смешанная постройка",
+}  # fmt: skip
+_VOLC_STYLE = {
+    "hawaiian_effusive": "гавайское излияние", "fissure_effusive": "трещинное излияние",
+    "submarine_effusive": "подводное излияние", "strombolian": "стромболианское",
+    "vulcanian": "вулканское", "subplinian": "субплинианское", "plinian": "плинианское",
+    "ultraplinian": "ультраплинианское", "dome_growth_collapse": "рост и обрушение купола",
+    "phreatomagmatic_surtseyan": "фреатомагматическое (суртсейское)", "phreatic": "фреатическое",
+}  # fmt: skip
 _ICE = {
     "none": "",
     "glacier_mountain": "горный ледник",
@@ -462,6 +488,11 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
             s.add("Фирн", _n(bio["firn_swe_mm"], 0, "мм в. э."))
         sections.append(s)
 
+    # -- volcanism (v5.1) -------------------------------------------------------------------
+    volc = getattr(project, "volcanism", None)
+    if volc is not None:
+        _volcanism_section(project, volc, col, row, sections)
+
     # -- coast and sea floor -------------------------------------------------------------------
     s = Section("sea", "Берег и дно моря")
     if info.get("coast_type"):
@@ -507,6 +538,52 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
 
     sections = [s for s in sections if s.rows]
     return HexReport(col, row, title, " · ".join(sub), sections, climate)
+
+
+def _volcanism_section(project, volc, col, row, sections) -> None:
+    flat = row * project.layout.width + col
+    V = volc.layers
+    s = Section("volcanism", "Вулканизм (последние тысячелетия)")
+    for sy in volc.system_at(flat)[:3]:
+        m = sy.get("magma") or {}
+        s.add(
+            f"  {_VOLC_EDIFICE.get(sy['edifice_type'], sy['edifice_type'])}",
+            f"{_VOLC_STATUS.get(sy['magmatic_status'], sy['magmatic_status'])}, "
+            f"{_VOLC_PHASE.get(sy['activity_phase'], sy['activity_phase'])}",
+        )
+        if m:
+            cls = _MAGMA_CLASS.get(m.get("magma_class", ""), m.get("magma_class", ""))
+            s.add("  Магма", f"{cls}, SiO₂ {m.get('silica_wt_pct', 0):.0f} %, "
+                  f"вязкость 10^{m.get('log10_viscosity_pa_s', 0):.1f} Па·с")  # fmt: skip
+        if sy.get("last_eruption_years_bp") is not None:
+            s.add("  Последнее извержение", f"{sy['last_eruption_years_bp']:.0f} лет назад")
+        if sy.get("lava_lake_state") not in (None, "none"):
+            s.add("  Лавовое озеро", sy["lava_lake_state"].replace("_", " "))
+    evs = [e for e in volc.events if e.get("vent_ids") and any(
+        sy["volcano_id"] == e["volcano_id"] for sy in volc.system_at(flat))]  # fmt: skip
+    for e in sorted(evs, key=lambda e: e["years_bp"])[:3]:
+        style = ", ".join(_VOLC_STYLE.get(p, p) for p in e["style_phases"])
+        vol = e["products"]["volume_dre_m3"] / 1e6
+        s.add(f"  Извержение {e['years_bp']:.0f} лет назад",
+              f"{style}; VEI {e.get('vei', 0)}; {vol:.1f} млн м³")  # fmt: skip
+    s.add("Лава (доля гекса)", _pct(float(V["lava_fraction"][row, col]), 1)
+          if V["lava_fraction"][row, col] > 0 else None)  # fmt: skip
+    load = float(V["tephra_load_kg_m2"][row, col])
+    s.add("Пепел за окно", f"{load:.0f} кг/м² (~{load / 10:.0f} см)" if load >= 1 else None)
+    s.add("Зона пирокластических потоков", _pct(float(V["pdc_hazard_fraction"][row, col]))
+          if V["pdc_hazard_fraction"][row, col] > 0 else None)  # fmt: skip
+    s.add("Лахары и паводки", _pct(float(V["lahar_fraction"][row, col]), 1)
+          if V["lahar_fraction"][row, col] > 0 else None)  # fmt: skip
+    s.add("Вулканическая опасность", _n(float(V["volcanic_hazard_index"][row, col]), 2)
+          if V["volcanic_hazard_index"][row, col] > 0 else None)  # fmt: skip
+    s.add("Свежая пустошь", _pct(float(V["volcanic_barren_fraction"][row, col]), 1)
+          if V["volcanic_barren_fraction"][row, col] > 0 else None)  # fmt: skip
+    s.add("Геотермальное тепло", _n(float(V["geothermal_heat_mw"][row, col]), 0, "МВт")
+          if V["geothermal_heat_mw"][row, col] > 0 else None)  # fmt: skip
+    s.add("Скопления CO₂ в низинах", "возможны" if V["co2_pooling_flag"][row, col] else None)
+    s.add("Грязевые вулканы", "есть" if V["mud_volcano_flag"][row, col] else None)
+    if s.rows:
+        sections.append(s)
 
 
 def _names():
