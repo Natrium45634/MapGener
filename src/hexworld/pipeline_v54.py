@@ -253,7 +253,7 @@ def run_atmosphere(config, project) -> dict:
     )
     water = ~project.hydro.layers["land_mask"].astype(bool)
     suit = np.where(water, 0.0, suit)
-    reg = mon.regime(p_ann, dry_m, seas, suit, peaks, sfrac, lat)
+    reg = mon.regime(p_ann, dry_m, seas, suit, peaks, sfrac, lat, p12)
     comps = G["precip_components_mm"].astype(np.float64).sum(axis=1)  # (5, ny, nx)
     tot = np.maximum(comps.sum(axis=0), 1e-9)
     f32 = np.float32

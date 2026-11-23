@@ -482,8 +482,21 @@ def test_t34_t35_t36_rain_regimes():
         monsoon.peak_count(med),
         sf,
         lat_m,
+        med,
     )
     assert monsoon.REGIMES[reg_m[0]] == "winter_wet_mediterranean"  # T36, not a monsoon
+    oceanic = med + 60.0  # winter maximum, but wet summers: not Mediterranean (Koppen Cs)
+    reg_o = monsoon.regime(
+        oceanic.sum(0),
+        np.zeros(1),
+        monsoon.seasonality(oceanic, days),
+        np.zeros(1),
+        monsoon.peak_count(oceanic),
+        monsoon.summer_fraction(oceanic, lat_m),
+        lat_m,
+        oceanic,
+    )
+    assert monsoon.REGIMES[reg_o[0]] != "winter_wet_mediterranean"
 
 
 def test_t39_false_start_is_not_an_onset():

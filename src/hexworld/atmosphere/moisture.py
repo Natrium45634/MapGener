@@ -45,6 +45,7 @@ TAU_BG_D = 6.0
 RH_POWER = 2.0
 ASCENT_FLOOR = 0.15
 SOIL_MEMORY = 0.3
+LAND_HEAT_TRIGGER = 0.3
 TAU_CONV_D = 7.0
 TAU_FRONT_D = 5.0
 TAU_SAT_D = 0.5
@@ -124,6 +125,7 @@ def solve(
     f = planet.coriolis(lat).ravel()
     f45 = abs(float(planet.coriolis(45.0)))
     sig = max(1.0, 800e3 / cell_m)
+    t_mean = np.asarray(t_air, dtype=np.float64).mean(axis=0)
     w_state = 0.6 * w_sat(t_air[0]) if w_init is None else np.full(n, float(w_init))
     p_recent = np.zeros(n)
     p_year = np.zeros(n)
@@ -143,6 +145,7 @@ def solve(
             div_s = mesh.divergence(us, vs)
             ws = w_sat(t_air[m])
             warm = np.clip((t_air[m] - 14.0) / 12.0, 0.0, 1.0)
+            heat = land_frac * np.clip((t_air[m] - t_mean) / 8.0, 0.0, 1.0)
             # transient disturbances keep some convection under the mean subsidence [A]
             ascent = np.clip(1.0 + (-div_s * 1000.0) / 2.0e-3, ASCENT_FLOOR, 3.0)
             w_up = np.maximum(uq * gh_e + vq * gh_n, 0.0)
@@ -171,7 +174,9 @@ def solve(
                 moist = np.clip((rh - 0.3) / 0.4, 0.0, 1.0)
                 k_bg = np.minimum(rh, 1.5) ** RH_POWER / (TAU_BG_D * DAY)
                 k_bg += np.maximum(rh - 1.0, 0.0) / np.maximum(rh, 1e-9) / (TAU_SAT_D * DAY)
-                trig = np.clip((rh - 0.45) / 0.35, 0.0, 1.0)
+                # summer heating of the land lowers the convective threshold (afternoon
+                # convection of continental summers) [A]
+                trig = np.clip((rh - 0.45 + LAND_HEAT_TRIGGER * heat) / 0.35, 0.0, 1.0)
                 k_conv = warm * trig * ascent / (TAU_CONV_D * DAY)
                 k_oro = np.minimum(EPS_ORO * w_up / H_V * moist, ORO_CAP_PER_S)
                 k_front = frontal * moist / (TAU_FRONT_D * DAY)
@@ -183,15 +188,15 @@ def solve(
                 e_land = land_frac * np.minimum(
                     p_rate * _fu(pet_rate / np.maximum(p_rate, 1e-12)), pet_rate
                 )
-                # zero-gradient inflow: the boundary cell's own column flows in
-                rhs = w_prev / dt + e0 + e_land
-                if x_bc is not None:
-                    rhs = rhs + tr.import_rate * x_bc[m]
-                    mat = (tr.D + sparse.diags(1.0 / dt + e1 + k_tot)).tocsc()
-                else:
-                    mat = (tr.D + sparse.diags(1.0 / dt + e1 + k_tot - tr.import_rate)).tocsc()
+                # inflow through the open boundary: a specified column, or (zero gradient)
+                # the boundary cell's own column of the previous iterate; on the right-hand
+                # side, so the matrix stays an M-matrix and W >= 0 without clipping
+                xb_used = x_bc[m] if x_bc is not None else w_it
+                rhs = w_prev / dt + e0 + e_land + tr.import_rate * xb_used
+                mat = (tr.D + sparse.diags(1.0 / dt + e1 + k_tot)).tocsc()
                 w_new = sla.splu(mat).solve(rhs)
-                w_new = np.maximum(w_new, 0.0)
+                clipped = np.minimum(w_new, 0.0)
+                w_new = w_new - clipped
                 change = float(np.abs(w_new - w_it).max() / max(float(w_new.max()), 1e-9))
                 w_it = w_new
                 p_recent = 0.5 * p_recent + 0.5 * (k_tot * w_it)
@@ -205,11 +210,11 @@ def solve(
             evap = (e0 - e1 * w_state + e_land) * dt  # kg/m^2
             prec_c = np.stack([k_conv, k_oro, k_front, np.zeros(n), k_bg]) * w_state * dt
             prec = prec_c.sum(axis=0)
-            xb = w_state if x_bc is None else x_bc[m]
-            imp = tr.import_rate * xb * dt
+            imp = tr.import_rate * xb_used * dt
             exp_ = tr.export_rate * w_state * dt
             d_store = w_state - w_prev
-            resid = float((a * (d_store - evap + prec - imp + exp_)).sum())
+            clip_kg = float((a * clipped).sum())  # negative W set to 0 (booked, ~never)
+            resid = float((a * (d_store - evap + prec - imp + exp_ + clipped)).sum())
             led = {
                 "month": m + 1,
                 "evaporation_kg": float((a * evap).sum()),
@@ -219,7 +224,7 @@ def solve(
                 "storage_change_kg": float((a * d_store).sum()),
                 "residual_kg": resid,
                 "cfl_month_step": mesh.cfl(uq, vq, dt),
-                "negative_clipped_kg": 0.0,
+                "negative_clipped_kg": -clip_kg,
             }
             led["relative_residual"] = abs(resid) / max(led["precipitation_kg"], 1e-30)
             ledger.append(led)

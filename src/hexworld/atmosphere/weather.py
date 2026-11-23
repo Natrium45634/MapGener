@@ -48,8 +48,8 @@ INTERANNUAL_RHO = 0.6
 PERSIST_RHO_YEARS = 0.4
 FRONT_LENGTH_KM = (1500.0, 800.0)  # cold, warm
 #: ETC genesis per m^2 per s per unit activity [H]: ~2500 cyclones / yr on an Earth-sized
-#: planet with ~5e13 m^2 of storm track at activity ~0.7
-ETC_RATE = 2.3e-18
+#: planet with ~1.3e14 m^2 of storm track (30-70 deg, both hemispheres) at activity ~0.7
+ETC_RATE = 8.0e-19
 #: safety cap of explicit events of one type in one month (the rest stays climatology)
 MAX_EVENTS_MONTH = 150
 

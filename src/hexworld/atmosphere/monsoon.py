@@ -169,17 +169,27 @@ def suitability(range_mm_day, summer_frac, contrast_k, onshore_change, reversal,
     return f_range * f_frac * 0.5 * (f_con + f_on) * f_lat * (0.8 + 0.2 * np.clip(reversal, 0, 1))
 
 
-def regime(p_ann, dry_months, seas, suit, peaks, summer_frac, lat):
-    """Rain regime codes (``REGIMES``)."""
+def regime(p_ann, dry_months, seas, suit, peaks, summer_frac, lat, p12=None):
+    """Rain regime codes (``REGIMES``).
+
+    Mediterranean (winter-wet) follows the Koppen ``Cs`` test when the months are given:
+    the driest summer month below 40 mm and below a third of the wettest winter month,
+    at 25-48 deg; otherwise a winter share >= 0.6 with two dry months.
+    """
     p_ann = np.asarray(p_ann, dtype=np.float64)
     out = np.full(p_ann.shape, 6, dtype=np.uint8)
     winter_frac = 1.0 - summer_frac
     out = np.where(summer_frac >= 0.6, 5, out)
-    out = np.where(
-        (winter_frac >= 0.6) & (dry_months >= 2) & (np.abs(lat) >= 25.0) & (np.abs(lat) <= 48.0),
-        4,
-        out,
-    )
+    belt = (np.abs(lat) >= 25.0) & (np.abs(lat) <= 48.0)
+    if p12 is not None:
+        p = np.asarray(p12, dtype=np.float64)
+        north = np.asarray(lat) >= 0.0
+        summer = np.where(north, p[[5, 6, 7]].min(axis=0), p[[11, 0, 1]].min(axis=0))
+        winter = np.where(north, p[[10, 11, 0, 1, 2]].max(axis=0), p[[4, 5, 6, 7, 8]].max(axis=0))
+        med = belt & (summer < 40.0) & (summer < winter / 3.0) & (winter_frac >= 0.5)
+    else:
+        med = belt & (winter_frac >= 0.6) & (dry_months >= 2)
+    out = np.where(med, 4, out)
     out = np.where((peaks >= 2) & (np.abs(lat) < 20.0) & (suit < 0.4), 3, out)
     out = np.where(suit >= 0.4, 2, out)
     out = np.where((dry_months == 0) & (seas < 0.4) & (p_ann >= 1200.0), 1, out)

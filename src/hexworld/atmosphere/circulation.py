@@ -43,6 +43,7 @@ TAU_LAND_D = 30.0
 TAU_COAST_D = 50.0
 TAU_SEA_D = 60.0  # only without a v5.3 ocean
 THERMAL_HPA_PER_K = 1.0
+LAND_SUMMER_HIGH_RELIEF = 0.8
 THICKNESS_HPA_PER_K = 0.6
 R_SURFACE_SEA = 2.4e-5
 R_SURFACE_LAND = 4.5e-5
@@ -148,6 +149,12 @@ def zonal_slp_hpa(lat, phi_te, phi_h):
     )
 
 
+def subtropical_high_hpa(lat, phi_te, phi_h):
+    """The subtropical-high term of :func:`zonal_slp_hpa` alone."""
+    s = lat - phi_te[None, :] * (1.0 - (lat / 90.0) ** 2)
+    return 11.0 * np.exp(-(((np.abs(s) - phi_h) / (0.4 * phi_h)) ** 2))
+
+
 def frictional_wind(px, py, f, r, cap):
     """Wind of the friction-pressure-Coriolis balance (east, north); finite at f = 0."""
     den = RHO_AIR * (r * r + f * f)
@@ -216,10 +223,21 @@ def build(
     z = np.zeros((12, nl, ny, nx), dtype=np.float32)
     slp = np.zeros((12, ny, nx))
     p_sfc = np.zeros((12, ny, nx))
+    land_s = ndimage.gaussian_filter(
+        (~np.asarray(sea, dtype=bool)).astype(np.float64), sig, mode="nearest"
+    )
     for m in range(12):
         ts = ndimage.gaussian_filter(t_sl[m], sig, mode="nearest")
         t_star = ts - ts.mean(axis=1, keepdims=True)  # regional thermal anomaly in the row
         p_hpa = zonal_slp_hpa(lat, phi_te[m], phi_h) - THERMAL_HPA_PER_K * t_star
+        # summer subtropical highs are oceanic cells: over warm land in its summer the
+        # high gives way to the heat low (share LAND_SUMMER_HIGH_RELIEF of the belt) [A]
+        warm_land = land_s * np.clip(
+            ndimage.gaussian_filter(t_sl[m] - t_annual, sig, mode="nearest") / 8.0, 0.0, 1.0
+        )
+        p_hpa = p_hpa - LAND_SUMMER_HIGH_RELIEF * warm_land * subtropical_high_hpa(
+            lat, phi_te[m], phi_h
+        )
         p_hpa = wind_strength * p_hpa
         if slp_extra_hpa is not None:  # diabatic (latent heating) lows of the rain
             p_hpa = p_hpa + slp_extra_hpa[m]

@@ -5,6 +5,8 @@
 | `circulation.TAU_LAND_D`, `TAU_COAST_D`, `TAU_SEA_D` | 30, 50, 60 d | one-box lag: land warmest ~1 month after the solstice, sea ~2 | T03, T11 |
 | Hadley edge | 30° × sqrt(ΔT/50 K) × (Ω_E a_E)/(Ω a) | Held–Hou scaling calibrated to the Earth | T14 |
 | zonal SLP belts | trough −6, subtropical high +11, subpolar low −18, polar high +6 hPa | Earth-like amplitudes; scaled by `climate.wind_strength` | T18 |
+| `LAND_SUMMER_HIGH_RELIEF` | 0.8 | over warm land in its summer the subtropical high gives way to the heat low (summer highs are oceanic cells) | Terra7 land 30–45°: July rain 30 → 65 mm |
+| `LAND_HEAT_TRIGGER` | 0.3 | summer heating of the land lowers the convective RH threshold | same |
 | `THERMAL_HPA_PER_K` | 1.0 hPa/K | heat lows / winter highs from the regional T anomaly (Siberia ≈ +20 hPa) | sensitivity below |
 | `THICKNESS_HPA_PER_K` | 0.6 | hypsometric thickness at 850 hPa (ρ R ln(1013/850)) | T15 |
 | friction `r` | sea 2.4e-5, land 4.5e-5 (×(1+h/1.5 km)), 850 hPa 1e-5, equatorial +5e-5 | cross-isobar angle ~15–25°, trades 5–8 m/s, doldrums | T13, T18, T19 |
@@ -47,3 +49,11 @@ a structural property of the pressure-driven circulation, not one parameter. Bec
 had previously been calibrated against over-dry continents (CHANGELOG, «пересохшие
 материки»), the default is `seasonality_only` (v4 annual totals, 5.4 monthly course);
 `full` is the physically complete option. This is an open calibration item.
+
+## Rain regimes: Mediterranean test
+
+The winter-wet regime follows Köppen `Cs` (driest summer month < 40 mm and < 1/3 of the
+wettest winter month, 25–48°). Before the summer-high relief and the land trigger the
+Terra7 window classified 55 % of its land as Mediterranean (summer continents were dry
+under a zonal subtropical high); after: 33 % of the 30–40° band, 9 % of 20–30°, 14 % of
+40–50°.
