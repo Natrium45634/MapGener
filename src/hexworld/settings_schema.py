@@ -1813,6 +1813,13 @@ PARAMS: tuple[Param, ...] = (
         tech=True,
     ),
     _p(
+        "atmosphere.latent_feedback",
+        "Скрытое тепло дождей углубляет депрессии",
+        "atmosphere",
+        "bool",
+        tech=True,
+    ),
+    _p(
         "atmosphere.coupled_iterations",
         "Итерации океан ↔ атмосфера",
         "atmosphere",

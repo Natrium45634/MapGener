@@ -37,8 +37,9 @@ order (one extra right-hand-side term, a few array operations).
   generated 100×100 world, save / load, views, windAt for ash, storms, weather year,
   snow, windthrow, export, boundary storms.
 - Scenario fixtures `tests/fixtures/v5_4/S01–S24.json` each name the executable test.
-- Full suite after 5.4: 640 passed, 1 failed (schema coverage of the text-only weather
-  seed — fixed in `b92035c`), run on 2 workers in ~35 min.
+- Full suite (final run, 3 workers, ~25 min): 646 passed, 1 failed — the settings schema
+  missed `atmosphere.latent_feedback`; added, `test_world_settings.py` 19/19 passed after
+  the fix.
 
 Not measured: a real display, Windows (Windows GUI: NOT VERIFIED), GPU / Numba kernels
 (not used).
