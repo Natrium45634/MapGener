@@ -25,8 +25,9 @@ separate fractions (no double deposition).
 **Coast** (one-line idea ``[ADAPT, E03]``): on sandy coasts the longshore transport
 ``Q = K H^2.5 sin(2 theta)`` (``H`` from the wave exposure, ``theta`` the wind-wave angle to
 the coast normal) moves sand to the downdrift coast hex; the shoreline moves by
-``(Q_in + Q_river - Q_out - aeolian_loss) / (D_active L)``. Rocky coasts (cliff, fjord,
-fault scarp...) retreat by ``wave power / rock resistance`` instead - never the sand law.
+``(Q_in + Q_river - Q_out - aeolian_loss) / (D_active L) - RSLR / tan(beta)``. Rocky
+coasts (cliff, fjord, fault scarp...) retreat by ``wave power / rock resistance``
+instead - never the sand law.
 """
 
 from __future__ import annotations
@@ -213,7 +214,8 @@ def _dust(nbr, rates, silt_frac, veg, wet, land, ocean, area, u_s, v_s):
 
 
 def coastal(nbr, spacing_m, coast_type_names, coast_type, exposure, ocean, u, v, river_sed,
-            rock_resistance, d_active=10.0, k_ls=2.0e5) -> dict:  # fmt: skip
+            rock_resistance, d_active=10.0, k_ls=2.0e5, rslr_m_yr=0.0,
+            beach_slope=0.02) -> dict:  # fmt: skip
     """Shoreline change rate (m/yr, + seaward) of coast hexes; sand budget ledger."""
     n = coast_type.size
     names = np.asarray(coast_type_names, dtype=object)
@@ -257,7 +259,8 @@ def coastal(nbr, spacing_m, coast_type_names, coast_type, exposure, ocean, u, v,
     to_sea = float(q[~to].sum())  # drift that leaves the coast (spit end, headland)
     river = np.where(coast, 0.3 * np.nan_to_num(river_sed), 0.0)  # sand share of the load
     length = spacing_m
-    dy_sandy = (q_in + river - q) / (d_active * length)
+    # relative sea-level rise drowns a sandy shore by RSLR / tan(beta) (Bruun-type term)
+    dy_sandy = (q_in + river - q) / (d_active * length) - np.asarray(rslr_m_yr) / beach_slope
     power = h_wave**2  # relative wave power
     dy_rocky = -0.05 * power / np.maximum(np.asarray(rock_resistance), 0.1)
     dy = np.where(sandy, dy_sandy, np.where(rocky, dy_rocky, 0.0))

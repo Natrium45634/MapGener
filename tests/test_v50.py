@@ -45,7 +45,9 @@ def test_v1_registry_codes_are_append_only():
     frozen = ["unresolved", "desert_hot_sand_erg", "desert_hot_gravel_reg",
               "desert_hot_rock_hamada", "desert_hot_salt_flat"]  # fmt: skip
     assert [b.id for b in BIOMES[:5]] == frozen
-    assert INDEX["marine_hadal_trench"] == len(BIOMES) - 1
+    # v5.0 ended with the hadal trench (code 100); v5.3 appended its classes after it
+    assert INDEX["marine_hadal_trench"] == 100
+    assert INDEX["tropical_montane_paramo"] == 101
 
 
 def test_v1_catalogue_covers_the_required_range():

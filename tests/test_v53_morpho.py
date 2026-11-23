@@ -139,3 +139,14 @@ def test_stage_layers_and_ledgers(hist_project):
     ocean = hist_project.hydro.layers["ocean_mask"]
     assert (L["dune_type"][ocean] == 0).all()
     assert (L["sand_thickness_m"] >= 0).all()
+
+
+def test_t56_relative_sea_level_moves_the_shore():
+    lay, nbr, names, ct, ocean, n = _coast_strip("beach")
+    u, v = np.full(n, 6.0), np.full(n, -6.0)
+    args = (nbr, 10e3, names, ct, np.full(n, 0.8), ocean, u, v, np.zeros(n), np.full(n, 0.3))
+    still = morpho.coastal(*args)
+    rise = morpho.coastal(*args, rslr_m_yr=0.003)
+    m = (ct > 0) & np.isfinite(still["shoreline_change_m_yr"])
+    diff = rise["shoreline_change_m_yr"][m] - still["shoreline_change_m_yr"][m]
+    assert np.allclose(diff, -0.003 / 0.02)  # 3 mm/yr of rise: 15 cm/yr of retreat

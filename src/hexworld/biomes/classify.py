@@ -23,8 +23,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..stages.environment import PM as _PM
 from . import pft
 from .registry import INDEX, LF_BIT, MOD_BIT
+
+#: parent materials of poor, acid soils (oceanic heath)
+PM_POOR = {k: _PM[k] for k in ("aeolian_sand", "crystalline_bedrock", "glacial_till")}
 
 I = INDEX  # noqa: E741
 
@@ -185,6 +189,10 @@ def classify_units(c: dict) -> dict:
     mods |= np.where(c["permafrost"] > 0.6, MOD_BIT["permafrost_polygon_proxy"], 0)
     lim |= np.where(above, LF_BIT["short_season"], 0)
     alp = above & mountain
+    # paramo: cold *without winter* (small annual range) and wet, above the tropical tree
+    # limit - a snowy continental steppe is not paramo, the dry puna stays alpine steppe
+    no_winter = (tw - tc) < 6.0
+    put(alp & no_winter & (tc > -6.0) & (alpha > 0.6) & (rocky < 0.6), "tropical_montane_paramo")
     put(alp & (rocky > 0.45) & (v < 0.3), "scree_alpine_sparse")
     put(alp & (alpha < 0.3), "steppe_alpine")
     put(alp & (shrub_sh > 0.4), "heath_alpine")
@@ -252,6 +260,9 @@ def classify_units(c: dict) -> dict:
     near_limit = (margin > -0.3) & (margin < 0.6)
     put(woodland & boreal_like & near_limit & (tc < -5), "forest_tundra_mosaic")
     put(woodland & boreal_like, "woodland_boreal_sparse")
+    # thorny, sparse dry-tropical woodland with a long dry season is caatinga-like scrub
+    thorn_w = trop & (dry_m >= 7.0) & (alpha > 0.12) & (alpha < 0.4) & (canopy < 0.35)
+    put(woodland & thorn_w, "tropical_thorn_scrub")
     put(woodland & trop & (canopy > 0.35), "woodland_dry_tropical")
     put(woodland & trop, "savanna_tree_grass")
     put(woodland & (sdry >= 2.0) & (tc > 0), "forest_mediterranean_sclerophyll")
@@ -266,9 +277,17 @@ def classify_units(c: dict) -> dict:
     put(tundra_clim & (shrub_sh > 0.35) & (gdd0 > 300), "tundra_shrub")
     put(tundra_clim & (gdd0 < 250), "tundra_moss_lichen")
     put(tundra_clim, "tundra_sedge_graminoid")
+    # caatinga-like thorn scrub: hot, a long dry season, water stress, a shrubby cover
+    thorn = trop & (dry_m >= 6.0) & (alpha > 0.12) & (alpha < 0.45) & (shrub_sh > 0.3)
+    put(open_ & thorn, "tropical_thorn_scrub")
     put(open_ & trop & (shrub_sh > 0.35), "savanna_shrub_grass")
     put(open_ & trop, "savanna_open_grass")
     put(open_ & (shrub_sh > 0.45) & (sdry >= 2.0) & (tc > 0), "shrubland_mediterranean")
+    # oceanic heath: a mild, wet oceanic climate on poor, acid ground (sand, till, granite);
+    # a fertile sheltered basin (alluvium, loess) never qualifies
+    oceanic = ((tw - tc) < 13.0) & (tc > -3.0) & (tw < 20.0) & (alpha > 0.8)
+    poor = np.isin(pm, [PM_POOR[k] for k in PM_POOR])
+    put(open_ & oceanic & poor & (shrub_sh > 0.25), "oceanic_heathland")
     put(open_ & (shrub_sh > 0.45) & (tc > 7.0), "scrub_subtropical")
     put(open_ & (shrub_sh > 0.45), "shrubland_temperate_dry")
     put(open_ & mountain & (margin < 1.0) & (margin > -0.3), "meadow_subalpine")

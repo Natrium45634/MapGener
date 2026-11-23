@@ -1,7 +1,8 @@
 # TZ 5.3 — acceptance report (living document)
 
-**Status:** sub-releases **5.3a «Климат и океан»** (G0–G3), **5.3b «Криосфера»** (G4–G5)
-and **G7 «Вулканический рельеф»**.
+**Status:** 5.3a «Климат и океан» (G0–G3), 5.3b «Криосфера» (G4–G5), 5.3c «Геоморфология»
+(G6–G7), 5.3d «Экосистемы» (G8). G9/G10 partial (see below). Full «5.3 done» is NOT
+claimed: several P1 items are reduced-order and listed as such.
 G6–G10 are listed with their real state below. Nothing here claims more than the tests
 show.
 
@@ -15,9 +16,9 @@ show.
 | G3 | sea ice | done | T17–T24 |
 | G4 | ice-sheet seed, SIA spin-up, convergence | done (P0); NOT_CONVERGED reported honestly when 50 kyr is not enough | T33–T40, Vialov steady state within 10 % |
 | G5 | shelves, erosion, isostasy, sea level | P0 shelves (flux-constrained); isostasy and SLE as diagnostic layers, **not applied to the relief** | T41–T48 |
-| G6 | aeolian and coastal morphodynamics | open | — |
+| G6 | aeolian and coastal morphodynamics | done (P1, hex scale): sand from soils / beaches, Bagnold threshold flux, FV transport 2000 yr, dune types, dust → loess, one-line longshore budget, rock-law cliffs; layers only (dunes not added to the relief) | T49–T55 |
 | G7 | volcanic TerrainDelta and drainage rebuild | done (P0): per-event deltas, atomic apply, whole-window rebuild of routing / lakes / ocean; v5.0 reads new dam lakes; v4 layers kept (snapshot) | T73–T75, T77–T79, T08 |
-| G8 | dynamic vegetation, fire, rare biomes | open | — |
+| G8 | dynamic vegetation, fire, rare biomes | done (P1, reduced order): potential vs actual state, Miami NPP, logistic growth with seed sources and soil development, deterministic fires, volcanic resets, succession stages; rare classes páramo, oceanic heath, thorn scrub, coastal dunes, kelp, seagrass, hydrothermal field, floating shelf, multiyear sea ice; absence reasons per class | T57–T68 |
 | G9 | integration, determinism, old saves, sizes | partial: determinism, save/load, old-save keys | T01, T05, T07 |
 | G10 | release | sub-releases only | CHANGELOG |
 
@@ -73,7 +74,27 @@ show.
 | T78 | `test_t73_t78_stage_applies_and_rebuilds`, dam test (receivers change) |
 | T79 | `test_t79_same_event_cannot_deposit_twice`, `test_regeneration_does_not_deposit_twice` |
 | T08 | `test_t08_invalid_delta_rolls_everything_back` |
-| T02–T04, T06, T49–T67 | open (gates G6, G8, G9) |
+| T49 | `test_v53_morpho.py::test_t49_no_transport_below_the_threshold` |
+| T50 | `test_t50_dry_fetch_conserves_sand_and_moves_it_downwind` |
+| T51 | `test_t51_vegetation_and_moisture_hold_the_sand` |
+| T52 | `test_t52_dust_is_a_separate_fraction_and_closes` |
+| T53 | `test_t53_longshore_sand_is_conserved_along_the_coast` (beach → dune transfer booked in the sand ledger `beach_loss_kg`) |
+| T54 | `test_t54_cliff_follows_the_rock_law_not_the_sand_law` |
+| T55 | `test_t55_coast_does_not_depend_on_the_window_edge` |
+| T56 | `test_t56_relative_sea_level_moves_the_shore` (the stage passes RSLR = 0: no sea-level change is applied in the present state) |
+| T57 | `test_v53_ecology.py::test_t57_potential_and_actual_are_separate` |
+| T58 | `test_t58_valid_nonnegative_state` |
+| T59 | `test_t59_no_fire_without_fuel` |
+| T60 | `test_t60_fire_reduces_biomass_and_books_emissions` |
+| T61 | `test_t61_succession_after_lava_takes_years`, `test_regrowth_needs_a_seed_source` |
+| T62 | `test_t62_paramo_needs_cold_without_winter` |
+| T63 | `test_t63_heath_needs_poor_soil_and_oceanic_climate` (gate data) |
+| T64 | `test_t64_thorn_scrub_needs_a_long_dry_season` |
+| T65 | coastal dunes only on `dune_type == 5` hexes (beach source) — `test_v53_morpho.py` + v5.0 fringe |
+| T66 | `test_t66_kelp_and_seagrass_differ_by_substrate_light_depth` |
+| T67 | `test_t67_hydrothermal_field_needs_a_source` |
+| T06 | `test_t06_rng_independent_of_hex_order` (ecology); ocean/ice use no random numbers |
+| T02–T04 | T01 covers old keys; bit-stability of a pre-5.3 save is by construction (no `earth` section → Earth system off), not by a stored golden hash — open as a test |
 
 ## Control world: polar continent (centre 70°, seed Pol1, 240×160 hexes of 40 km)
 
@@ -90,6 +111,21 @@ These are the values of the TZ appendix B (point 4), after 5.3b.
 | negative-SMB share of the ice area | "71 % ablation zone at 72–80°" (counted over all hexes) | 2.5 million of 15.0 million km² of ice (17 %), at the margins |
 | shelves | none | 84 hexes; grounding flux 6 500 km³/yr, basal melt 41 km³/yr, calving 6 460 km³/yr |
 | bed deflection | none | up to −1.3 km (diagnostic, the relief is not changed) |
+
+## Not done (honest list)
+
+- **Not applied to the base relief.** Dunes, glacial erosion, isostatic deflection and
+  sea-level change are layers. Only the volcanic deposits rebuild the drainage
+  (snapshot).
+- **Coastline.** The one-line model works at hex scale, not on sub-hex shoreline segments.
+  The RSLR term exists, but the stage applies RSLR = 0.
+- **Ice-sheet grid.** No coarse-grid SIA for 1000×800, and no SSA or buttressing for
+  shelves.
+- **Ecosystem feedbacks.** Fire does not feed back on the climate. There is no
+  ecosystem↔climate iteration (P2), and soil carbon is not exchanged with v4.5 soils.
+- **Control worlds.** The 24 control worlds of §22 have no JSON fixtures yet; the
+  synthetic scenes in the tests cover 1–5, 8, 10–14 and 19–21 qualitatively.
+- **Windows GUI on a physical screen:** NOT VERIFIED.
 
 ## Known limits (stated, not hidden)
 

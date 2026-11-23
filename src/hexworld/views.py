@@ -4589,3 +4589,58 @@ register_view(
              note="Нет сухого песка — нет дюн; клиф отступает по своей модели, не по песчаной",
              render=_render_aeolian, legend=_legend_aeolian)
 )  # fmt: skip
+
+
+# -- v5.3 G8: actual ecosystems (potential vs actual, succession, fire) --------------------------
+_STAGE_RGB = np.array([[205, 200, 190], [215, 205, 120], [170, 190, 100], [90, 150, 70],
+                       [30, 100, 45]], dtype=np.uint8)  # fmt: skip
+_STAGE_NAMES = ("голая поверхность", "пионерная стадия", "травы и кустарники",
+                "молодой лес", "зрелое сообщество")  # fmt: skip
+
+
+def _render_eco(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    B = project.biomes.layers
+    if "actual_biomass_kg_c_m2" not in B:
+        rgb = np.full(project.layer("elevation_m").shape + (3,), 150, dtype=np.uint8)
+        return _v53_base(project, rgb, overlays)
+    if mode == "stage":
+        rgb = _STAGE_RGB[B["succession_stage"].astype(int)].copy()
+    else:
+        key, hi, pw = {"actual": ("actual_biomass_kg_c_m2", 15.0, 0.6),
+                       "potential": ("potential_biomass_kg_c_m2", 15.0, 0.6),
+                       "age": ("stand_age_yr", 300.0, 0.7),
+                       "fire": ("burn_fraction_last_decade", 0.2, 0.5),
+                       "emission": ("carbon_emitted_kg_c_m2_yr", 0.2, 0.5)}[mode]  # fmt: skip
+        rgb = _ramp_rgb(np.nan_to_num(B[key].astype(float)), 0.0, hi, pw)
+    rgb = np.asarray(rgb, np.uint8).copy()
+    rgb[project.hydro.layers["ocean_mask"]] = (160, 185, 210)
+    return _v53_base(project, rgb, overlays)
+
+
+def _legend_eco(project: Project, mode: str) -> list[LegendItem]:
+    e = project.biomes.summary.get("ecosystems") or {}
+    share = 100 * e.get("actual_over_potential", 0)
+    head = LegendItem(
+        f"режим: {e.get('mode')}, {e.get('years', 0)} лет; "
+        f"фактическая биомасса = {share:.0f} % от потенциальной"
+    )
+    if mode == "stage":
+        return [head] + [LegendItem(n, tuple(int(c) for c in _STAGE_RGB[i]))
+                         for i, n in enumerate(_STAGE_NAMES)]  # fmt: skip
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    t = {"actual": "≥ 15 кг C/м²", "potential": "≥ 15 кг C/м²", "age": "≥ 300 лет",
+         "fire": "≥ 20 % за десятилетие", "emission": "≥ 0,2 кг C/м²/год"}[mode]  # fmt: skip
+    return [head, LegendItem("0", lo), LegendItem(t, hi)]
+
+
+register_view(
+    ViewSpec(id="ecosystems", title="Экосистемы (v5.3)", stage="v50",
+             layers=("actual_biomass_kg_c_m2", "succession_stage"),
+             modes=(Option("stage", "Стадия сукцессии"), Option("actual", "Фактическая биомасса"),
+                    Option("potential", "Потенциальная биомасса"),
+                    Option("age", "Возраст сообществ"), Option("fire", "Пожары (доля за 10 лет)"),
+                    Option("emission", "Выбросы углерода при пожарах")),
+             overlays=_V53_OVERLAYS,
+             note="Потенциальная растительность ≠ фактическая: пожары, лава, пепел, восстановление",
+             render=_render_eco, legend=_legend_eco)
+)  # fmt: skip

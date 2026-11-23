@@ -1770,6 +1770,29 @@ PARAMS: tuple[Param, ...] = (
     _p("earth.ice_shelves", "Шельфовые ледники", "earth", "bool", tech=True),
     _p("earth.isostasy", "Прогиб коры под льдом", "earth", "bool", tech=True),
     _p("earth.morphodynamics", "Дюны, лёсс и изменение берегов", "earth", "bool", tech=True),
+    _p(
+        "biomes.ecosystem_mode",
+        "Экосистемы",
+        "biomes",
+        "choice",
+        choices=(
+            ("dynamic_vegetation_annual", "динамика: рост, пожары, сукцессия"),
+            ("static_potential_only", "только потенциальная растительность"),
+        ),
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "biomes.ecosystem_years",
+        "Лет динамики экосистем",
+        "biomes",
+        "int",
+        10,
+        5000,
+        None,
+        0,
+        unit="лет",
+        tech=True,
+    ),  # fmt: skip
     # -- volcanism (v5.1) --------------------------------------------------------------------------------------
     _p("volcanism.enabled", "Вулканизм (v5.1)", "volcanism", "bool", tech=True),
     _p(

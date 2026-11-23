@@ -488,6 +488,17 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
             )
         if (bio.get("firn_swe_mm") or 0) > 0:
             s.add("Фирн", _n(bio["firn_swe_mm"], 0, "мм в. э."))
+        BL = project.biomes.layers if project.biomes is not None else {}
+        if "actual_biomass_kg_c_m2" in BL and BL["potential_biomass_kg_c_m2"][row, col] > 0:
+            stages = ("голая поверхность", "пионерная стадия", "травы и кустарники",
+                      "молодой лес", "зрелое сообщество")  # fmt: skip
+            st = stages[int(BL["succession_stage"][row, col])]
+            act = float(BL["actual_biomass_kg_c_m2"][row, col])
+            pot = float(BL["potential_biomass_kg_c_m2"][row, col])
+            s.add("Фактическое состояние", f"{st}; биомасса {act:.1f} из {pot:.1f} кг C/м²")
+            fri = float(BL["fire_return_interval_yr"][row, col])
+            if fri < 1e5:
+                s.add("Пожары", f"примерно раз в {fri:.0f} лет")
         sections.append(s)
 
     # -- Earth system (v5.3) ------------------------------------------------------------------

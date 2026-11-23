@@ -1,9 +1,9 @@
 """Version identifiers written into every saved project."""
 
 #: Version of the application people install (installer, window title, «О программе»).
-PRODUCT_VERSION = "1.1.0"
+PRODUCT_VERSION = "1.2.0"
 #: Version of the generator algorithms and data format (internal history 1.0 … 5.x).
-GENERATOR_VERSION = "5.5.0a2"
+GENERATOR_VERSION = "5.5.0"
 #: Bumped whenever a change alters generated geology for the same seed + config.
 ALGORITHM_VERSION = "tectonics-1"
 #: Seed -> stream derivation and raw number generation scheme.
@@ -34,7 +34,7 @@ TERRAIN_ALGORITHM_VERSION = "terrain-3"
 #: v4.7 topoclimate: terrain units, local climate, growing season, thermal belts.
 TOPOCLIMATE_ALGORITHM_VERSION = "topoclimate-2"
 #: v5.0 biomes: registry, PFT, cryosphere, causal classes, fractions.
-BIOMES_ALGORITHM_VERSION = "hexworld-biomes-3"
+BIOMES_ALGORITHM_VERSION = "hexworld-biomes-4"
 #: v5.1 volcanism: provinces, reservoirs, eruptions, lava / tephra / PDC / lahars, ecology.
 VOLCANISM_ALGORITHM_VERSION = "hexworld-volcanism-1"
 #: v5.3 Earth system: planet, winds aloft, ocean circulation and heat, sea ice, FAO-56.

@@ -409,6 +409,10 @@ class BiomeParams:
     paleo_ice_initialization: bool = True
     glacier_flow: bool = True
     co2_ppm: float = 420.0
+    #: v5.3: ``dynamic_vegetation_annual`` (actual state: growth, fire, volcanic resets,
+    #: succession) or ``static_potential_only`` (only the potential classes, as before).
+    ecosystem_mode: str = "dynamic_vegetation_annual"
+    ecosystem_years: int = 300
 
 
 @dataclass(frozen=True)
@@ -731,6 +735,11 @@ class Config:
             raise ConfigError("biomes.cryo_spinup_years must be within [0, 2000]")
         if bp.annual_pet_epsilon_mm <= 0:
             raise ConfigError("biomes.annual_pet_epsilon_mm must be positive")
+        if self.biomes.ecosystem_mode not in ("dynamic_vegetation_annual", "static_potential_only"):
+            raise ConfigError("biomes.ecosystem_mode: dynamic_vegetation_annual or "
+                              "static_potential_only")  # fmt: skip
+        if not 10 <= int(self.biomes.ecosystem_years) <= 5000:
+            raise ConfigError("biomes.ecosystem_years must be within [10, 5000]")
         ep = self.earth
         if not abs(ep.obliquity_deg) <= 90.0:
             raise ConfigError("earth.obliquity_deg must be within [-90, 90]")

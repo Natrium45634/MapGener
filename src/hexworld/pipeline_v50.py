@@ -458,6 +458,34 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         ok = j >= 0
         river_mouth[ok] |= ocean_hex[ok] & river_hex[j[ok]]
     marine_cls = marine_classes(depth, trench_hex, t_cold_hex, river_mouth)
+    earth_l = earth.layers if earth is not None else None
+    if earth_l is not None and "sst_monthly_c" in earth_l:
+        from .stages.coasts import COAST_TYPES
+
+        sst_m = np.nan_to_num(earth_l["sst_monthly_c"].reshape(12, n_hex).astype(np.float64),
+                              nan=-1.8)  # fmt: skip
+        ct = flat(L["coast_type"]).astype(np.int64) if "coast_type" in L else np.zeros(n_hex, int)
+        rocky_codes = [COAST_TYPES.index(k) for k in ("cliff", "fault_scarp", "fjord", "skerry",
+                                                      "dalmatian", "ria", "volcanic")]  # fmt: skip
+        rocky_land = np.isin(ct, rocky_codes)
+        rocky_coast = np.zeros(n_hex, dtype=bool)
+        for k in range(6):
+            j = nbr[:, k]
+            rocky_coast |= (j >= 0) & rocky_land[np.maximum(j, 0)]
+        expo = np.zeros(n_hex)
+        we = np.nan_to_num(flat(L["wave_exposure"]).astype(np.float64))
+        for k in range(6):  # the exposure of the neighbouring coast
+            j = nbr[:, k]
+            expo = np.maximum(expo, np.where(j >= 0, we[np.maximum(j, 0)], 0.0))
+        volc = getattr(project, "volcanism", None)
+        hk = flat(volc.layers["hydrothermal_kind"]) if volc is not None else np.zeros(n_hex)
+        ice_m = earth_l["sea_ice_concentration_monthly"].reshape(12, n_hex).astype(np.float64)
+        marine_cls = marine_rare_classes(
+            marine_cls, depth, sst_m.mean(axis=0), sst_m.max(axis=0), expo, rocky_coast,
+            flat(earth_l["coastal_upwelling"]).astype(bool), hk,
+            flat(earth_l.get("shelf_thickness_m", np.zeros(n_hex))).astype(np.float64),
+            flat(earth_l["sea_ice_type"]) == 2, ice_m.max(axis=0),
+        )  # fmt: skip
     sea_ice_months = (t_hex < -2.0).sum(axis=0).astype(np.uint8)
     endor_hex = flat(L["endorheic_mask"]).astype(bool)
     lake_cls = lake_classes(endor_hex, ai_hex)
@@ -501,6 +529,14 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         f_uh, f_w, f_b, volc_info = volcanic_fringe(
             f_uh, f_w, f_b, f_dry0, flat(volc.layers["volcanic_barren_fraction"]), n_hex
         )
+    dune_info = {"hexes": 0}
+    if earth is not None and "dune_type" in earth.layers:
+        f_dry1 = np.concatenate([dry, np.ones(f_uh.size - uh.size, dtype=bool)])
+        dune = flat(earth.layers["dune_type"]) == 5
+        sand = np.nan_to_num(flat(earth.layers["sand_thickness_m"]).astype(np.float64))
+        share = np.where(dune, np.clip(0.08 + 0.04 * sand, 0.0, 0.25), 0.0)
+        f_uh, f_w, f_b, dune_info = volcanic_fringe(f_uh, f_w, f_b, f_dry1, share, n_hex,
+                                                    biome_id="coastal_dune_vegetation")  # fmt: skip
     fractions, fr, hex_of, dominant = aggregate_fractions(f_uh, f_w, f_b, n_hex)
     offsets = fractions["offsets"]
     f_dry = np.concatenate([dry, np.ones(f_uh.size - uh.size, dtype=bool)])
@@ -597,6 +633,45 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     for k, v in cryo_unit.items():
         units[f"cryo_{k}"] = np.asarray(v).astype(np.float32)
     timings["v50_aggregate"] = round(time.perf_counter() - t0, 3)
+    # -- v5.3 actual ecosystems: growth, fire, volcanic resets, succession -------------------
+    eco_summary = {"mode": "static_potential_only"}
+    if (
+        getattr(config.biomes, "ecosystem_mode", "static_potential_only")
+        == "dynamic_vegetation_annual"
+    ):
+        from .biomes import ecology as eco
+
+        t0 = time.perf_counter()
+        fam_of = [BIOMES[int(k)].family for k in dominant]
+        years = int(config.biomes.ecosystem_years)
+        dist = []
+        volc_e = getattr(project, "volcanism", None)
+        if volc_e is not None:
+            V = volc_e.layers
+            f = np.clip(flat(V["lava_fraction"]) + flat(V["pdc_deposit_fraction"]), 0.0, 1.0)
+            age = np.nan_to_num(flat(V["lava_youngest_years_bp"]).astype(np.float64), nan=1e9)
+            hit = (f > 0) & (age < years)
+            for yr in np.unique((years - age[hit]).astype(int)):
+                sel = hit & ((years - age).astype(int) == yr)
+                dist.append((int(yr), np.nonzero(sel)[0], f[sel]))
+        soil = flat(E["soil_present"]).astype(bool) if "soil_present" in E else np.ones(n_hex, bool)
+        seed_int = int(hashlib.sha256(str(config.seed).encode()).hexdigest()[:15], 16)
+        er = eco.run(fam_of, t_hex.mean(axis=0), p_hex.sum(axis=0),
+                     np.nan_to_num(layers["dry_season_months"].ravel()), soil, nbr, seed_int,
+                     years=years, disturbances=dist)  # fmt: skip
+        for k in (
+            "actual_biomass_kg_c_m2",
+            "potential_biomass_kg_c_m2",
+            "stand_age_yr",
+            "burn_fraction_last_decade",
+            "carbon_emitted_kg_c_m2_yr",
+            "fuel_load_kg_c_m2",
+        ):
+            layers[k] = grid(er[k])
+        layers["succession_stage"] = grid(er["succession_stage"], np.uint8)
+        layers["fire_return_interval_yr"] = grid(np.minimum(er["fire_return_interval_yr"], 1e6))
+        eco_summary = er["summary"]
+        timings["v50_ecosystems"] = round(time.perf_counter() - t0, 3)
     # budgets
     hex_tot = np.bincount(uh, weights=w, minlength=n_hex)
     cov_sum = cov_u.sum(axis=0)
@@ -610,6 +685,9 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         "dry_units": int(dry.sum()),
         "input_quality": d["quality"],
         "volcanic_fringe": volc_info,
+        "coastal_dune_fringe": dune_info,
+        "ecosystems": eco_summary,
+        "class_audit": _class_audit(shares, tot_dry, t_hex, ai_hex, E, L, land_hex, project),
         "classes_present_land": int((shares > 0).sum()),
         "land_shares_top": {BIOMES[i].id: round(float(shares[i] / tot_dry), 4)
                             for i in top if shares[i] > 0},
@@ -747,7 +825,22 @@ def tidal_fringe(uh, w, biome, dry, slope, coast, tc_hex, tw_hex, ai_hex, spacin
     )
 
 
-def volcanic_fringe(uh, w, biome, dry, barren_hex, n_hex):
+def _class_audit(shares, tot_dry, t_hex, ai_hex, E, L, land_hex, project):
+    from .biomes.audit import class_audit, envelopes_from
+
+    lw = land_hex
+    wl = np.asarray(E["waterlogging_months"]).ravel() if "waterlogging_months" in E else 0
+    env = envelopes_from(
+        t_hex.min(axis=0)[lw], t_hex.max(axis=0)[lw], ai_hex[lw],
+        np.asarray(wl)[lw] if np.ndim(wl) else np.zeros(int(lw.sum())),
+        np.asarray(L["elevation_m"]).ravel()[lw] - project.hydro.sea_level_m,
+        (np.asarray(L["coast_type"]).ravel() > 0) if "coast_type" in L else np.zeros(1, bool),
+        getattr(project, "volcanism", None) is not None,
+    )  # fmt: skip
+    return class_audit(shares / max(tot_dry, 1e-12), env)
+
+
+def volcanic_fringe(uh, w, biome, dry, barren_hex, n_hex, biome_id="barren_volcanic_recent"):
     """v5.1 fresh lava / PDC / lahar / thick-ash ground as a share of the hex's dry land.
 
     The share (``volcanic_barren_fraction`` of v5.1, already reduced by the vegetation
@@ -767,7 +860,7 @@ def volcanic_fringe(uh, w, biome, dry, barren_hex, n_hex):
     return (
         np.concatenate([uh, hx]),
         np.concatenate([w2, share[hx]]),
-        np.concatenate([biome, np.full(hx.size, INDEX["barren_volcanic_recent"], biome.dtype)]),
+        np.concatenate([biome, np.full(hx.size, INDEX[biome_id], biome.dtype)]),
         {"hexes": int(hx.size), "area_share_sum": float(share[hx].sum())},
     )
 
@@ -786,6 +879,31 @@ def marine_classes(depth_m, trench, t_cold_c, river_mouth):
     out[river_mouth] = INDEX["marine_estuary_transition"]
     out[(t_cold_c < -10.0) & (depth < 3000)] = INDEX["marine_polar_ice_margin"]
     return out
+
+
+def marine_rare_classes(out, depth, sst_ann, sst_max, exposure, rocky_coast, upwelling,
+                        hydro_kind, shelf, multiyear, ice_max):  # fmt: skip
+    """v5.3 marine classes with their own gates (TZ 5.3 sec. 15); arrays per hex.
+
+    * kelp: shallow (<= 40 m, light), hard ground (a rocky coast next to it), cool water
+      (annual SST 4-18, warmest month < 21) with nutrients (exposure or upwelling);
+    * seagrass: very shallow (<= 20 m), soft sheltered ground (exposure < 0.4), not rocky,
+      warmest month > 10 degC, no long ice cover;
+    * hydrothermal field: an active sea-floor vent field of v5.1 (source needed, not depth);
+    * floating ice shelf and multiyear sea ice: physical cover states of v5.3.
+    """
+    o = out.copy()
+    d = np.asarray(depth, dtype=np.float64)
+    ice_free = ice_max < 0.5
+    kelp = (d <= 40.0) & rocky_coast & (sst_ann >= 4.0) & (sst_ann <= 18.0) & (sst_max < 21.0) & (
+        (exposure > 0.4) | upwelling) & ice_free  # fmt: skip
+    grass = (d <= 20.0) & ~rocky_coast & (exposure < 0.4) & (sst_max > 10.0) & ice_free & ~kelp
+    o[kelp] = INDEX["marine_kelp_forest"]
+    o[grass] = INDEX["marine_seagrass_meadow"]
+    o[(hydro_kind >= 1) & (hydro_kind <= 3)] = INDEX["marine_hydrothermal_field"]
+    o[multiyear] = INDEX["marine_sea_ice_multiyear"]
+    o[shelf > 0] = INDEX["marine_ice_shelf_floating"]
+    return o
 
 
 def lake_classes(endorheic, ai):

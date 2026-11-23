@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-REGISTRY_VERSION = "biome_registry_v1"
+REGISTRY_VERSION = "biome_registry_v2"
 PFT_REGISTRY_VERSION = "pft_earthlike_v1"
 
 REALMS = ("unknown", "terrestrial", "inland_water", "marine", "transitional")
@@ -527,7 +527,26 @@ BIOMES: tuple[BiomeClass, ...] = (
         "hadal trench",
         (10, 25, 70),
     ),
-)
+    # -- v5.3 (TZ 5.3 sec. 15): rare classes with their own ecological gates ----------------
+    _B("tropical_montane_paramo", "mountain", "парамо (тропическое высокогорье)",
+       "tropical montane páramo", (150, 175, 110)),
+    _B("oceanic_heathland", "shrubland", "океанические верещатники",
+       "oceanic heathland", (160, 110, 150)),
+    _B("tropical_thorn_scrub", "shrubland", "колючие кустарники (каатинга)",
+       "tropical thorn scrub (caatinga-like)", (190, 160, 90)),
+    _B("coastal_dune_vegetation", "special", "растительность прибрежных дюн",
+       "coastal dune vegetation", (235, 215, 150)),
+    _B("marine_kelp_forest", "marine", "ламинариевые леса (келп)", "kelp forest",
+       (60, 120, 90)),
+    _B("marine_seagrass_meadow", "marine", "луга морских трав", "seagrass meadow",
+       (90, 160, 120)),
+    _B("marine_hydrothermal_field", "marine", "гидротермальное поле дна",
+       "deep-sea hydrothermal field", (140, 80, 60)),
+    _B("marine_ice_shelf_floating", "marine", "шельфовый ледник (плавучий)",
+       "floating ice shelf", (225, 235, 250)),
+    _B("marine_sea_ice_multiyear", "marine", "многолетний морской лёд",
+       "multiyear sea ice", (205, 220, 240)),
+)  # fmt: skip
 INDEX = {b.id: i for i, b in enumerate(BIOMES)}
 FAMILIES = tuple(dict.fromkeys(b.family for b in BIOMES))
 BIOME_RGB = np.array([b.rgb for b in BIOMES], dtype=np.uint8)
