@@ -25,7 +25,7 @@ U = `tests/test_v54_atmosphere.py`, I = `tests/test_v54_integration.py`.
 | G4 monsoon diagnostics | done | U T31–T40, N08, N12, N18 |
 | G5 storm climatology | done, CALIBRATED_PROXY | I T41–T60 |
 | G6 weather year | done, reduced order | I T61–T70 |
-| G7 downstream integration | partial: v4.5 months, tephra windAt, flood routing delta; no dynamic soil / ice / biome commit | I T71–T75, v45 test |
+| G7 downstream integration | v4.5 months, tephra windAt, flood day routed through the rivers, snowfall share, TC windthrow → v5.3 actual ecosystems (soil kept, potential biomes unchanged); no dynamic soil-moisture / glacier commit from one year | I T71–T75, v45 test, windthrow tests |
 | G8 GUI / save / load | done (offscreen) | I T76, T79; T80 = NOT VERIFIED |
 | G9 24 scenarios, benchmark | fixtures + tests; benchmark in `v5_4_benchmarks_and_coverage.md` | `tests/fixtures/v5_4/S01–S24.json` |
 | G10 migration / audit | old configs load with the atmosphere off | I T09 |
@@ -80,11 +80,11 @@ U = `tests/test_v54_atmosphere.py`, I = `tests/test_v54_integration.py`.
 | T53 | I `test_t53_eady_is_symmetric_between_hemispheres` | pass |
 | T54–T56 | I `test_t54_t55_t56_fronts_are_continuous_and_cold_ones_snow` | pass |
 | T57, T58 | I `test_t57_t58_atmospheric_river_detection` | pass |
-| T59 | I `test_n17_t59_tracks_are_not_clipped_by_the_viewport` (an incoming *boundary* storm catalogue is not implemented: `incoming_storms` = not_available) | pass (partial) |
+| T59 | I `test_n17_t59_tracks_are_not_clipped_by_the_viewport`, `test_s24_storms_enter_through_the_boundary_only_when_specified` (`atmosphere.incoming_tc_per_year`, explicit statistic, ids `TCB-…`) | pass |
 | T61 | I `test_n07_t61_markov_wet_share` | pass |
 | T62 | I `test_t62_gamma_amounts` | pass |
 | T63 | I `test_t63_neighbours_share_the_weather` | pass |
-| T64, T71, T72, T74, T75, T77 | I `test_t64_t71_t72_t74_t75_t77_weather_year_stage` | pass |
+| T64, T71, T72, T74, T75, T77 | I `test_t64_t71_t72_t74_t75_t77_weather_year_stage`, `test_t74_snow_is_part_of_the_same_water`, `test_windthrow_keeps_the_soil`, `test_storm_wind_on_hexes_follows_the_holland_profile` | pass |
 | T65, T68, T69 | I `test_t65_t69_years_differ_and_no_ocean_mode_without_a_basin` | pass |
 | T66, T67 | I `test_t66_t67_droughts_relative_to_the_own_norm` | pass |
 | T70 | I `test_t70_calendars` | pass |
@@ -117,11 +117,17 @@ U = `tests/test_v54_atmosphere.py`, I = `tests/test_v54_integration.py`.
 - `full` precipitation coupling is not the default: in subtropical windows it gives
   noticeably more desert than the v4 calibration (see calibration doc); default
   `seasonality_only` keeps the v4 annual totals.
-- No `specified_boundary` user input form (API argument only); no incoming-storm catalogue.
-- The circulation does not respond to latent heating; mid-level humidity is the column RH.
+- No `specified_boundary` input form for humidity / heat inflow (API argument `x_bc` only);
+  incoming storms through the boundary are supported as an explicit yearly rate.
+- Latent heating feeds back once (convective rain deepens the trough, winds and vapour
+  are solved again; off at `fast`); no full moist dynamics; mid-level humidity is the
+  column RH.
 - ETC / AR / front climatologies are proxies; TC intensity is an upper-bound ODE.
-- Weather-year effects are delta layers (actual rain, flood day routed through the rivers,
-  drought, onset); no dynamic soil / snow / glacier / vegetation commit from one year.
+- Weather-year effects are delta layers (actual rain, snowfall, flood day routed through
+  the rivers, drought, onset, storm wind, windthrow); only the windthrow enters a later
+  stage (the v5.3 actual ecosystems). No soil-moisture / glacier commit from one year.
+- Export: `hexworld atmosphere PROJECT --export DIR` (events CSV, world_metric JSON —
+  no GeoJSON because the flat world has no CRS, budget CSV, grid npz).
 - Ocean mode of the interannual variability only in `planetary_background` worlds with an
   equatorial upwelling tongue (thermodynamic response, circulation fixed).
 - T20 at the 360×240 / 500×300 hex sizes and T78 at 1000×800 are measured, not tests.

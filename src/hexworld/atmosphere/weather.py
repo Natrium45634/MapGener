@@ -139,6 +139,57 @@ def tc_events(G, grid, planet, months_lambda, gen, rng_factory, year_tag):
     return out
 
 
+def incoming_tc_events(G, grid, planet, rate_per_year, rng_factory, year_tag):
+    """Tropical cyclones entering through the boundary at a specified yearly rate."""
+    out = []
+    ny, nx = G["lat_deg"].shape
+    edge = np.zeros((ny, nx), dtype=bool)
+    edge[0], edge[-1], edge[:, 0], edge[:, -1] = True, True, True, True
+    nrm_e = np.zeros((ny, nx))
+    nrm_n = np.zeros((ny, nx))
+    nrm_e[:, 0], nrm_e[:, -1] = 1.0, -1.0  # inward normals (east, north)
+    nrm_n[0], nrm_n[-1] = -1.0, 1.0
+    rng = rng_factory("tc_incoming")
+    n = min(rng.poisson(rate_per_year), MAX_EVENTS_MONTH)
+    # month weights: the warm-sea share of the boundary
+    warm = [
+        (edge & (G["sea_fraction"] > 0.5) & (G["t_sea_level_c"][m] >= 26.0)).sum()
+        for m in range(12)
+    ]
+    if n == 0 or sum(warm) == 0:
+        return out
+    months = rng.choice(np.asarray(warm, dtype=np.float64), n)
+    for k, m in enumerate(months):
+        m = int(m)
+        u = G["wind_u_ms"][m]
+        v = G["wind_v_ms"][m]
+        steer_in = (0.4 * u[1] + 0.35 * u[2] + 0.25 * u[3]) * nrm_e + (
+            0.4 * v[1] + 0.35 * v[2] + 0.25 * v[3]
+        ) * nrm_n
+        ok = edge & (G["sea_fraction"] > 0.5) & (G["t_sea_level_c"][m] >= 26.0) & (steer_in > 0)
+        if not ok.any():
+            continue
+        pick = int(rng.choice(ok.ravel().astype(np.float64), 1)[0])
+        j, i = divmod(pick, nx)
+        x = grid["x0_km"] + i * grid["cell_km"]
+        y = grid["y0_km"] + j * grid["cell_km"]
+        tf = storms.TrackField(grid, G, m)
+        eid = f"TCB-{year_tag}-{m + 1:02d}-{k + 1:02d}"
+        tr = storms.run_track(tf, x, y, rng, planet, v0=25.0, event_id=eid)
+        out.append(
+            {
+                "event_id": eid,
+                "event_type": "TC",
+                "month": m + 1,
+                "start_day": int(rng.uniform(0, 28)),
+                "track": tr,
+                "provenance": "boundary_event (user-specified incoming rate)",
+                "classification_quality": "boundary_inflow_track",
+            }
+        )
+    return out
+
+
 def etc_events(G, grid, rng_factory, year_tag, days):
     """Extratropical cyclones with a trailing cold front and a warm front (polylines)."""
     out = []
@@ -398,8 +449,15 @@ def generate(
     mode="unconditioned",
     ocean_mode=None,
     with_daily_cells=None,
+    incoming_tc_per_year=0.0,
 ) -> dict:
-    """One ``WeatherYearSnapshot`` (dict) on the atmosphere grid."""
+    """One ``WeatherYearSnapshot`` (dict) on the atmosphere grid.
+
+    ``incoming_tc_per_year`` is the user-specified rate of tropical cyclones entering
+    through the domain boundary (``boundary_event`` contract, TZ 13): they start on
+    warm-sea boundary cells where the steering flow points inward. Nothing is invented
+    when it is 0 (the default).
+    """
     from .storms import EventRng
 
     tag = f"{year_seed}-{year}"
@@ -452,6 +510,8 @@ def generate(
     gen_idx = G.get("tc_genesis_index")
     if gen_idx is not None and storm_lambda is not None:
         events += tc_events(G, grid, planet, storm_lambda, gen_idx, rng_factory, tag)
+    if incoming_tc_per_year > 0:
+        events += incoming_tc_events(G, grid, planet, incoming_tc_per_year, rng_factory, tag)
     if "etc_activity" in G:
         events += etc_events(G, grid, rng_factory, tag, days)
         events += ar_events(G, grid, rng_factory, tag)

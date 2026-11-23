@@ -1837,6 +1837,17 @@ PARAMS: tuple[Param, ...] = (
         "bool",
         help="Один синтетический год: треки, фронты, засухи. Нормы климата не меняет.",
     ),
+    _p(
+        "atmosphere.incoming_tc_per_year",
+        "Входящие через границу ТЦ, в год",
+        "atmosphere",
+        "float",
+        0,
+        50,
+        None,
+        1,
+        help="Статистика штормов извне окна задаётся явно; 0 — нет.",
+    ),
     _p("atmosphere.weather_year_index", "Номер года", "atmosphere", "int", 1, 1000, (1, 20), 0),
     _p(
         "atmosphere.weather_year_mode",

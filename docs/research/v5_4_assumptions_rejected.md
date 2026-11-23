@@ -17,5 +17,5 @@
 
 Open assumptions (documented, not hidden): monthly quasi-steady vapour budget; mid-level
 humidity = column RH (proxy); fixed Brunt–Väisälä frequency in the Eady rate; ETC and AR
-climatologies are proxies; TC intensity is an upper-bound ODE, not Emanuel PI; the
-circulation does not respond to latent heating except via the coupled ocean iteration.
+climatologies are proxies; TC intensity is an upper-bound ODE, not Emanuel PI; latent
+heating feeds back once (a diagnostic trough, not moist dynamics).

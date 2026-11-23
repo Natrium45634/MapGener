@@ -467,6 +467,7 @@ def _weather_year(config, wc, normals, G, grid, days, storm_summary, project, la
         lam,
         atm.weather_year_mode,
         ocean_mode,
+        incoming_tc_per_year=float(getattr(atm, "incoming_tc_per_year", 0.0)),
     )
     wy["climate_id"] = normals.source_hash
     G["wy_monthly_actual_mm"] = wy["aggregate_monthly_actuals_mm"]

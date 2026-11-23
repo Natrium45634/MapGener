@@ -526,6 +526,9 @@ class AtmosphereParams:
     #: ``planetary_background`` or ``isolated_approximation``. A specified boundary
     #: (inflow columns per edge) is an API argument (``moisture.solve(x_bc=...)``).
     domain_mode: str = "auto"
+    #: Latent heating of the convective rain deepens the troughs (one feedback pass;
+    #: skipped at ``fast``).
+    latent_feedback: bool = True
     #: Re-run the v5.3 ocean with the new monthly winds this many times (0 = off).
     coupled_iterations: int = 1
     #: v5.4b storm climatology (tropical / extratropical cyclones, fronts, rivers).
@@ -537,6 +540,9 @@ class AtmosphereParams:
     weather_year_seed: str = ""
     #: Index of the synthetic year (the interannual mode is a sequence over the years).
     weather_year_index: int = 1
+    #: Tropical cyclones per year entering through the domain boundary (an explicitly
+    #: specified statistic for a regional window; 0 = none is invented).
+    incoming_tc_per_year: float = 0.0
     #: ``unconditioned`` (a sample) or ``conditioned`` (seasonal sums nudged to the norm).
     weather_year_mode: str = "unconditioned"
 
@@ -822,6 +828,8 @@ class Config:
             raise ConfigError("atmosphere.coupled_iterations must be within [0, 5]")
         if ap.weather_year_mode not in ("unconditioned", "conditioned"):
             raise ConfigError("atmosphere.weather_year_mode: unconditioned or conditioned")
+        if not 0.0 <= float(ap.incoming_tc_per_year) <= 200.0:
+            raise ConfigError("atmosphere.incoming_tc_per_year must be within [0, 200]")
         if not 1 <= int(ap.weather_year_index) <= 100000:
             raise ConfigError("atmosphere.weather_year_index must be within [1, 100000]")
         vp = self.volcanism

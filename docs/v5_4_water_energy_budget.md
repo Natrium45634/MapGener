@@ -72,5 +72,6 @@ The surface temperature uses a one-box response to the planet's insolation cycle
 (first two harmonics, lag `atan(k omega tau)`, tau 30–50 d on land); the ocean is the v5.3
 mixed layer (its heat budget closes to ~1e-16, v5.3 validator). 5.4 does not solve a
 second surface energy budget over the sea (one SST, T10). Not modelled: cloud radiative
-feedbacks, latent-heat feedback on the circulation (the circulation does not respond to
-the rain it produces except through the coupled ocean iteration).
+feedbacks and full moist dynamics. Latent heating enters once: the convective rain above
+the row mean lowers the SLP by 0.5 hPa per mm/day (smoothed 800 km), the winds and the
+vapour budget are then solved again (`atmosphere.latent_feedback`, off at `fast`).

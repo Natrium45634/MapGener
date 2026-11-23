@@ -492,3 +492,17 @@ def test_export_ledger_and_metric_geometry(hist_project, tmp_path):
     assert head.startswith("event_id,event_type,month")
     doc = world_metric_json(atm)
     assert doc["crs"] == "world_metric_km" and "lat" not in json.dumps(doc["features"][:5])
+
+
+def test_s24_storms_enter_through_the_boundary_only_when_specified():
+    G, grid = _grid_fields(u=-6.0)
+    rngf = lambda n: storms.EventRng("Edge", f"t/{n}")  # noqa: E731
+    evs = weather.incoming_tc_events(G, grid, EARTH, 6.0, rngf, "y")
+    assert evs and all(e["event_id"].startswith("TCB-") for e in evs)
+    ny, nx = G["lat_deg"].shape
+    for e in evs:
+        p0 = e["track"]["points"][0]
+        assert p0["x_km"] >= (nx - 1) * grid["cell_km"] - 1e-6  # enters at the east edge
+        if len(e["track"]["points"]) > 2:
+            assert e["track"]["points"][2]["x_km"] < p0["x_km"]  # and moves inward
+    assert weather.incoming_tc_events(G, grid, EARTH, 0.0, rngf, "y") == []

@@ -520,3 +520,38 @@ def test_t20_resolution_keeps_the_large_scale_winds():
     zb = b.circ.u[:, 0].mean(axis=(0, 2))
     zb_on_a = np.interp(np.linspace(0, 1, za.size), np.linspace(0, 1, zb.size), zb)
     assert np.corrcoef(za, zb_on_a)[0, 1] > 0.95
+
+
+def test_latent_heating_deepens_the_convective_trough(tropical_pair):
+    nn, _ns, north, _s = tropical_pair
+    atm_b = replace(ATM, quality="balanced")
+    lat = np.repeat(np.linspace(60, -60, 36)[:, None], 48, axis=1)
+    from hexworld.stages.climate import zonal_temperature
+
+    planet = EARTH
+    sea = ~north
+    cont = np.where(north, 0.5, 0.0)
+    amp = (1.0 + 0.32 * np.abs(lat)) * (0.33 + 0.67 * cont)
+    grid = {"x0_km": 0.0, "y0_km": 0.0, "cell_km": 330.0}
+    on = normals.build(
+        atm_b, planet, lat, sea, np.zeros(lat.shape), zonal_temperature(lat), amp, cont, 330.0, grid
+    )
+    off = normals.build(
+        replace(atm_b, latent_feedback=False),
+        planet,
+        lat,
+        sea,
+        np.zeros(lat.shape),
+        zonal_temperature(lat),
+        amp,
+        cont,
+        330.0,
+        grid,
+    )
+    fb = on.diagnostics["latent_feedback"]
+    assert fb != "off" and fb["max_trough_hpa"] > 0.5
+    assert off.diagnostics["latent_feedback"] == "off"
+    for led in on.moist.ledger:
+        assert led["relative_residual"] < fixture("numerics")["budget_rel"]
+    trop = np.abs(lat) < 20
+    assert on.circ.slp_pa[:, trop].min() <= off.circ.slp_pa[:, trop].min()

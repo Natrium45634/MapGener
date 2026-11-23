@@ -16,10 +16,12 @@
 | `TAU_CONV_D`, ascent floor | 7 d, 0.15 | convection, suppressed but not zero under mean subsidence | T25 |
 | `TAU_FRONT_D` | 5 d | frontal rain with baroclinicity ≥ 8 K/1000 km | — |
 | `EPS_ORO`, cap | 0.5, 1/(6 h) | condensed share of the forced ascent | T26 |
+| `LATENT_HPA_PER_MM_DAY` | 0.5 hPa per mm/day | trough under convective rain (one feedback pass) | latent test |
 | `SOIL_MEMORY` | 0.3 | dry-season land ET partly from the annual supply | — |
 | `storms.LAMBDA0` | 2e-19 m⁻² s⁻¹ | ~tens of TC / yr for an Earth-like tropical ocean | N09 (formula) |
 | TC intensity | a = 1/36 h, shear 1/48 h per 10 m/s, land 1/18 h, PI = 35 + 12 (SST − 26) | weakening at landfall, shear | T43, T47 |
 | `weather.ETC_RATE` | 2.3e-18 m⁻² s⁻¹ per unit activity | ~2500 ETC / yr on an Earth-sized planet | — |
+| `WINDTHROW_MAX`, Holland R_max | 0.6, 40 km | stand share thrown at ≥ 55 m/s; land wind 0.75 of gradient wind | windthrow tests |
 | Markov persistence r | 0.35 | p_WW − p_DW | T61 |
 | Gamma k | 0.75 | wet-day amounts | T62 |
 | daily correlation | 600 km, AR(1) 0.6 | regional weather states | T63 |

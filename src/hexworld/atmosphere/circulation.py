@@ -192,6 +192,7 @@ def build(
     dt_equator_pole_k=50.0,
     lapse_c_per_km=6.5,
     wind_strength=1.0,
+    slp_extra_hpa=None,
 ) -> Circulation:
     cell_m = cell_km * 1000.0
     t_sl = monthly_temperature(planet, lat, t_annual, amp, cont, sea, sst_monthly)
@@ -220,6 +221,8 @@ def build(
         t_star = ts - ts.mean(axis=1, keepdims=True)  # regional thermal anomaly in the row
         p_hpa = zonal_slp_hpa(lat, phi_te[m], phi_h) - THERMAL_HPA_PER_K * t_star
         p_hpa = wind_strength * p_hpa
+        if slp_extra_hpa is not None:  # diabatic (latent heating) lows of the rain
+            p_hpa = p_hpa + slp_extra_hpa[m]
         p_hpa = ndimage.gaussian_filter(p_hpa, max(1.0, 300.0 / cell_km), mode="nearest")
         slp[m] = 101100.0 + 100.0 * p_hpa
         t_k = t_air[m] + 273.15

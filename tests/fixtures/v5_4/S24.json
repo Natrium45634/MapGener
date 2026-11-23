@@ -3,7 +3,8 @@
   "id": "S24",
   "scenario": "Региональное окно с входящим штормом",
   "expected": "трек продолжается в мировых км за окном",
-  "test": "tests/test_v54_integration.py::test_n17_t59_tracks_are_not_clipped_by_the_viewport",
+  "test": "tests/test_v54_integration.py::test_s24_storms_enter_through_the_boundary_only_when_specified",
   "tolerances": {},
-  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)",
+  "also": "tests/test_v54_integration.py::test_n17_t59_tracks_are_not_clipped_by_the_viewport"
 }

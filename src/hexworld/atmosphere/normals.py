@@ -20,6 +20,8 @@ from scipy import ndimage
 from . import circulation, fv, moisture
 
 TARGET_CELLS = {"fast": 12000, "balanced": 30000, "high": 80000}
+#: [H] SLP lowering per mm/day of convective rain above the row mean (latent heating)
+LATENT_HPA_PER_MM_DAY = 0.5
 from ..version import ATMOSPHERE_ALGORITHM_VERSION as ALGORITHM_VERSION  # noqa: E402
 
 
@@ -245,6 +247,58 @@ def build(
         pet_mm=pet,
         picard={"fast": 2, "balanced": 3, "high": 4}.get(atm.quality, 3),
     )
+    feedback = None
+    if getattr(atm, "latent_feedback", True) and getattr(atm, "quality", "balanced") != "fast":
+        # latent heating of the convective rain deepens the trough under it (relative to
+        # the row mean, smoothed 800 km), then the winds and the vapour are solved again
+        conv_rate = mr.components_mm[0].reshape((12,) + lat_c.shape) / days.reshape(12, 1, 1)
+        sig = max(1.0, 800.0 / cc)
+        extra = np.stack(
+            [
+                ndimage.gaussian_filter(c_m - c_m.mean(axis=1, keepdims=True), sig, mode="nearest")
+                for c_m in conv_rate
+            ]
+        )
+        extra = -LATENT_HPA_PER_MM_DAY * extra
+        circ = circulation.build(
+            planet,
+            lat_c,
+            sea_c,
+            lh,
+            tsl,
+            amp_c,
+            cont_c,
+            cc,
+            sst_monthly=sst_c,
+            dt_equator_pole_k=dt_equator_pole_k,
+            lapse_c_per_km=lapse_c_per_km,
+            wind_strength=wind_strength,
+            slp_extra_hpa=extra,
+        )
+        cu = np.stack([circ.u[:, 0], circ.u[:, 1]], axis=1).reshape(12, 2, n).astype(np.float64)
+        cv = np.stack([circ.v[:, 0], circ.v[:, 1]], axis=1).reshape(12, 2, n).astype(np.float64)
+        p_before = mr.precip_mm.sum()
+        mr = moisture.solve(
+            mesh,
+            cu,
+            cv,
+            t_air,
+            sst,
+            ice,
+            sea_f.ravel(),
+            lh,
+            lat_c,
+            planet,
+            days,
+            cc * 1000.0,
+            pet_mm=pet,
+            picard={"fast": 2, "balanced": 3, "high": 4}.get(atm.quality, 3),
+        )
+        feedback = {
+            "latent_hpa_per_mm_day": LATENT_HPA_PER_MM_DAY,
+            "max_trough_hpa": float(-extra.min()),
+            "rel_change_total_rain": float(mr.precip_mm.sum() / max(p_before, 1e-9) - 1),
+        }
     score, segs = itcz(
         mr.conv.reshape((12,) + lat_c.shape),
         mr.rh.reshape((12,) + lat_c.shape),
@@ -288,6 +342,7 @@ def build(
             "months": mr.ledger,
         },
         "itcz_segments_per_month": [len(s) for s in segs],
+        "latent_feedback": feedback or "off",
     }
     out = AtmosphereNormals(
         ALGORITHM_VERSION,
