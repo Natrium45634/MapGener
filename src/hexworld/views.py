@@ -4674,6 +4674,13 @@ _REGIME_TITLES = (
     "равномерный / иной",
 )
 _V54_LEVEL_MODES = {"wind_850": 1, "wind_500": 2, "wind_250": 3}
+#: weather-year state maps: layer, half range of the diverging scale
+_V54_STATE_MODES = {
+    "soil_anomaly": ("weather_soil_moisture_anomaly_mm", 60.0),
+    "runoff_anomaly": ("weather_runoff_anomaly_pct", 100.0),
+    "discharge_ratio": ("weather_discharge_ratio", 2.0),
+    "glacier_smb": ("weather_glacier_smb_mm_we", 1500.0),
+}
 
 
 def _atm_hex(project, field_):
@@ -4747,6 +4754,14 @@ def _render_atm54(project: Project, mode: str, overlays: frozenset) -> np.ndarra
         rgb = _diverging(
             np.nan_to_num(v.astype(float)) if v is not None else np.zeros(land.shape), 50.0
         )
+    elif mode in _V54_STATE_MODES:
+        key, half = _V54_STATE_MODES[mode]
+        v = L.get(key)
+        if v is None:
+            rgb = np.full(land.shape + (3,), 200, np.uint8)  # not generated: no fake zero
+        else:
+            rgb = _diverging(np.nan_to_num(v.astype(float)), half)
+            rgb[~np.isfinite(v)] = _NODATA_RGB
     elif mode == "budget":
         e = _atm_hex(project, G["evaporation_mm"].sum(axis=0))
         p = _atm_hex(project, G["precipitation_mm"].sum(axis=0))
@@ -4810,6 +4825,10 @@ def _legend_atm54(project: Project, mode: str) -> list[LegendItem]:
         "ar": ("0", "≥ 30 % дней с IVT > 250"),
         "weather": ("сухой год (−50 %)", "влажный год (+50 %)"),
         "budget": ("осадки > испарения", "испарение > осадков (источник влаги)"),
+        "soil_anomaly": ("суше нормы (−60 мм)", "влажнее нормы (+60 мм); погодный год"),
+        "runoff_anomaly": ("сток −100 %", "сток +100 % к норме"),
+        "discharge_ratio": ("расход ниже нормы", "расход выше нормы (×)"),
+        "glacier_smb": ("ледник теряет массу", "ледник набирает массу (мм в.э.)"),
     }[mode]
     return head + [LegendItem(texts[0], lo), LegendItem(texts[1], hi)]
 
@@ -4886,6 +4905,10 @@ register_view(
             Option("ar", "Атмосферные реки"),
             Option("weather", "Погодный год: аномалия и события"),
             Option("budget", "Баланс влаги E − P"),
+            Option("soil_anomaly", "Погодный год: почвенная влага"),
+            Option("runoff_anomaly", "Погодный год: сток"),
+            Option("discharge_ratio", "Погодный год: расход рек"),
+            Option("glacier_smb", "Погодный год: баланс ледников"),
         ),
         overlays=_V53_OVERLAYS,
         months=True,

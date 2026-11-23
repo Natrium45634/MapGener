@@ -542,6 +542,17 @@ def generate(
         d = int(start[m]) + min(int(ev.get("start_day", 0)), int(days[m]) - 1)
         daily[d] += r  # the event day carries its rain (dynamic hydrology input)
     p_act = gen_m + ev_m
+    # temperature anomaly of the year: a spatially correlated field per month (1 K, ~1500 km),
+    # warmer where the warm season is dry (P anomaly coupling) [A]
+    t_rng = rng_factory("temperature")
+    t_anom = np.zeros((12,) + shape)
+    sig_t = max(0.5, 750.0 / cell)
+    p_rel = (p_act - p_norm) / np.maximum(p_norm, 1.0)
+    for m in range(12):
+        e = ndimage.gaussian_filter(t_rng.s.normal(int(np.prod(shape))).reshape(shape), sig_t,
+                                    mode="nearest")  # fmt: skip
+        e /= max(float(e.std()), 1e-9)
+        t_anom[m] = 1.0 * e - 0.8 * np.clip(p_rel[m], -1.0, 1.0)
     # the flood day: the day with the largest rain excess over the land (one real day)
     land = G["sea_fraction"] < 0.5
     excess_day = (np.maximum(daily - 30.0, 0.0) * land[None]).sum(axis=(1, 2))
@@ -571,6 +582,7 @@ def generate(
         ).astype(np.float32),
         "max_daily_mm": daily.max(axis=0).astype(np.float32),
         "flood_day": flood_day,
+        "temperature_anomaly_c": t_anom.astype(np.float32),
         "flood_day_mm": daily[flood_day].astype(np.float32),
         "drought": dmask,
         "drought_deficit": ddef.astype(np.float32),

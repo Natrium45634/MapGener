@@ -456,19 +456,26 @@ def _weather_year(config, wc, normals, G, grid, days, storm_summary, project, la
             [block_mean(np.nan_to_num(oc.upwelling_m_day[s]), normals.factor) for s in range(4)]
         )
         ocean_mode = ocean_mode_response(normals, np.stack([u4[season_of[m]] for m in range(12)]))
-    wy = weather.generate(
-        G,
-        grid,
-        planet,
-        days,
-        config.seed,
-        year_seed,
-        int(atm.weather_year_index),
-        lam,
-        atm.weather_year_mode,
-        ocean_mode,
-        incoming_tc_per_year=float(getattr(atm, "incoming_tc_per_year", 0.0)),
-    )
+
+    def one_year(y):
+        return weather.generate(
+            G,
+            grid,
+            planet,
+            days,
+            config.seed,
+            year_seed,
+            y,
+            lam,
+            atm.weather_year_mode,
+            ocean_mode,
+            incoming_tc_per_year=float(getattr(atm, "incoming_tc_per_year", 0.0)),
+        )
+
+    # years 1 .. index in sequence: the water / ice state carries over from year to year
+    n_years = int(atm.weather_year_index)
+    wys = [one_year(y) for y in range(max(1, n_years - MAX_CARRY_YEARS + 1), n_years + 1)]
+    wy = wys[-1]
     wy["climate_id"] = normals.source_hash
     G["wy_monthly_actual_mm"] = wy["aggregate_monthly_actuals_mm"]
     G["wy_annual_anomaly_pct"] = wy["annual_anomaly_pct"]
@@ -477,6 +484,8 @@ def _weather_year(config, wc, normals, G, grid, days, storm_summary, project, la
     G["wy_onset_day"] = wy["onset_day"]
     G["wy_flood_day_mm"] = wy["flood_day_mm"]
     delta = apply_weather_effects(project, grid, wy, G["precipitation_mm"], shape)
+    hyd = actual_water_state(project, grid, G, wys, days, shape)
+    delta.update(hyd["layers"])
     layers.update(delta)  # committed together with the stage (atomic: one data object)
     events = [_plain_event(e) for e in wy["events"]]
     counts = {}
@@ -492,6 +501,7 @@ def _weather_year(config, wc, normals, G, grid, days, storm_summary, project, la
         "ledger": wy["ledger"],
         "quality": wy["quality"],
         "flood_day_of_year": wy["flood_day"] + 1,
+        "water_state": hyd["summary"],
         "effects": "delta layers weather_*: the climate normals and the potential "
         "biomes are not changed by one year (T72)",
     }
@@ -601,16 +611,125 @@ def storm_max_wind_hex(project, events) -> np.ndarray:
     return out.reshape(shape)
 
 
+#: years simulated before the requested one to carry the water / ice state over
+MAX_CARRY_YEARS = 5
+
+
+def actual_water_state(project, grid, G, wys, days, shape) -> dict:
+    """G5: soil, groundwater, snow, firn / ice and rivers of the actual year(s).
+
+    Spin-up on the climate normals (3 years) gives the start state; the weather years run
+    in sequence from it (carry-over); a normal year from the same state is the reference
+    for the anomalies. Nothing of the normals or the potential biomes is changed.
+    """
+    from .atmosphere import hydrostate as hs
+
+    lay = project.layout
+    hx, hy = lay.centers()
+    n = hx.size
+    L, E = project.hydro.layers, project.env.layers
+    M = project.env.monthly
+    land = (L["land_mask"].astype(bool) & (L["lake_id"] < 0)).ravel()
+    t_n = M["temperature_monthly_c"].reshape(12, n).astype(np.float64)
+    p_n = np.nan_to_num(M["precip_monthly_mm"].reshape(12, n).astype(np.float64))
+    pet_n = np.nan_to_num(M["pet_monthly_mm"].reshape(12, n).astype(np.float64))
+    keys = (
+        "field_capacity_vol",
+        "wilting_point_vol",
+        "porosity_vol",
+        "awc_mm",
+        "infiltration_capacity_mm_day",
+    )
+    soil = hs.soil_from_layers(*(E[k].ravel() for k in keys))
+    earth = getattr(project, "earth", None)
+    ice_m = np.zeros(n)
+    if earth is not None and "land_ice_thickness_m" in earth.layers:
+        ice_m = earth.layers["land_ice_thickness_m"].ravel().astype(np.float64)
+    glacier = land & (ice_m > 1.0)
+    st = hs.initial_state(soil, np.where(glacier, ice_m * hs.RHO_ICE, 0.0))
+    for _ in range(3):
+        st, _f, _l = hs.run_year(st, p_n, t_n, pet_n, days, soil, glacier)
+    s_norm, f_norm, led_norm = hs.run_year(st, p_n, t_n, pet_n, days, soil, glacier)
+    norm_m = G["precipitation_mm"].astype(np.float64)
+    state = st
+    for wy in wys:
+        ratio = wy["aggregate_monthly_actuals_mm"].astype(np.float64) / np.maximum(norm_m, 1e-6)
+        r_hex = sample(grid, np.minimum(ratio, 20.0), hx, hy).reshape(12, n)
+        dt = sample(grid, wy["temperature_anomaly_c"], hx, hy).reshape(12, n)
+        p_a = p_n * r_hex
+        t_a = t_n + dt
+        pet_a = np.maximum(pet_n * (1.0 + 0.04 * dt), 0.0)  # [A] ~4 % per K
+        state, f_act, led_act = hs.run_year(state, p_a, t_a, pet_a, days, soil, glacier)
+    area_m2 = lay.hex_area_km2 * 1e6
+    lu = hs.routing_operator(L["flow_receiver"])
+    secs = np.asarray(days, dtype=np.float64).reshape(12, 1) * 86400.0
+    q_norm = hs.route(lu, np.where(land, f_norm["runoff"], 0.0) * 1e-3 * area_m2) / secs
+    q_act = hs.route(lu, np.where(land, f_act["runoff"], 0.0) * 1e-3 * area_m2) / secs
+    qn, qa = q_norm.mean(axis=0), q_act.mean(axis=0)
+    g = lambda a: np.where(land, a, np.nan).reshape(shape).astype(np.float32)  # noqa: E731
+    pet_g = np.maximum(pet_n.sum(axis=0), 1e-9)
+    stress = 1.0 - f_act["aet"].sum(axis=0) / np.maximum(pet_a.sum(axis=0), 1e-9)
+    stress_n = 1.0 - f_norm["aet"].sum(axis=0) / pet_g
+    layers = {
+        "weather_soil_moisture_end_mm": g(state.soil),
+        "weather_soil_moisture_anomaly_mm": g(
+            f_act["soil"].mean(axis=0) - f_norm["soil"].mean(axis=0)
+        ),
+        "weather_aet_mm": g(f_act["aet"].sum(axis=0)),
+        "weather_aet_anomaly_mm": g(f_act["aet"].sum(axis=0) - f_norm["aet"].sum(axis=0)),
+        "weather_runoff_mm": g(f_act["runoff"].sum(axis=0)),
+        "weather_runoff_anomaly_pct": g(
+            100.0
+            * (f_act["runoff"].sum(axis=0) / np.maximum(f_norm["runoff"].sum(axis=0), 1.0) - 1.0)
+        ),
+        "weather_recharge_mm": g(f_act["recharge"].sum(axis=0)),
+        "weather_snow_max_swe_mm": g(f_act["swe"].max(axis=0)),
+        "weather_water_stress_change": g(stress - stress_n),
+        "weather_glacier_smb_mm_we": np.where(glacier, led_act["smb_mm_we"], np.nan)
+        .reshape(shape)
+        .astype(np.float32),
+        "weather_glacier_runoff_mm": np.where(glacier, f_act["ice_melt"].sum(axis=0), np.nan)
+        .reshape(shape)
+        .astype(np.float32),
+        "weather_discharge_ratio": np.where(qn > 1e-3, qa / np.maximum(qn, 1e-9), np.nan)
+        .reshape(shape)
+        .astype(np.float32),
+        "state_soil_mm": state.soil.reshape(shape).astype(np.float32),
+        "state_swe_mm": state.swe.reshape(shape).astype(np.float32),
+        "state_groundwater_mm": state.gw.reshape(shape).astype(np.float32),
+        "state_firn_mm_we": state.firn.reshape(shape).astype(np.float32),
+        "state_glacier_ice_mm_we": state.ice.reshape(shape).astype(np.float32),
+    }
+    res = np.abs(np.where(land, led_act["residual_mm"], 0.0))
+    summary = {
+        "mode": "monthly_aggregated (no flood peaks inside a month)",
+        "years_in_sequence": len(wys),
+        "spin_up_years_on_normals": 3,
+        "ledger_max_abs_residual_mm": float(res.max()) if res.size else 0.0,
+        "land_mean": {
+            "precip_actual_mm": float(led_act["precip_mm"][land].mean()) if land.any() else 0.0,
+            "precip_normal_mm": float(led_norm["precip_mm"][land].mean()) if land.any() else 0.0,
+            "runoff_actual_mm": float(led_act["runoff_mm"][land].mean()) if land.any() else 0.0,
+            "runoff_normal_mm": float(led_norm["runoff_mm"][land].mean()) if land.any() else 0.0,
+            "aet_actual_mm": float(led_act["aet_mm"][land].mean()) if land.any() else 0.0,
+            "aet_normal_mm": float(led_norm["aet_mm"][land].mean()) if land.any() else 0.0,
+        },
+        "glacier_hexes": int(glacier.sum()),
+        "glacier_smb_mean_mm_we": float(np.nanmean(led_act["smb_mm_we"][glacier]))
+        if glacier.any()
+        else None,
+        "geometry": "geometry_pending (ice mass changes; the v5.3 flow solver is not re-run)",
+        "pet_adjustment": "PET x (1 + 0.04 dT) for the year's temperature anomaly [A]",
+        "quality": "reduced_order_monthly_bucket",
+    }
+    return {"layers": layers, "summary": summary, "state": state}
+
+
 def route_volume(L, volume_m3):
-    """Accumulate a volume down ``flow_receiver`` (upstream first, by drainage area)."""
-    rc = L["flow_receiver"].ravel().astype(np.int64)
-    order = np.argsort(L["flow_accumulation_area_km2"].ravel(), kind="stable")
-    acc = np.asarray(volume_m3, dtype=np.float64).copy()
-    for i in order:
-        j = rc[i]
-        if 0 <= j < acc.size and j != i:
-            acc[j] += acc[i]
-    return acc
+    """Accumulate a volume down ``flow_receiver`` (sparse triangular solve of the DAG)."""
+    from .atmosphere import hydrostate as hs
+
+    return hs.route(hs.routing_operator(L["flow_receiver"]), np.asarray(volume_m3, float))
 
 
 def month_days_of(config):
