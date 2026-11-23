@@ -1324,8 +1324,10 @@ class MainWindow(QMainWindow):
                 )
             else:
                 lines.append("continental_block_id −1: океаническая кора")
-            land = info["landmass_id"]
-            if land >= 0:
+            # the v2 landmass of this hex (later stages re-label ``landmass_id`` with their
+            # own lists, so the merged value may not index ``geo.landmasses``)
+            land = int(p.geo.layers["landmass_id"][info["row"], info["col"]])
+            if 0 <= land < len(p.geo.landmasses):
                 m = p.geo.landmasses[land]
                 tail = ", уходит за край окна" if m["touches_window_edge"] else ""
                 lines.append(
