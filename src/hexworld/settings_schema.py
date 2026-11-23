@@ -1849,8 +1849,9 @@ PARAMS: tuple[Param, ...] = (
     _p("volcanism.subglacial", "Подлёдные извержения", "volcanism", "bool", tech=True),
     _p("volcanism.hydrothermal", "Гидротермальные поля", "volcanism", "bool", tech=True),
     _p("volcanism.mud_volcanoes", "Грязевые вулканы", "volcanism", "bool", rand=ON),
-    _p("volcanism.apply_terrain", "Отложения меняют рельеф и сток", "volcanism", "bool",
-       tech=True),  # fmt: skip
+    _p(
+        "volcanism.apply_terrain", "Отложения меняют рельеф и сток", "volcanism", "bool", tech=True
+    ),  # fmt: skip
     _p(
         "volcanism.lava_cell_m",
         "Ячейка расчёта лавы",
