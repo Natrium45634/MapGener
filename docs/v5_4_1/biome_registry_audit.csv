@@ -1,0 +1,111 @@
+code,id,family,registered,hard_eligible_rule,realized_in_Terra7_hexes,realized_share_land,tested_positive_negative,absence_reason
+0,unresolved,special,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,
+1,desert_hot_sand_erg,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",107,0.01831,,
+2,desert_hot_gravel_reg,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",63,0.01087,,
+3,desert_hot_rock_hamada,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",3,0.00092,,
+4,desert_hot_salt_flat,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+5,desert_playa_dry_lake,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",11,0.00259,,
+6,desert_badlands_barren,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+7,desert_hot_fog_coast,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+8,desert_saline_crust,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+9,desert_semi_arid_sparse,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",197,0.02985,,
+10,desert_temperate_cold,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",89,0.01508,,
+11,desert_high_mountain_cold,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",107,0.01614,,
+12,barren_volcanic_recent,barren,True,"registry rule (biomes/classify.py, pipeline_v50.py)",2,0.00032,,
+13,barren_rock_cliff,barren,True,"registry rule (biomes/classify.py, pipeline_v50.py)",26,0.01085,,
+14,barren_erosional_surface,barren,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+15,barren_gypsum_alkali,barren,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+16,desert_sparse_undifferentiated,desert,True,"registry rule (biomes/classify.py, pipeline_v50.py)",205,0.03617,,
+17,forest_tropical_everwet,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",53,0.0075,,
+18,forest_tropical_monsoon,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",31,0.00538,,
+19,forest_tropical_seasonal_dry,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",1,0.00017,,
+20,forest_tropical_cloud_montane,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",107,0.01831,,
+21,forest_tropical_swamp,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",23,0.00434,,
+22,forest_tropical_floodplain,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+23,forest_tropical_mangrove,forest_tropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+24,forest_subtropical_evergreen,forest_subtropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",26,0.00422,,
+25,forest_subtropical_seasonal,forest_subtropical,True,"registry rule (biomes/classify.py, pipeline_v50.py)",1,0.0004,,
+26,woodland_tropical_dry,woodland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",27,0.00387,,
+27,forest_temperate_deciduous,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",28,0.00466,,
+28,forest_temperate_mixed,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",266,0.04599,,
+29,forest_temperate_evergreen_broadleaf,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+30,forest_temperate_conifer,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",28,0.00467,,
+31,forest_temperate_rainforest,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",9,0.00166,,
+32,forest_mediterranean_sclerophyll,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",554,0.09295,,
+33,shrubland_mediterranean,shrubland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",639,0.10919,,
+34,woodland_temperate_open,woodland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",373,0.06078,,
+35,forest_montane_temperate,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",46,0.00768,,
+36,forest_floodplain_temperate,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",1,0.00013,,
+37,forest_wetland_temperate,forest_temperate,True,"registry rule (biomes/classify.py, pipeline_v50.py)",46,0.00742,,
+38,forest_boreal_dark_conifer,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+39,forest_boreal_light_conifer,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+40,forest_boreal_deciduous_larch,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",25,0.00515,,
+41,forest_boreal_mixed,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",25,0.00467,,
+42,woodland_boreal_sparse,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",96,0.01676,,
+43,forest_tundra_mosaic,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",10,0.0022,,
+44,boreal_peat_swamp_forest,forest_boreal,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+45,savanna_tree_grass,savanna,True,"registry rule (biomes/classify.py, pipeline_v50.py)",49,0.0086,,
+46,savanna_shrub_grass,savanna,True,"registry rule (biomes/classify.py, pipeline_v50.py)",40,0.00676,,
+47,savanna_open_grass,savanna,True,"registry rule (biomes/classify.py, pipeline_v50.py)",282,0.04865,,
+48,woodland_dry_tropical,savanna,True,"registry rule (biomes/classify.py, pipeline_v50.py)",6,0.00108,,
+49,grassland_temperate_prairie,grassland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",55,0.00946,,
+50,grassland_steppe,grassland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",768,0.13256,,
+51,grassland_dry_steppe,grassland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",963,0.16588,,
+52,forest_steppe_mosaic,grassland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",80,0.01414,,
+53,shrubland_temperate_dry,shrubland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,6e-05,,
+54,scrub_subtropical,shrubland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",36,0.00558,,
+55,grassland_montane,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",89,0.01705,,
+56,grassland_alpine,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",6,0.00102,,
+57,steppe_alpine,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",4,0.00083,,
+58,meadow_subalpine,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",27,0.00725,,
+59,heath_alpine,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+60,scree_alpine_sparse,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+61,tundra_shrub,tundra,True,"registry rule (biomes/classify.py, pipeline_v50.py)",2,0.00026,,
+62,tundra_sedge_graminoid,tundra,True,"registry rule (biomes/classify.py, pipeline_v50.py)",15,0.0048,,
+63,tundra_moss_lichen,tundra,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+64,tundra_alpine,tundra,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+65,tundra_polar_desert_sparse,polar,True,"registry rule (biomes/classify.py, pipeline_v50.py)",1,0.001,,
+66,barren_polar_rock,polar,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.00059,,
+67,barren_nunatak,polar,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+68,snow_perennial_field,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+69,firn_field,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+70,glacier_mountain,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+71,glacier_ice_cap,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+72,glacier_ice_sheet,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+73,glacier_ablation_zone,ice,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+74,wetland_fresh_marsh,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",14,0.00211,,
+75,wetland_fen,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+76,wetland_bog,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+77,wetland_peatland_mosaic,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+78,wetland_swamp_forest,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+79,wetland_floodplain_seasonal,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",46,0.00848,,
+80,wetland_riparian_gallery,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.00047,,
+81,wetland_inland_saline,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+82,wetland_saltmarsh_tidal,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+83,wetland_mangrove_intertidal,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+84,wetland_unclassified,wetland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+85,water_river_channel,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+86,water_river_ephemeral,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+87,water_lake_fresh_open,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",36,,,water/marine class
+88,water_lake_saline,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+89,water_lake_seasonal,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+90,water_shallow_marsh,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+91,marine_shelf_shallow,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",201,,,water/marine class
+92,marine_shelf_deep,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",418,,,water/marine class
+93,marine_slope_benthic,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",1416,,,water/marine class
+94,marine_abyssal_benthic,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",8892,,,water/marine class
+95,marine_pelagic_open,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+96,marine_polar_ice_margin,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,,water/marine class
+97,marine_coral_reef_potential,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",150,,tests/test_v541_marine.py::test_t74_coral_needs_light_and_clear_water_not_only_warmth,water/marine class
+98,marine_estuary_transition,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",101,,,water/marine class
+99,lake_unknown_salinity,freshwater,True,"registry rule (biomes/classify.py, pipeline_v50.py)",8,,,water/marine class
+100,marine_hadal_trench,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",111,,,water/marine class
+101,tropical_montane_paramo,mountain,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,tests/test_v53_ecology.py::test_t62_paramo_needs_cold_without_winter,too_rare
+102,oceanic_heathland,shrubland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+103,tropical_thorn_scrub,shrubland,True,"registry rule (biomes/classify.py, pipeline_v50.py)",80,0.01419,tests/test_v53_ecology.py::test_t64_thorn_scrub_needs_a_long_dry_season,
+104,coastal_dune_vegetation,special,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,0.0,,too_rare
+105,marine_kelp_forest,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",22,,tests/test_v53_ecology.py::test_t66_kelp_and_seagrass_differ_by_substrate_light_depth,water/marine class
+106,marine_seagrass_meadow,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",215,,tests/test_v53_ecology.py::test_t66_kelp_and_seagrass_differ_by_substrate_light_depth,water/marine class
+107,marine_hydrothermal_field,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",242,,tests/test_v53_ecology.py::test_t67_hydrothermal_field_needs_a_source,water/marine class
+108,marine_ice_shelf_floating,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,tests/test_v53_ecology.py::test_shelf_and_multiyear_ice_are_cover_states,water/marine class
+109,marine_sea_ice_multiyear,marine,True,"registry rule (biomes/classify.py, pipeline_v50.py)",0,,tests/test_v53_ecology.py::test_shelf_and_multiyear_ice_are_cover_states,water/marine class

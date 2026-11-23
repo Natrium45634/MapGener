@@ -491,6 +491,40 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
             flat(earth_l.get("shelf_thickness_m", np.zeros(n_hex))).astype(np.float64),
             flat(earth_l["sea_ice_type"]) == 2, ice_m.max(axis=0),
         )  # fmt: skip
+    marine_layers = {}
+    if earth_l is not None and "sst_monthly_c" in earth_l:
+        from .biomes import marine as mar
+
+        land_nb = ~ocean_hex
+        coast_hex = np.zeros(n_hex, dtype=bool)
+        warm_kind = np.zeros(n_hex, dtype=bool)
+        from .stages.coasts import COAST_TYPES
+
+        soft_codes = [
+            COAST_TYPES.index(k)
+            for k in (
+                "mangrove",
+                "tidal_flat",
+                "delta",
+                "estuary",
+                "barrier_lagoon",
+                "sabkha",
+                "liman",
+            )
+        ]
+        soft_land = np.isin(ct, soft_codes)
+        for k in range(6):
+            j = nbr[:, k]
+            ok = j >= 0
+            coast_hex |= ocean_hex & ok & land_nb[np.maximum(j, 0)]
+            warm_kind |= ok & soft_land[np.maximum(j, 0)]
+        up = earth_l["upwelling_m_day"].reshape(4, n_hex).astype(np.float64).mean(axis=0)
+        marine_layers = mar.habitats(
+            depth, ocean_hex, sst_m, ice_m, up, river_mouth, trench_hex, coast_hex, warm_kind, nbr
+        )
+        marine_layers["marine_ecoregion_id"] = mar.ecoregions_fast(
+            ocean_hex, sst_m.mean(axis=0), ice_m.max(axis=0), depth, shape
+        ).ravel()
     sea_ice_months = (t_hex < -2.0).sum(axis=0).astype(np.uint8)
     endor_hex = flat(L["endorheic_mask"]).astype(bool)
     lake_cls = lake_classes(endor_hex, ai_hex)
@@ -638,6 +672,9 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     for k, v in cryo_unit.items():
         units[f"cryo_{k}"] = np.asarray(v).astype(np.float32)
     timings["v50_aggregate"] = round(time.perf_counter() - t0, 3)
+    for k, v in marine_layers.items():  # TZ 5.4.1 marine habitat axes (potential)
+        dt = v.dtype if v.dtype in (np.uint8, np.int32) else np.float32
+        layers[k] = grid(v, dt)
     # -- v5.3 actual ecosystems: growth, fire, volcanic resets, succession -------------------
     eco_summary = {"mode": "static_potential_only"}
     if (
@@ -686,6 +723,13 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
         layers["fire_return_interval_yr"] = grid(np.minimum(er["fire_return_interval_yr"], 1e6))
         eco_summary = er["summary"]
         eco_summary["weather_storm_damage_hexes"] = storm_damage
+        if atm is not None and "weather_water_stress_change" in atm.layers:
+            # T68: one weather year updates the drought stress of the actual state
+            # (D = D e^(-1/tau) + stress (1 - e^(-1/tau)), tau = 2 yr); no class change
+            ds = np.nan_to_num(flat(atm.layers["weather_water_stress_change"]).astype(float))
+            layers["actual_drought_stress"] = grid(
+                np.clip(ds, 0.0, 1.0) * (1.0 - np.exp(-1.0 / 2.0))
+            )
         timings["v50_ecosystems"] = round(time.perf_counter() - t0, 3)
     # budgets
     hex_tot = np.bincount(uh, weights=w, minlength=n_hex)
