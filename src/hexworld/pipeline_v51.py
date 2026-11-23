@@ -64,6 +64,11 @@ def upstream_keys(project) -> dict:
         "env": project.env.stage_keys if project.env is not None else {},
         "topo": topo.stage_keys if topo is not None else {},
         **({"earth": project.earth.stage_keys} if getattr(project, "earth", None) else {}),
+        **(
+            {"atmosphere": project.atmosphere.stage_keys}
+            if getattr(project, "atmosphere", None) is not None
+            else {}
+        ),  # fmt: skip
     }
 
 
@@ -528,7 +533,10 @@ def run_volcanism(config, project, report=None) -> dict:
         "quality": {
             "lava": "approximated_cellular_d6",
             "tephra": (
-                "hex_fv_thermal_wind_aloft"
+                "hex_fv_atmosphere_5_4_wind_at"
+                if getattr(project, "atmosphere", None) is not None
+                and project.atmosphere.grid_fields
+                else "hex_fv_thermal_wind_aloft"
                 if getattr(project, "earth", None) is not None
                 else "hex_fv_synthetic_upper_wind"
             ),

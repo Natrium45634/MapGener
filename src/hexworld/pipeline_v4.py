@@ -20,6 +20,8 @@ from dataclasses import asdict
 
 import numpy as np
 
+from .atmosphere import settings as atmosphere_settings
+from .atmosphere.normals import ALGORITHM_VERSION as ATMOSPHERE_ALGORITHM_VERSION
 from .geomorph.surface_water import ocean_mask, water_layers, world_ocean_hexes
 from .pipeline_v2 import _component_table, _names
 from .project import HydroData
@@ -87,6 +89,11 @@ def v4_stage_keys(config, hist_keys: dict, sea_level_m: float) -> dict:
         *(
             [("earth", EARTH_ALGORITHM_VERSION, asdict(config.earth))]
             if config.earth.enabled
+            else []
+        ),
+        *(
+            [("atmosphere", ATMOSPHERE_ALGORITHM_VERSION, asdict(config.atmosphere))]
+            if config.atmosphere.enabled
             else []
         ),
     )
@@ -238,6 +245,7 @@ def run_v4(config, geometry, project, old_keys: dict, old_cache: dict, report):
             sea_level,
             latitude,
             earth=config.earth,
+            atmosphere=atmosphere_settings(config),
         )
         drainage = _world_drainage(
             config, wc, hist.world["elevation_m"], sea_level, geometry.viewport_bounds

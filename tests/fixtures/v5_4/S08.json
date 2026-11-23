@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S08",
+  "scenario": "Средиземноморское побережье",
+  "expected": "дождливая зима, сухое лето, не муссон",
+  "test": "tests/test_v54_atmosphere.py::test_t34_t35_t36_rain_regimes",
+  "tolerances": {
+    "regime": "winter_wet_mediterranean"
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

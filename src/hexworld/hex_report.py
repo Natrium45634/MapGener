@@ -505,6 +505,9 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
     earth = getattr(project, "earth", None)
     if earth is not None:
         _earth_section(project, earth, col, row, sections)
+    atm = getattr(project, "atmosphere", None)
+    if atm is not None and atm.layers:
+        _atmosphere_section(project, atm, col, row, sections)
 
     # -- volcanism (v5.1) -------------------------------------------------------------------
     volc = getattr(project, "volcanism", None)
@@ -562,6 +565,94 @@ _REALM = {1: "суша", 2: "внутренние воды", 3: "океан"}
 _ICE_COVER = {0: None, 1: "сезонный морской лёд", 2: "многолетний морской лёд",
               3: "припай", 4: "озёрный лёд", 5: "ледниковый щит (на суше)",
               6: "шельфовый ледник (плавучий)"}  # fmt: skip
+
+
+_MONTHS_RU = (
+    "январь",
+    "февраль",
+    "март",
+    "апрель",
+    "май",
+    "июнь",
+    "июль",
+    "август",
+    "сентябрь",
+    "октябрь",
+    "ноябрь",
+    "декабрь",
+)
+
+
+def _atmosphere_section(project, atm, col, row, sections) -> None:
+    from .atmosphere.monsoon import REGIMES
+
+    L = atm.layers
+    s = Section("atmosphere", "Атмосфера и сезоны (v5.4, нормы)")
+    names = {
+        "arid": "засушливый",
+        "perennially_wet": "влажно круглый год",
+        "tropical_monsoon": "тропический муссон",
+        "equatorial_bimodal": "два сезона дождей",
+        "winter_wet_mediterranean": "дожди зимой (средиземноморский)",
+        "summer_wet_non_monsoon": "летние дожди (не муссон)",
+        "uniform_or_other": "равномерный / иной",
+    }
+    land = bool(project.hydro.layers["land_mask"][row, col])
+    if land:
+        s.add("Режим осадков", names.get(REGIMES[int(L["rain_regime"][row, col])]))
+        on = int(L["monsoon_onset_month"][row, col])
+        wd = int(L["monsoon_withdrawal_month"][row, col])
+        if on:
+            s.add("Сезон дождей", f"{_MONTHS_RU[on - 1]} — {_MONTHS_RU[wd - 1]}")
+        s.add(
+            "Муссонность",
+            f"{float(L['monsoon_suitability'][row, col]):.2f} (0…1); "
+            f"реверс ветра {float(L['wind_reversal_score'][row, col]):.2f}",
+        )
+        s.add("Сухих месяцев", str(int(L["dry_season_months"][row, col])))
+        s.add(
+            "Источник влаги",
+            f"~{float(L['moisture_source_distance_km'][row, col]):.0f} км против ветра",
+        )
+    shares = [
+        (k.replace("precip_share_", ""), float(L[k][row, col]))
+        for k in L
+        if k.startswith("precip_share_")
+    ]
+    ru = {
+        "convective": "конвект.",
+        "orographic": "орограф.",
+        "frontal": "фронт.",
+        "storm": "штормы",
+        "background": "фон",
+    }
+    s.add(
+        "Происхождение осадков",
+        ", ".join(f"{ru.get(k, k)} {100 * v:.0f} %" for k, v in shares if v >= 0.05),
+    )
+    if "tc_passage_per_yr" in L:
+        f = float(L["tc_passage_per_yr"][row, col])
+        if f > 0.01:
+            s.add(
+                "Тропические циклоны",
+                f"{f:.2f} прохождений в год (300 км), "
+                f"до {float(L['tc_max_wind_ms'][row, col]):.0f} м/с",
+            )
+        if "tc_surge_potential_index" in L and float(L["tc_surge_potential_index"][row, col]) > 0:
+            s.add(
+                "Нагон (потенциал)",
+                f"{float(L['tc_surge_potential_index'][row, col]):.2f} — "
+                "только индекс, без гидродинамики",
+            )
+        s.add("Внетропические штормы", f"{float(L['etc_activity'][row, col]):.2f} (0…1)")
+    if "weather_annual_anomaly_pct" in L:
+        s.add(
+            "Погодный год",
+            f"осадки {float(L['weather_annual_anomaly_pct'][row, col]):+.0f} % "
+            "к норме" + (", засуха" if bool(L["weather_drought"][row, col]) else ""),
+        )
+    if s.rows:
+        sections.append(s)
 
 
 def _earth_section(project, earth, col, row, sections) -> None:

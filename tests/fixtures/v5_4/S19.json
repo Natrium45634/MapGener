@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S19",
+  "scenario": "Сильный зимний фронт",
+  "expected": "дождь/снег по профилю T; снег — доля той же воды",
+  "test": "tests/test_v54_integration.py::test_t54_t55_t56_fronts_are_continuous_and_cold_ones_snow",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

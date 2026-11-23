@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S15",
+  "scenario": "Глубокая подветренная долина",
+  "expected": "орографическая тень согласована (нет подъёма на подветренной стороне)",
+  "test": "tests/test_v54_atmosphere.py::test_t26_orography_moves_water_windward",
+  "tolerances": {
+    "lee_orographic_mm": 0.0
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

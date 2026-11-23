@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S22",
+  "scenario": "Год с провалом муссона",
+  "expected": "временная засуха без изменения норм",
+  "test": "tests/test_v54_integration.py::test_t66_t67_droughts_relative_to_the_own_norm",
+  "tolerances": {
+    "deficit": 0.4
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

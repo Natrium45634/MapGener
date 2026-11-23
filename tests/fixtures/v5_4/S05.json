@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S05",
+  "scenario": "Тропический океан с холодным апвеллингом у западного берега",
+  "expected": "подавленный генезис ТЦ и меньше конвекции",
+  "test": "tests/test_v54_integration.py::test_t41_t42_t43_t44_t45_genesis_gates",
+  "tolerances": {
+    "upwelling_g_ratio_max": 0.5
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S24",
+  "scenario": "Региональное окно с входящим штормом",
+  "expected": "трек продолжается в мировых км за окном",
+  "test": "tests/test_v54_integration.py::test_n17_t59_tracks_are_not_clipped_by_the_viewport",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

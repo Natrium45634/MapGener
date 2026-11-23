@@ -122,8 +122,27 @@ def transport(project, event, n_bins: int, quality: str) -> dict | None:
     rel = np.array([BINS[i][3] for i in range(nb_)]) * column
     t_fall = rel / vs
     earth = getattr(project, "earth", None)
+    atm = getattr(project, "atmosphere", None)
     wind_flag = "synthetic_upper_wind"
-    if earth is not None and "winds_aloft_u_ms" in earth.layers:
+    if atm is not None and atm.grid_fields:
+        # v5.4 windAt: monthly normals on 4 levels, log-p interpolation at each bin's
+        # release height; above 250 hPa flagged as extrapolated (never a modelled jet)
+        from ..pipeline_v54 import wind_at_world
+
+        month = int(stable_uniform(event.event_id, "month") * 12) % 12
+        hx, hy = lay.centers()
+        wx, wy = hx.ravel()[win.flat], hy.ravel()[win.flat]
+        u = np.empty((nb_, win.size))
+        v = np.empty((nb_, win.size))
+        worst = 0
+        for b in range(nb_):
+            ub, vb, qb = wind_at_world(atm, wx, wy, month, altitude_m=np.full(win.size, rel[b]))
+            u[b], v[b] = ub, -vb  # tephra works in map axes (y south)
+            worst = max(worst, int(qb.max()))
+        wind_flag = "atmosphere_5_4_wind_at"
+        if worst >= 2:
+            wind_flag += "+extrapolated_above_250hPa"
+    elif earth is not None and "winds_aloft_u_ms" in earth.layers:
         # the climate's own winds aloft (v5.3 thermal wind) at each bin's release height,
         # for the season of the event (deterministic from its id)
         from ..earth.winds import wind_at_height

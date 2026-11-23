@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S14",
+  "scenario": "Тропический остров с высокой горой",
+  "expected": "асимметричный штормовой дождь",
+  "test": "tests/test_v54_integration.py::test_t48_mountains_take_more_storm_rain",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

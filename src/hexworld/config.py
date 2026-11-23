@@ -505,6 +505,43 @@ class EarthParams:
 
 
 @dataclass(frozen=True)
+class AtmosphereParams:
+    """v5.4 atmosphere: monthly circulation normals, moisture transport, ITCZ, monsoons,
+    storm climatology and an optional weather year (TZ 5.4).
+
+    Needs the v5.3 Earth system (``earth.enabled``); without it the stage is reported
+    ``blocked`` (never silently replaced). A project saved before v5.4 has no
+    ``atmosphere`` section and loads with ``enabled=False``: its climate stays as stored.
+    """
+
+    enabled: bool = True
+    #: ``fast`` / ``balanced`` / ``high``: atmosphere grid size and solver iterations.
+    quality: str = "balanced"
+    #: ``seasonality_only`` (default): the calibrated v4 annual rain of each hex is kept,
+    #: its 12-month course comes from the normals; ``full``: the normals give the annual
+    #: and monthly rain of the world (physically complete, drier subtropics - see
+    #: docs/v5_4_benchmarks_and_coverage.md).
+    precipitation_coupling: str = "seasonality_only"
+    #: ``auto`` (``world`` mode = planetary_background, else isolated_approximation),
+    #: ``planetary_background`` or ``isolated_approximation``. A specified boundary
+    #: (inflow columns per edge) is an API argument (``moisture.solve(x_bc=...)``).
+    domain_mode: str = "auto"
+    #: Re-run the v5.3 ocean with the new monthly winds this many times (0 = off).
+    coupled_iterations: int = 1
+    #: v5.4b storm climatology (tropical / extratropical cyclones, fronts, rivers).
+    storms: bool = True
+    #: v5.4c: generate one synthetic weather year (sparse events + daily generator).
+    weather_year: bool = False
+    #: Event seed of the weather year; empty = derived from the world seed. Changing it
+    #: never changes the geology or the climate normals.
+    weather_year_seed: str = ""
+    #: Index of the synthetic year (the interannual mode is a sequence over the years).
+    weather_year_index: int = 1
+    #: ``unconditioned`` (a sample) or ``conditioned`` (seasonal sums nudged to the norm).
+    weather_year_mode: str = "unconditioned"
+
+
+@dataclass(frozen=True)
 class Config:
     seed: str = "HexWorld1"
     width: int = 100
@@ -537,6 +574,7 @@ class Config:
     biomes: BiomeParams = field(default_factory=BiomeParams)
     volcanism: VolcanismParams = field(default_factory=VolcanismParams)
     earth: EarthParams = field(default_factory=EarthParams)
+    atmosphere: AtmosphereParams = field(default_factory=AtmosphereParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -772,6 +810,20 @@ class Config:
             raise ConfigError("earth: 0 <= ice_min_spinup_years <= ice_max_spinup_years <= 1e6")
         if not 50.0 <= ep.ice_window_years <= 1e5:
             raise ConfigError("earth.ice_window_years must be within [50, 1e5]")
+        ap = self.atmosphere
+        if ap.quality not in ("fast", "balanced", "high"):
+            raise ConfigError("atmosphere.quality: fast, balanced or high")
+        if ap.precipitation_coupling not in ("full", "seasonality_only"):
+            raise ConfigError("atmosphere.precipitation_coupling: full or seasonality_only")
+        if ap.domain_mode not in ("auto", "planetary_background", "isolated_approximation"):
+            raise ConfigError("atmosphere.domain_mode: auto, planetary_background or "
+                              "isolated_approximation")  # fmt: skip
+        if not 0 <= int(ap.coupled_iterations) <= 5:
+            raise ConfigError("atmosphere.coupled_iterations must be within [0, 5]")
+        if ap.weather_year_mode not in ("unconditioned", "conditioned"):
+            raise ConfigError("atmosphere.weather_year_mode: unconditioned or conditioned")
+        if not 1 <= int(ap.weather_year_index) <= 100000:
+            raise ConfigError("atmosphere.weather_year_index must be within [1, 100000]")
         vp = self.volcanism
         if vp.world_profile not in ("earthlike_silicate", "icy_world"):
             raise ConfigError("volcanism.world_profile: earthlike_silicate or icy_world")
@@ -824,6 +876,7 @@ class Config:
             "biomes": BiomeParams,
             "volcanism": VolcanismParams,
             "earth": EarthParams,
+            "atmosphere": AtmosphereParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
@@ -846,6 +899,8 @@ class Config:
                 kwargs[key] = value
         if "earth" not in data:  # saved before v5.3: keep its climate exactly as it was
             kwargs["earth"] = EarthParams(enabled=False)
+        if "atmosphere" not in data:  # saved before v5.4: no new atmosphere
+            kwargs["atmosphere"] = AtmosphereParams(enabled=False)
         return cls(**kwargs)
 
     def to_json(self) -> str:

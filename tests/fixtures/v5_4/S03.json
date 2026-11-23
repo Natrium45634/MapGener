@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S03",
+  "scenario": "Большой континент далеко от океана",
+  "expected": "сухое ядро; летний нагрев не создаёт дождь",
+  "test": "tests/test_v54_atmosphere.py::test_t32_hot_interior_without_moisture_stays_dry",
+  "tolerances": {
+    "interior_over_coast_max": 0.6
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

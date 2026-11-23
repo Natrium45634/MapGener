@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S21",
+  "scenario": "Два региона с одинаковой годовой суммой, разными сезонами",
+  "expected": "разные сухие месяцы и индексы",
+  "test": "tests/test_v54_atmosphere.py::test_n12_wet_season_share",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

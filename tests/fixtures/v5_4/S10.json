@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S10",
+  "scenario": "Горы между влажным океаном и равниной",
+  "expected": "наветренные осадки и подветренная тень без новой воды",
+  "test": "tests/test_v54_atmosphere.py::test_t26_orography_moves_water_windward",
+  "tolerances": {
+    "windward_over_lee_min": 1.5,
+    "budget_rel": 1e-09
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

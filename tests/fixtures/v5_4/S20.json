@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S20",
+  "scenario": "ТЦ пересекает берег и горы",
+  "expected": "ослабление над сушей, затем паводок через river API",
+  "test": "tests/test_v54_integration.py::test_t47_landfall_weakens",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

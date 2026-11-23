@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S07",
+  "scenario": "Постоянно влажный экваториальный лес",
+  "expected": "слабая сезонность, нет искусственной засухи",
+  "test": "tests/test_v54_atmosphere.py::test_t34_t35_t36_rain_regimes",
+  "tolerances": {
+    "regime": "perennially_wet"
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

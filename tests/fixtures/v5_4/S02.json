@@ -1,0 +1,16 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S02",
+  "scenario": "Тропический материк у тёплого океана",
+  "expected": "летний onshore перенос влаги и дождливый сезон",
+  "test": "tests/test_v54_atmosphere.py::test_t31_t33_tropical_continents_rain_in_their_summer",
+  "tolerances": {
+    "wettest_month_nh": [
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

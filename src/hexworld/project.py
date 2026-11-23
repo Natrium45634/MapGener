@@ -437,6 +437,33 @@ class EarthData:
 
 
 @dataclass
+class AtmosphereData:
+    """Results of v5.4 (``AtmosphereNormalsSnapshot`` + optional ``WeatherYearSnapshot``).
+
+    ``layers`` are hex diagnostics (monsoon indices, rain shares, storm risk);
+    ``grid_fields`` are the monthly normals on the coarse atmosphere grid (pressure, winds
+    on 4 levels, column vapour, IVT, convergence, ITCZ score, rain components), which the
+    views and ``wind_at`` sample on demand; ``events`` are sparse weather events.
+    """
+
+    layers: dict
+    grid_fields: dict
+    grid: dict  # x0_km, y0_km, cell_km, shape
+    summary: dict
+    provenance: dict
+    stage_keys: dict
+    events: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
+
+    def content_hashes(self) -> dict:
+        out = {f"atmosphere/{k}": array_hash(v) for k, v in self.layers.items()}
+        out.update({f"atmosphere_grid/{k}": array_hash(v) for k, v in self.grid_fields.items()})
+        return out
+
+
+@dataclass
 class VolcanismData:
     """Results of v5.1: hex layers, systems, eruption events and their products."""
 
@@ -556,6 +583,7 @@ class Project:
     volcanism: VolcanismData | None = None
     #: v5.3a Earth system on the hexes (ocean, sea ice, winds aloft); ``None`` if absent.
     earth: EarthData | None = None
+    atmosphere: AtmosphereData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

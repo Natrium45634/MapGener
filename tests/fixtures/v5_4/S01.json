@@ -1,0 +1,12 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S01",
+  "scenario": "Большой экваториальный океан без суши",
+  "expected": "ITCZ-подобный влажный пояс, без материкового муссона",
+  "test": "tests/test_v54_atmosphere.py::test_t12_t01_aquaplanet_has_no_continental_monsoon",
+  "tolerances": {
+    "symmetry_rtol": 0.15,
+    "seasonality_max": 0.2
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

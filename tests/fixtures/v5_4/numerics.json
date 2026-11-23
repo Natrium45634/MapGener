@@ -1,0 +1,7 @@
+{
+  "schema_version": "5.4.0",
+  "budget_rel": 1e-9,
+  "budget_rel_reason": "the implicit monthly step is solved with a sparse LU (double precision); the domain sum of the booked terms closes to ~1e-15 relative, 1e-9 leaves margin for 12-month sums",
+  "n15_budget_rel": 1e-12,
+  "n15_reason": "the explicit upwind step is a sum of exactly antisymmetric face fluxes; only round-off remains"
+}

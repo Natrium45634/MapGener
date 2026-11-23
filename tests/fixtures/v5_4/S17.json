@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S17",
+  "scenario": "Река в сезонно-влажной саванне",
+  "expected": "пиковый расход по маршрутизации реальной сети",
+  "test": "tests/test_v54_integration.py::test_t64_t71_t72_t74_t75_t77_weather_year_stage",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

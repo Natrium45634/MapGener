@@ -338,6 +338,11 @@ class WorldClimate:
     seasonal_wind_v: np.ndarray | None = None
     #: v5.3 Earth system state (ocean, sea ice, winds aloft, coupler report) or None
     earth: object | None = None
+    #: v5.4 atmosphere normals (``hexworld.atmosphere.normals.AtmosphereNormals``) or None
+    atmosphere: object | None = None
+    #: (12, ny, nx) monthly rain (mm/month) and sea-level air temperature of v5.4, or None
+    monthly_precipitation: np.ndarray | None = None
+    monthly_temperature: np.ndarray | None = None
 
 
 def seasonal_winds(params, lat, cont, seasonal, land_h, cell_km, declination_deg=None):
@@ -383,6 +388,7 @@ def world_climate(
     sea_level_m: float,
     latitude: Latitude,
     earth=None,
+    atmosphere=None,
 ) -> WorldClimate:
     """Four seasons of temperature, wind and a mass-conservative moisture budget.
 
@@ -390,6 +396,10 @@ def world_climate(
     planet's insolation, a wind-driven ocean with heat transport, sea ice and winds aloft,
     coupled to this model by :func:`hexworld.earth.coupler.couple` (see its docstring).
     Without it the climate is bit-identical to v4 (latitude SST, heuristic sea ice).
+
+    ``atmosphere`` (``AtmosphereParams``, v5.4, needs ``earth``) adds the 12 monthly
+    circulation and moisture normals (:mod:`hexworld.atmosphere`); with
+    ``precipitation_coupling = full`` their rain replaces the seasonal rain of this model.
     """
     ny, nx = elevation_m.shape
     cell_km = float(grid["cell_km"])
@@ -571,7 +581,7 @@ def world_climate(
         budget["evaporation"] - budget["precipitation"] + budget["inflow"] - budget["outflow"]
     )
     per_cell_year = scale / max(measured * q.size, 1)  # moisture units -> mm/yr world mean
-    return WorldClimate(
+    wc = WorldClimate(
         grid=grid,
         lat=lat,
         sea=sea,
@@ -609,6 +619,14 @@ def world_climate(
         seasonal_wind_v=np.stack([w[2] for w in winds]),
         earth=earth_state,
     )
+    use_atm = atmosphere is not None and getattr(atmosphere, "enabled", False)
+    if use_atm and use_earth:
+        from ..atmosphere.stage import attach_normals
+
+        attach_normals(wc, params, atmosphere, planet, earth, land_h, cont, cell_km, t_zone)
+    elif use_atm:
+        wc.balance["atmosphere"] = {"status": "blocked", "reason": "needs earth.enabled (v5.3)"}
+    return wc
 
 
 def _bilinear(field_, grid, x, y):

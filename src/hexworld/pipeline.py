@@ -219,6 +219,7 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         base.biomes,
         getattr(base, "volcanism", None),
         getattr(base, "earth", None),
+        getattr(base, "atmosphere", None),
     ):
         if later is not None:
             old_geo_warnings |= set(later.warnings)
@@ -235,6 +236,7 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         biomes=None,
         volcanism=None,
         earth=None,
+        atmosphere=None,
         warnings=[w for w in base.warnings if w not in old_geo_warnings],
         timings={},
         stats=dict(base.stats, reused_stages=list(STAGES)),
@@ -271,6 +273,8 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
         _add_env(config, geometry, project, base, report)
         if config.earth.enabled:
             _add_earth(config, geometry, project, base, report)
+            if config.atmosphere.enabled:
+                _add_atmosphere(config, geometry, project, base, report)
         if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, base, report)
         if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:
@@ -377,6 +381,23 @@ def _add_earth(config, geometry, project: Project, previous: Project | None, rep
     project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
     project.timings.update(data.timings)
     data.validation = validate_earth(project)
+    project.warnings.extend(data.warnings)
+
+
+def _add_atmosphere(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v5.4 atmosphere stage (normals, monsoon diagnostics, storms, weather year)."""
+    from .pipeline_v54 import run_v54
+    from .stages.validate import validate_atmosphere
+
+    prev = getattr(previous, "atmosphere", None) if previous is not None else None
+    old_keys = prev.stage_keys if prev is not None else {}
+    old_cache = previous.cache if previous is not None else {}
+    data, cache, reused = run_v54(config, geometry, project, old_keys, old_cache, report)
+    project.atmosphere = data
+    project.cache.update(cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
+    project.timings.update(data.timings)
+    data.validation = validate_atmosphere(project)
     project.warnings.extend(data.warnings)
 
 
@@ -672,6 +693,8 @@ def generate(
         _add_env(config, geometry, project, reuse, report)
         if config.earth.enabled:
             _add_earth(config, geometry, project, reuse, report)
+            if config.atmosphere.enabled:
+                _add_atmosphere(config, geometry, project, reuse, report)
         if through in ("v47", "v51", "v50") and config.topoclimate.enabled:
             _add_topo(config, geometry, project, reuse, report)
         if through in ("v51", "v50") and config.topoclimate.enabled and config.volcanism.enabled:

@@ -21,6 +21,7 @@ from dataclasses import asdict
 import numpy as np
 from scipy import ndimage
 
+from .atmosphere import settings as atmosphere_settings
 from .project import EarthData
 from .version import EARTH_ALGORITHM_VERSION
 
@@ -54,7 +55,8 @@ def _world_climate(config, project):
     hist = project.hist
     latitude = resolve_latitude(config.climate, project.geometry.simulation_bounds)
     return world_climate(config.climate, hist.world["grid"], hist.world["elevation_m"],
-                         hist.sea_level_m, latitude, earth=config.earth)  # fmt: skip
+                         hist.sea_level_m, latitude, earth=config.earth,
+                         atmosphere=atmosphere_settings(config))  # fmt: skip
 
 
 def _filled(field_, valid):

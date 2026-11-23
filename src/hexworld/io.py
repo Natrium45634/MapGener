@@ -80,6 +80,7 @@ V50_DATA_FILES = (
 )
 V51_DATA_FILES = ("volcanism_fields.npz", "volcanism.json")
 V53_DATA_FILES = ("earth_fields.npz", "earth.json")
+V54_DATA_FILES = ("atmosphere_fields.npz", "atmosphere_grid.npz", "atmosphere.json")
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -554,6 +555,39 @@ def _earth_hash(earth) -> str:
     return h.hexdigest()
 
 
+def _atm_hash(atm) -> str:
+    h = hashlib.sha256()
+    for key, value in sorted(atm.content_hashes().items()):
+        h.update(f"{key}={value};".encode())
+    h.update(json.dumps(_plain(atm.events), sort_keys=True, default=str).encode())
+    return h.hexdigest()
+
+
+def _write_v54_data(project: Project, path: Path) -> None:
+    from .atmosphere.normals import ALGORITHM_VERSION as ATM_VERSION
+
+    a = project.atmosphere
+    np.savez_compressed(path / "atmosphere_fields.npz", **a.layers)
+    np.savez_compressed(path / "atmosphere_grid.npz", **a.grid_fields)
+    _write_json(
+        path / "atmosphere.json",
+        _plain({
+            "world_id": project.world_id,
+            "stage": "atmospheric_circulation_5_4",
+            "schema_version": "5.4.0",
+            "algorithm_version": ATM_VERSION,
+            "grid": a.grid,
+            "summary": a.summary,
+            "provenance": a.provenance,
+            "stage_keys": a.stage_keys,
+            "events": a.events,
+            "warnings": a.warnings,
+            "timings_s": a.timings,
+            "nodata": "not generated = no atmosphere section (never 'no rain' or 'no storms')",
+        }),
+    )  # fmt: skip
+
+
 def _write_v53_data(project: Project, path: Path) -> None:
     e = project.earth
     np.savez_compressed(path / "earth_fields.npz", **e.layers)
@@ -671,6 +705,12 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
             or (earth_now is not None
                 and (existing.get("v53") or {}).get("earth_hash") == _earth_hash(earth_now))
         )  # fmt: skip
+        atm_now = getattr(project, "atmosphere", None)
+        env_same = env_same and (
+            (atm_now is None and not existing.get("v54"))
+            or (atm_now is not None
+                and (existing.get("v54") or {}).get("atm_hash") == _atm_hash(atm_now))
+        )  # fmt: skip
         volc_now = getattr(project, "volcanism", None)
         env_same = env_same and (
             (volc_now is None and not existing.get("v51"))
@@ -775,6 +815,28 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         }
     else:
         for name in V53_DATA_FILES:
+            (path / name).unlink(missing_ok=True)
+    v54_manifest = None
+    atm = getattr(project, "atmosphere", None)
+    if atm is not None and project.env is not None and atm.grid_fields:
+        from .atmosphere.normals import ALGORITHM_VERSION as ATM_VERSION
+
+        a_hash = _atm_hash(atm)
+        if not (
+            same_geology and (existing.get("v54") or {}).get("atm_hash") == a_hash
+            and all((path / n).exists() for n in V54_DATA_FILES)
+        ):  # fmt: skip
+            _write_v54_data(project, path)
+        files += list(V54_DATA_FILES)
+        v54_manifest = {
+            "algorithm_version": ATM_VERSION,
+            "files": list(V54_DATA_FILES),
+            "atm_hash": a_hash,
+            "content_hashes": atm.content_hashes(),
+            "stage_keys": atm.stage_keys,
+        }
+    else:
+        for name in V54_DATA_FILES:
             (path / name).unlink(missing_ok=True)
     v51_manifest = None
     volc = getattr(project, "volcanism", None)
@@ -970,6 +1032,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v50": v50_manifest,
         "v51": v51_manifest,
         "v53": v53_manifest,
+        "v54": v54_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -1146,6 +1209,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_env(project, path, manifest, config, verify)
     _load_topo(project, path, manifest, config, verify)
     _load_earth(project, path, manifest, config, verify)
+    _load_atmosphere(project, path, manifest, config, verify)
     _load_volcanism(project, path, manifest, config, verify)
     _load_biomes(project, path, manifest, config, verify)
     return project
@@ -1329,6 +1393,52 @@ def _load_earth(project: Project, path: Path, manifest: dict, config, verify) ->
     project.earth = e
     e.validation = validate_earth(project)
     project.cache["v53_earth"] = e
+
+
+def _load_atmosphere(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v5.4 data (normals, diagnostics, events) without regenerating it."""
+    from .atmosphere.normals import ALGORITHM_VERSION as ATM_VERSION
+    from .pipeline_v54 import atmosphere_stage_keys
+    from .project import AtmosphereData
+    from .stages.validate import validate_atmosphere
+
+    v54 = manifest.get("v54")
+    if not v54 or project.env is None or getattr(project, "earth", None) is None:
+        return
+    if not all((path / name).exists() for name in V54_DATA_FILES):
+        project.warnings.append("The manifest lists v5.4 data, but its files are missing.")
+        return
+    doc = json.loads((path / "atmosphere.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != ATM_VERSION:
+        project.warnings.append(
+            f"The stored atmosphere was produced by {doc.get('algorithm_version')}, this "
+            f"build uses {ATM_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    keys = atmosphere_stage_keys(config, project)
+    if keys["v54_atmosphere"] != doc["stage_keys"].get("v54_atmosphere"):
+        project.warnings.append(
+            "The stored atmosphere belongs to another climate state or configuration: "
+            "NOT loaded (not generated)."
+        )
+        return
+    with np.load(path / "atmosphere_fields.npz") as data:
+        layers = {k: data[k] for k in data.files}
+    with np.load(path / "atmosphere_grid.npz") as data:
+        grid_fields = {k: data[k] for k in data.files}
+    a = AtmosphereData(layers=layers, grid_fields=grid_fields, grid=doc["grid"],
+                       summary=doc["summary"], provenance=doc["provenance"],
+                       stage_keys=dict(doc["stage_keys"]), events=list(doc.get("events", [])),
+                       warnings=list(doc.get("warnings", [])),
+                       timings=dict(doc.get("timings_s", {})))  # fmt: skip
+    if verify:
+        actual = a.content_hashes()
+        for key, expected in v54["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.atmosphere = a
+    a.validation = validate_atmosphere(project)
+    project.cache["v54_atmosphere"] = a
 
 
 def _load_volcanism(project: Project, path: Path, manifest: dict, config, verify) -> None:

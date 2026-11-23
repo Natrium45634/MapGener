@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S16",
+  "scenario": "Короткий муссон и ложный ранний ливень",
+  "expected": "onset не по одному ливню",
+  "test": "tests/test_v54_atmosphere.py::test_t39_false_start_is_not_an_onset",
+  "tolerances": {
+    "onset_day_min": 55
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

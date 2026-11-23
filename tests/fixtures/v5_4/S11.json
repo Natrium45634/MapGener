@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S11",
+  "scenario": "Полярный материк",
+  "expected": "нет тропических циклонов (холодный океан)",
+  "test": "tests/test_v54_integration.py::test_t41_t42_t43_t44_t45_genesis_gates",
+  "tolerances": {
+    "g_cold": 0.0
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

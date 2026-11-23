@@ -533,6 +533,33 @@ def validate_earth(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
 
 
+def validate_atmosphere(project) -> dict:
+    """Invariants of v5.4: closed vapour budget, no negative water, finite winds."""
+    a = project.atmosphere
+    errors: list[str] = []
+    if not a.grid_fields:
+        return {"ok": True, "errors": [], "warnings": ["v5.4 blocked"], "checks": {}}
+    G = a.grid_fields
+    months = a.summary.get("budget_months", [])
+    worst = max((m.get("relative_residual", 0.0) for m in months), default=0.0)
+    checks = {"vapour_budget_worst_relative_residual": worst}
+    if worst > 1e-8:
+        errors.append("v5.4: the monthly vapour budget does not close")
+    # evaporation may be negative: dew / fog deposition onto cold water is booked as -E
+    for k in ("column_vapor_kg_m2", "precipitation_mm"):
+        if (G[k] < -1e-6).any():
+            errors.append(f"v5.4: negative {k}")
+    for k in ("wind_u_ms", "wind_v_ms", "slp_pa", "pressure_sfc_pa"):
+        if not np.isfinite(G[k]).all():
+            errors.append(f"v5.4: non-finite {k}")
+    if (G["precip_components_mm"] < -1e-6).any():
+        errors.append("v5.4: a negative rain component")
+    for e in a.events:
+        if e.get("budget_ledger", {}).get("residual_mm", 0.0) > 1e-6:
+            errors.append(f"v5.4: event {e.get('event_id')} water does not close")
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
 def validate_volcanism(project) -> dict:
     """Invariants of v5.1: closed reservoir / lava / tephra / PDC / lahar budgets, ranges."""
     v = project.volcanism

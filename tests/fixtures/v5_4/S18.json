@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S18",
+  "scenario": "Атмосферная река над горной окраиной",
+  "expected": "связная полоса IVT, осадки на склонах, не над морем",
+  "test": "tests/test_v54_integration.py::test_t57_t58_atmospheric_river_detection",
+  "tolerances": {
+    "min_length_km": 2000
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

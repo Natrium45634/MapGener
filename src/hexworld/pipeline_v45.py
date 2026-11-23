@@ -21,6 +21,7 @@ from dataclasses import asdict
 import numpy as np
 from scipy import ndimage
 
+from .atmosphere import settings as atmosphere_settings
 from .noise import FractalNoise
 from .project import EnvData
 from .rng import Stream
@@ -157,11 +158,31 @@ def seasonal_inputs(config, project) -> dict:
         latitude = resolve_latitude(config.climate, project.geometry.simulation_bounds)
         wc = world_climate(
             config.climate, hist.world["grid"], hist.world["elevation_m"], hist.sea_level_m,
-            latitude, earth=config.earth,
+            latitude, earth=config.earth, atmosphere=atmosphere_settings(config),
         )  # fmt: skip
     z = hydro.layers["elevation_m"].astype(np.float64)
     lakes = hydro.layers["lake_id"] >= 0
     return hex_climate(config.climate, wc, project.layout, z, hydro.sea_level_m, lakes).seasons
+
+
+def _atmosphere_world(config, project):
+    """The world climate carrying v5.4 monthly normals, or None (atmosphere off)."""
+    atm = getattr(config, "atmosphere", None)
+    if atm is None or not atm.enabled or not config.earth.enabled:
+        return None
+    entry = project.cache.get("v4_climate")
+    wc = entry.get("world") if isinstance(entry, dict) else None
+    if wc is None or getattr(wc, "monthly_precipitation", None) is None:
+        from .stages.climate import resolve_latitude, world_climate
+
+        hist = project.hist
+        latitude = resolve_latitude(config.climate, project.geometry.simulation_bounds)
+        wc = world_climate(config.climate, hist.world["grid"], hist.world["elevation_m"],
+                           hist.sea_level_m, latitude, earth=config.earth,
+                           atmosphere=atmosphere_settings(config))  # fmt: skip
+        if isinstance(entry, dict):
+            entry["world"] = wc
+    return wc if getattr(wc, "monthly_precipitation", None) is not None else None
 
 
 def _neighbour_any(mask, layout):
@@ -204,6 +225,31 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     seasons = seasonal_inputs(config, project)
     t_m = env.monthly_temperature(seasons["t"], L["temperature_mean_c"])
     p_m = env.monthly_precipitation(seasons["p"])
+    month_method = "derived_from_seasonal_physics"
+    wc_atm = _atmosphere_world(config, project)
+    if wc_atm is not None:
+        # v5.4: the months come from the monthly normals of the moisture transport; the
+        # hex season totals (with the hex orography) are kept exactly
+        from .stages.climate import _bilinear
+
+        hx, hy = layout.centers()
+        g = wc_atm.grid
+        w_m = np.stack([np.maximum(_bilinear(wc_atm.monthly_precipitation[m], g, hx, hy), 0.0)
+                        for m in range(12)])  # fmt: skip
+        if config.atmosphere.precipitation_coupling == "full":
+            p_m = env.distribute_seasons(seasons["p"], w_m + 1e-6)  # seasons are the normals'
+        else:  # the v4 annual total of the hex, the 12-month shape of the normals
+            w_m = w_m + 1e-6
+            p_m = np.asarray(seasons["p"], dtype=np.float64).sum(axis=0)[None] * (
+                w_m / w_m.sum(axis=0, keepdims=True)
+            )
+        tr = wc_atm.monthly_temperature
+        days = env.MONTH_DAYS.reshape(12, 1, 1)
+        anom = tr - (days * tr).sum(axis=0) / days.sum()
+        t_m = np.asarray(L["temperature_mean_c"], dtype=np.float64)[None] + np.stack(
+            [_bilinear(anom[m], g, hx, hy) for m in range(12)]
+        )
+        month_method = "atmosphere_5_4_monthly_normals"
     pet_m = env.monthly_pet(seasons["pet"], t_m, lat)
     pet_method = "v4_temperature_index"
     earth = getattr(config, "earth", None)
@@ -560,7 +606,7 @@ def run_env(config, geometry, project, old_keys: dict, old_cache: dict, report):
     }
     methods = {
         "months": {
-            "method": "derived_from_seasonal_physics",
+            "method": month_method,
             "detail": "temperature: first harmonic of the four v4 season means, day-weighted to "
             "the v4 annual mean; precipitation: the v4 seasonal moisture-transport totals, "
             "spread inside each season by a periodic curve through the season rates",

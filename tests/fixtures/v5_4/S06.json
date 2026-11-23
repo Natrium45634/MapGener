@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S06",
+  "scenario": "Экватор с двумя проходами конвергенции",
+  "expected": "два сезона дождей",
+  "test": "tests/test_v54_atmosphere.py::test_t34_t35_t36_rain_regimes",
+  "tolerances": {
+    "peaks": 2
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

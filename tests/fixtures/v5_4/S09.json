@@ -1,0 +1,11 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S09",
+  "scenario": "Западное побережье средних широт",
+  "expected": "фронтальные осадки, бароклинность",
+  "test": "tests/test_v54_integration.py::test_t53_eady_is_symmetric_between_hemispheres",
+  "tolerances": {
+    "eady_per_day_min": 0.5
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

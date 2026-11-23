@@ -79,7 +79,7 @@ class ViewSpec:
         if project is None:
             return False, "Нет проекта"
         if (
-            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53")
+            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54")
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -101,6 +101,9 @@ class ViewSpec:
             return False, f"«{self.title}»: биомы (v5.0) не сгенерированы"
         if self.stage == "v53" and getattr(project, "earth", None) is None:
             return False, f"«{self.title}»: земная система (v5.3) не рассчитана"
+        if self.stage == "v54" and not getattr(getattr(project, "atmosphere", None),
+                                                "grid_fields", None):  # fmt: skip
+            return False, f"«{self.title}»: атмосфера (v5.4) не рассчитана"
         if self.stage == "v51" and getattr(project, "volcanism", None) is None:
             return False, f"«{self.title}»: вулканизм (v5.1) не рассчитан"
         return True, ""
@@ -4644,3 +4647,250 @@ register_view(
              note="Потенциальная растительность ≠ фактическая: пожары, лава, пепел, восстановление",
              render=_render_eco, legend=_legend_eco)
 )  # fmt: skip
+
+
+# -- v5.4: atmosphere and seasons ------------------------------------------------------------
+_REGIME_RGB = np.array(
+    [
+        [225, 200, 140],
+        [30, 120, 60],
+        [60, 140, 220],
+        [120, 200, 120],
+        [210, 120, 90],
+        [150, 190, 230],
+        [190, 190, 190],
+    ],
+    dtype=np.uint8,
+)
+_REGIME_TITLES = (
+    "засушливый",
+    "круглый год влажно",
+    "тропический муссон",
+    "два сезона дождей (экватор)",
+    "дожди зимой (средиземноморский)",
+    "летние дожди без муссона",
+    "равномерный / иной",
+)
+_LEVEL_MODES = {"wind_850": 1, "wind_500": 2, "wind_250": 3}
+
+
+def _atm_hex(project, field_):
+    from .pipeline_v54 import sample
+
+    hx, hy = project.layout.centers()
+    return sample(project.atmosphere.grid, field_, hx, hy)
+
+
+def _render_atmosphere(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    a = project.atmosphere
+    G, L = a.grid_fields, a.layers
+    m = _month_of(overlays)
+    land = project.hydro.layers["land_mask"].astype(bool)
+    if mode == "pressure":
+        rgb = _diverging(_atm_hex(project, G["slp_pa"][m]) / 100.0 - 1012.0, 20.0)
+    elif mode in _LEVEL_MODES:
+        k = _LEVEL_MODES[mode]
+        sp = np.hypot(
+            _atm_hex(project, G["wind_u_ms"][m, k]), _atm_hex(project, G["wind_v_ms"][m, k])
+        )
+        rgb = _ramp_rgb(sp, 0.0, 60.0 if k == 3 else 25.0, 0.8)
+    elif mode == "surface_wind":
+        sp = np.hypot(
+            _atm_hex(project, G["wind_u_ms"][m, 0]), _atm_hex(project, G["wind_v_ms"][m, 0])
+        )
+        rgb = _ramp_rgb(sp, 0.0, 15.0, 0.8)
+    elif mode == "itcz":
+        rgb = _ramp_rgb(_atm_hex(project, G["itcz_score"][m]), 0.0, 1.0)
+    elif mode == "convergence":
+        rgb = _diverging(_atm_hex(project, G["moisture_convergence_kg_m2_s"][m]) * 86400.0, 8.0)
+    elif mode == "vapour":
+        rgb = _ramp_rgb(_atm_hex(project, G["column_vapor_kg_m2"][m]), 0.0, 60.0)
+    elif mode == "rain_month":
+        rgb = _ramp_rgb(project.env.monthly["precip_monthly_mm"][m].astype(float), 0.0, 300.0, 0.6)
+    elif mode == "monsoon":
+        rgb = _ramp_rgb(L["monsoon_suitability"].astype(float), 0.0, 1.0)
+    elif mode == "onset":
+        on = L["monsoon_onset_month"].astype(int)
+        rgb = np.where((on > 0)[..., None], _MONTH_RGB[np.maximum(on - 1, 0)], 200).astype(np.uint8)
+    elif mode == "regime":
+        rgb = _REGIME_RGB[L["rain_regime"].astype(int)]
+    elif mode == "dry_months":
+        rgb = _ramp_rgb(L["dry_season_months"].astype(float), 0.0, 12.0)
+    elif mode == "seasonality":
+        rgb = _ramp_rgb(L["rainfall_seasonality"].astype(float), 0.0, 1.5)
+    elif mode == "components":
+        names = (
+            "precip_share_convective",
+            "precip_share_orographic",
+            "precip_share_frontal",
+            "precip_share_storm",
+            "precip_share_background",
+        )
+        dom = np.argmax(np.stack([L[k] for k in names]), axis=0)
+        cols = np.array(
+            [[230, 120, 60], [120, 80, 50], [70, 120, 210], [200, 60, 160], [170, 170, 170]],
+            dtype=np.uint8,
+        )
+        rgb = cols[dom]
+    elif mode == "tc":
+        rgb = _ramp_rgb(
+            L.get("tc_passage_per_yr", np.zeros(land.shape)).astype(float), 0.0, 3.0, 0.6
+        )
+    elif mode == "etc":
+        rgb = _ramp_rgb(L.get("etc_activity", np.zeros(land.shape)).astype(float), 0.0, 1.0)
+    elif mode == "ar":
+        rgb = _ramp_rgb(L.get("ar_day_frequency", np.zeros(land.shape)).astype(float), 0.0, 0.3)
+    elif mode == "weather":
+        v = L.get("weather_annual_anomaly_pct")
+        rgb = _diverging(
+            np.nan_to_num(v.astype(float)) if v is not None else np.zeros(land.shape), 50.0
+        )
+    elif mode == "budget":
+        e = _atm_hex(project, G["evaporation_mm"].sum(axis=0))
+        p = _atm_hex(project, G["precipitation_mm"].sum(axis=0))
+        rgb = _diverging(e - p, 1500.0)
+    else:
+        raise KeyError(f"Unknown mode {mode!r} of view 'atmosphere_seasons'")
+    rgb = np.asarray(rgb, np.uint8).copy()
+    if mode in ("monsoon", "onset", "regime", "dry_months", "seasonality"):
+        rgb[~land] = _SEA_RGB
+    return _v53_base(project, rgb, overlays)
+
+
+def _legend_atmosphere(project: Project, mode: str) -> list[LegendItem]:
+    a = project.atmosphere
+    q = a.summary.get("quality", {})
+    head = [
+        LegendItem(
+            f"нормы ({a.summary.get('mode')}), домен: {q.get('domain')}; "
+            f"месяц выбирается справа; отображение не пересчитывает климат"
+        )
+    ]
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode == "regime":
+        return head + [
+            LegendItem(t, tuple(int(c) for c in rgb))
+            for t, rgb in zip(_REGIME_TITLES, _REGIME_RGB, strict=True)
+        ]
+    if mode == "onset":
+        from .stages.environment import MONTH_NAMES
+
+        return head + [
+            LegendItem(f"начало дождей: {n}", tuple(int(c) for c in rgb))
+            for n, rgb in zip(MONTH_NAMES, _MONTH_RGB, strict=True)
+        ]
+    if mode == "components":
+        return head + [
+            LegendItem(t, c)
+            for t, c in (
+                ("конвективные", (230, 120, 60)),
+                ("орографические", (120, 80, 50)),
+                ("фронтальные", (70, 120, 210)),
+                ("штормовые (ТЦ)", (200, 60, 160)),
+                ("фоновые", (170, 170, 170)),
+            )
+        ]
+    texts = {
+        "pressure": ("низкое давление (−20 гПа)", "высокое (+20 гПа)"),
+        "surface_wind": ("штиль", "≥ 15 м/с (10 м)"),
+        "wind_850": ("0", "≥ 25 м/с, 850 гПа (смоделировано)"),
+        "wind_500": ("0", "≥ 25 м/с, 500 гПа (термический ветер)"),
+        "wind_250": ("0", "≥ 60 м/с, 250 гПа; выше 250 — экстраполяция"),
+        "itcz": ("нет конвергенции", "ось ВЗК (сходимость влаги)"),
+        "convergence": ("расходимость влаги", "сходимость 8 мм/сут"),
+        "vapour": ("0", "60 кг/м² пара в столбе"),
+        "rain_month": ("0", "≥ 300 мм за месяц"),
+        "monsoon": ("нет условий муссона", "муссон: сезонный контраст + влага"),
+        "dry_months": ("0 сухих месяцев", "12"),
+        "seasonality": ("ровные осадки", "сильная сезонность"),
+        "tc": ("ТЦ не проходят", "≥ 3 прохождения в год (300 км)"),
+        "etc": ("нет бароклинности", "штормовой пояс (рост Иди)"),
+        "ar": ("0", "≥ 30 % дней с IVT > 250"),
+        "weather": ("сухой год (−50 %)", "влажный год (+50 %)"),
+        "budget": ("осадки > испарения", "испарение > осадков (источник влаги)"),
+    }[mode]
+    return head + [LegendItem(texts[0], lo), LegendItem(texts[1], hi)]
+
+
+def _vectors_atmosphere(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    a = project.atmosphere
+    out = []
+    if mode in ("pressure", "surface_wind") or mode in _LEVEL_MODES:
+        k = _LEVEL_MODES.get(mode, 0)
+        m = _month_of(overlays)
+        G = a.grid_fields
+        lay = project.layout
+        step = max(2, int(np.sqrt(lay.width * lay.height / 900.0)))
+        rows, cols = np.mgrid[0 : lay.height : step, 0 : lay.width : step]
+        x, y = lay.center(cols.ravel(), rows.ravel())
+        from .pipeline_v54 import sample
+
+        u = sample(a.grid, G["wind_u_ms"][m, k], x, y)
+        v = -sample(a.grid, G["wind_v_ms"][m, k], x, y)  # map y grows southward
+        ref = 10.0 if k == 0 else 30.0
+        scale = lay.spacing_km * step * 0.9 / ref
+        xs = [np.array([p, p + uu * scale]) for p, uu in zip(x, u, strict=True)]
+        ys = [np.array([q, q + vv * scale]) for q, vv in zip(y, v, strict=True)]
+        out.append(VectorLayer("lines", xs, ys, (20, 20, 30), 1.0, True, "wind"))
+    if mode in ("weather", "tc") and a.events:
+        tx, ty, fx, fy, rx, ry = [], [], [], [], [], []
+        for ev in a.events:
+            if ev["event_type"] in ("TC", "ETC"):
+                pts = ev["track"]["points"]
+                if len(pts) >= 2:
+                    tx.append(np.array([p["x_km"] for p in pts]))
+                    ty.append(np.array([p["y_km"] for p in pts]))
+            for fr in ev.get("fronts", []):
+                arr = np.asarray(fr["geometry_world_km"])
+                fx.append(arr[:, 0])
+                fy.append(arr[:, 1])
+            if ev["event_type"] == "AR":
+                arr = np.asarray(ev["axis_world_km"])
+                rx.append(arr[:, 0])
+                ry.append(arr[:, 1])
+        if tx:
+            out.append(VectorLayer("lines", tx, ty, (200, 30, 120), 1.6, True, "storm tracks"))
+        if fx:
+            out.append(VectorLayer("lines", fx, fy, (30, 60, 200), 1.2, True, "fronts"))
+        if rx:
+            out.append(VectorLayer("lines", rx, ry, (20, 160, 200), 2.0, True, "atm. rivers"))
+    return out
+
+
+register_view(
+    ViewSpec(
+        id="atmosphere_seasons",
+        title="Атмосфера и сезоны (v5.4)",
+        stage="v54",
+        layers=("monsoon_suitability", "rain_regime", "tc_passage_per_yr"),
+        modes=(
+            Option("pressure", "Давление + ветер у поверхности"),
+            Option("surface_wind", "Ветер у поверхности"),
+            Option("wind_850", "Ветер 850 гПа"),
+            Option("wind_500", "Ветер 500 гПа"),
+            Option("wind_250", "Ветер 250 гПа (струйные течения)"),
+            Option("itcz", "ВЗК / конвергенция влаги"),
+            Option("convergence", "Сходимость влаги (−div Q)"),
+            Option("vapour", "Водяной пар в столбе"),
+            Option("rain_month", "Осадки месяца"),
+            Option("monsoon", "Муссонность"),
+            Option("onset", "Начало сезона дождей"),
+            Option("regime", "Режим осадков"),
+            Option("dry_months", "Сухие месяцы"),
+            Option("seasonality", "Сезонность осадков"),
+            Option("components", "Происхождение осадков"),
+            Option("tc", "Тропические циклоны (климатология)"),
+            Option("etc", "Внетропические штормы"),
+            Option("ar", "Атмосферные реки"),
+            Option("weather", "Погодный год: аномалия и события"),
+            Option("budget", "Баланс влаги E − P"),
+        ),
+        overlays=_V53_OVERLAYS,
+        months=True,
+        note="Месячные нормы циркуляции и влагопереноса; штормы — климатология и "
+        "отдельные события погодного года",
+        render=_render_atmosphere,
+        legend=_legend_atmosphere,
+        vectors=_vectors_atmosphere,
+    )
+)

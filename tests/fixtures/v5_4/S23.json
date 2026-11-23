@@ -1,0 +1,9 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S23",
+  "scenario": "Наклон оси 60° / другие сутки",
+  "expected": "нет неизменных земных поясов",
+  "test": "tests/test_v54_atmosphere.py::test_t14_rotation_changes_the_belts_not_fixed_30_60",
+  "tolerances": {},
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}

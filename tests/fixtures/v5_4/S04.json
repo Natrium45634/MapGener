@@ -1,0 +1,16 @@
+{
+  "schema_version": "5.4.0",
+  "id": "S04",
+  "scenario": "Зеркальный материк в другом полушарии",
+  "expected": "противоположная фаза муссона",
+  "test": "tests/test_v54_atmosphere.py::test_t31_t33_tropical_continents_rain_in_their_summer",
+  "tolerances": {
+    "wettest_month_sh": [
+      12,
+      1,
+      2,
+      3
+    ]
+  },
+  "generator": "synthetic minimal world in the named test (deterministic, no world seed needed)"
+}
