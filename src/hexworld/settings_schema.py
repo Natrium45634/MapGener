@@ -1769,6 +1769,7 @@ PARAMS: tuple[Param, ...] = (
     ),  # fmt: skip
     _p("earth.ice_shelves", "Шельфовые ледники", "earth", "bool", tech=True),
     _p("earth.isostasy", "Прогиб коры под льдом", "earth", "bool", tech=True),
+    _p("earth.morphodynamics", "Дюны, лёсс и изменение берегов", "earth", "bool", tech=True),
     # -- volcanism (v5.1) --------------------------------------------------------------------------------------
     _p("volcanism.enabled", "Вулканизм (v5.1)", "volcanism", "bool", tech=True),
     _p(

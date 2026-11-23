@@ -164,6 +164,67 @@ def _ice_sheets(config, project, out, ocean_hex, shape):
     }  # fmt: skip
 
 
+def _morphodynamics(project, out, ocean_hex, lake_hex, shape):
+    """Coastal sand budget first (beach stores), then wind-blown sand and dust."""
+    from .earth.morpho import aeolian, coastal, mobile_sand
+    from .pipeline_v50 import _hex_neighbours
+    from .stages.coasts import COAST_TYPES
+    from .stages.environment import PM
+
+    lay = project.layout
+    L, E = project.hydro.layers, project.env.layers
+    n = lay.width * lay.height
+    nbr = _hex_neighbours(lay)
+    spacing = lay.spacing_km * 1000.0
+    ocean = ocean_hex.ravel()
+    lake = lake_hex.ravel()
+    pm = E["parent_material_class"].ravel()
+    resist = np.select([pm == PM["crystalline_bedrock"], pm == PM["orogenic_bedrock"],
+                        np.isin(pm, [PM["young_volcanic"], PM["weathered_volcanic"]]),
+                        pm == PM["sedimentary_bedrock"]], [1.0, 0.8, 0.6, 0.4], 0.3)  # fmt: skip
+    ct = L["coast_type"].ravel() if "coast_type" in L else np.zeros(n, dtype=np.uint8)
+    co = coastal(nbr, spacing, COAST_TYPES, ct, L["wave_exposure"].ravel(), ocean,
+                 L["wind_u_ms"].ravel().astype(np.float64),
+                 L["wind_v_ms"].ravel().astype(np.float64),
+                 L["sediment_delivery_m3_yr"].ravel().astype(np.float64), resist)  # fmt: skip
+    inv = mobile_sand(pm, E["sand_frac"].ravel(), E["soil_depth_m"].ravel(), co["beach_sand_m"])
+    t_m = project.env.monthly["temperature_monthly_c"].reshape(12, n)
+    frozen = np.stack([(t_m[list(mm)] < 0.0).mean(axis=0) for mm in
+                       ((11, 0, 1), (2, 3, 4), (5, 6, 7), (8, 9, 10))])  # fmt: skip
+    wet = np.clip(np.nan_to_num(E["aridity_p_over_pet"].ravel(), nan=1.0), 0.0, 1.0)
+    veg = np.clip(np.nan_to_num(E["aet_over_pet"].ravel(), nan=0.0) * 1.2, 0.0, 1.0)
+    ice = out.get("land_ice_thickness_m")
+    if ice is not None:  # sand under an ice sheet does not blow
+        frozen = np.where(ice.ravel()[None] > 10.0, 1.0, frozen)
+    us = out["wind_surface_u_seasonal_ms"].reshape(4, n).astype(np.float64)
+    vs = out["wind_surface_v_seasonal_ms"].reshape(4, n).astype(np.float64)
+    ae = aeolian(nbr, spacing, us, vs, inv, wet, veg, frozen, ocean, lake,
+                 silt_frac=E["silt_frac"].ravel(), beach_source=co["beach_sand_m"])  # fmt: skip
+    g = lambda a, dt=np.float32: np.asarray(a).reshape(shape).astype(dt)  # noqa: E731
+    out["sand_thickness_m"] = g(ae["sand_thickness_m"])
+    out["sand_accumulation_m"] = g(ae["sand_accumulation_m"])
+    out["sand_flux_kg_m_yr"] = g(ae["sand_flux_kg_m_yr"])
+    out["dune_type"] = g(ae["dune_type"], np.uint8)
+    out["loess_mm_kyr"] = g(ae["loess_mm_kyr"])
+    out["shoreline_change_m_yr"] = g(co["shoreline_change_m_yr"])
+    out["longshore_transport_m3_yr"] = g(co["longshore_m3_yr"])
+    names = ("нет", "барханы", "поперечные гряды", "продольные гряды", "звёздчатые",
+             "прибрежные дюны")  # fmt: skip
+    counts = np.bincount(ae["dune_type"], minlength=6)
+    return {
+        "sand_ledger": ae["ledger"],
+        "dust_ledger": ae.get("dust_ledger"),
+        "coast_ledger": co["ledger"],
+        "dune_hexes": {names[i]: int(counts[i]) for i in range(1, 6)},
+        "loess_hexes_over_10mm_kyr": int((ae["loess_mm_kyr"] > 10.0).sum()),
+        "eroding_coast_hexes": int((np.nan_to_num(co["shoreline_change_m_yr"]) < -0.05).sum()),
+        "accreting_coast_hexes": int((np.nan_to_num(co["shoreline_change_m_yr"]) > 0.05).sum()),
+        "quality": {"aeolian": "bagnold_threshold_fv_CALIBRATED_APPROXIMATION",
+                    "coast": "one_line_hex_scale_P1_APPROXIMATE",
+                    "relief": "layers_only (dunes are not added to elevation_m)"},
+    }  # fmt: skip
+
+
 def run_earth(config, project) -> dict:
     from .stages.climate import _bilinear
 
@@ -226,9 +287,19 @@ def run_earth(config, project) -> dict:
         out["winds_aloft_below_ground"] = (sz < surface[None, None]).astype(np.bool_)
         out["jet_intensity_ms"] = np.stack([_bilinear(al.jet_intensity[s], g, hx, hy)
                                             for s in range(4)]).astype(np.float16)  # fmt: skip
+    # seasonal surface winds (the climate's own) for the sediment transport and the map
+    out["wind_surface_u_seasonal_ms"] = np.stack(
+        [_bilinear(wc.seasonal_wind_u[s], g, hx, hy) for s in range(4)]
+    ).astype(np.float16)
+    out["wind_surface_v_seasonal_ms"] = np.stack(
+        [_bilinear(wc.seasonal_wind_v[s], g, hx, hy) for s in range(4)]
+    ).astype(np.float16)
     ice_summary = None
     if config.earth.ice_sheets:
         ice_summary = _ice_sheets(config, project, out, ocean_hex, shape)
+    morpho_summary = None
+    if getattr(config.earth, "morphodynamics", False):
+        morpho_summary = _morphodynamics(project, out, ocean_hex, lake_hex, shape)
     # lake ice: a lake freezes in the months with a mean air temperature below -1 degC
     t_m = project.env.monthly["temperature_monthly_c"]
     lake_ice = ((t_m < -1.0).sum(axis=0) * lake_hex).astype(np.uint8)
@@ -259,6 +330,7 @@ def run_earth(config, project) -> dict:
             axis=0) > 0.15).sum()) if "sea_ice_concentration_monthly" in out else 0,  # fmt: skip
         "lake_ice_hexes": int((lake_ice > 0).sum()),
         "ice": ice_summary,
+        "morphodynamics": morpho_summary,
         "conventions": {"current_v_ms / winds_aloft_v_ms": "+ south (map y), like wind_v_ms",
                         "realm": "1 land, 2 inland water, 3 ocean",
                         "ice_cover": "0 none, 1 seasonal sea ice, 2 multiyear, 3 fast, 4 lake, "

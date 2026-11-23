@@ -4529,3 +4529,63 @@ register_view(
              note="Наземный лёд ≠ шельфовый ≠ морской; разгон до сходимости или честный статус",
              render=_render_icesheet, legend=_legend_icesheet)
 )  # fmt: skip
+# -- v5.3 G6: wind-blown sand, dust, coasts ------------------------------------------------
+
+_DUNE_RGB = np.array([[205, 200, 190], [240, 200, 120], [230, 170, 80], [215, 150, 60],
+                      [200, 120, 50], [250, 225, 160]], dtype=np.uint8)  # fmt: skip
+_DUNE_NAMES = ("нет дюн", "барханы", "поперечные гряды", "продольные гряды", "звёздчатые",
+               "прибрежные дюны")  # fmt: skip
+
+
+def _render_aeolian(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    E = project.earth.layers
+    ocean = project.hydro.layers["ocean_mask"].astype(bool)
+    if "dune_type" not in E:
+        rgb = np.full(project.layer("elevation_m").shape + (3,), 150, dtype=np.uint8)
+        return _v53_base(project, rgb, overlays)
+    if mode == "dunes":
+        rgb = _DUNE_RGB[E["dune_type"].astype(int)].copy()
+    elif mode == "shoreline":
+        v = np.nan_to_num(E["shoreline_change_m_yr"].astype(float))
+        rgb = _diverging(v, 0.5)
+        rgb[np.isnan(E["shoreline_change_m_yr"])] = (205, 200, 190)
+    else:
+        key, hi, pw = {"sand": ("sand_thickness_m", 5.0, 0.5),
+                       "flux": ("sand_flux_kg_m_yr", 2.0e5, 0.4),
+                       "loess": ("loess_mm_kyr", 50.0, 0.5),
+                       "longshore": ("longshore_transport_m3_yr", 1.0e6, 0.4)}[mode]  # fmt: skip
+        rgb = _ramp_rgb(np.nan_to_num(E[key].astype(float)), 0.0, hi, pw)
+    rgb = np.asarray(rgb, np.uint8).copy()
+    rgb[ocean] = (160, 185, 210)
+    return _v53_base(project, rgb, overlays)
+
+
+def _legend_aeolian(project: Project, mode: str) -> list[LegendItem]:
+    m = project.earth.summary.get("morphodynamics") or {}
+    led = m.get("sand_ledger") or {}
+    head = LegendItem(
+        "песок из почв и пляжей, порог трогания, перенос по ветру за 2000 лет; "
+        f"в море ушло {led.get('exported_to_sea_kg', 0) / max(led.get('initial_kg', 1), 1):.1%}"
+    )
+    if mode == "dunes":
+        return [head] + [LegendItem(n, tuple(int(c) for c in _DUNE_RGB[i]))
+                         for i, n in enumerate(_DUNE_NAMES)]  # fmt: skip
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    t = {"sand": ("0", "≥ 5 м песка"), "flux": ("0", "≥ 200 т/м/год"),
+         "loess": ("0", "≥ 50 мм за тысячу лет"),
+         "shoreline": ("размыв 0,5 м/год", "нарастание 0,5 м/год"),
+         "longshore": ("0", "≥ 1 млн м³/год")}[mode]  # fmt: skip
+    return [head, LegendItem(t[0], lo), LegendItem(t[1], hi)]
+
+
+register_view(
+    ViewSpec(id="wind_coast", title="Ветер и берег (v5.3)", stage="v53",
+             layers=("dune_type", "sand_thickness_m", "shoreline_change_m_yr"),
+             modes=(Option("dunes", "Дюнные поля"), Option("sand", "Подвижный песок"),
+                    Option("flux", "Поток песка"), Option("loess", "Лёсс (накопление пыли)"),
+                    Option("shoreline", "Изменение береговой линии"),
+                    Option("longshore", "Вдольбереговой перенос")),
+             overlays=_V53_OVERLAYS,
+             note="Нет сухого песка — нет дюн; клиф отступает по своей модели, не по песчаной",
+             render=_render_aeolian, legend=_legend_aeolian)
+)  # fmt: skip

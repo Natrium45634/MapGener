@@ -496,6 +496,8 @@ class EarthParams:
     ice_shelves: bool = True
     #: Delayed Airy isostasy under the ice load and the sea-level equivalent.
     isostasy: bool = True
+    #: Aeolian sand / dust (dunes, loess) and the coastal sand budget (shoreline change).
+    morphodynamics: bool = True
 
 
 @dataclass(frozen=True)
