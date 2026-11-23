@@ -4260,11 +4260,13 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
     if mode == "sst":
         rgb = _ramp_rgb(E["sst_monthly_c"][m].astype(float), -2.0, 30.0)
     elif mode == "sst_anomaly":
-        from .earth.ocean import sst_target
+        from .earth.ebm import for_planet
+        from .earth.planet import Planet
 
-        a = E["sst_monthly_c"].astype(float).mean(axis=0) - sst_target(
-            project.hydro.layers["latitude_deg"]
-        )
+        lat_h = project.hydro.layers["latitude_deg"]
+        a = E["sst_monthly_c"].astype(float).mean(axis=0) - for_planet(
+            Planet.from_params(project.config.earth)
+        ).annual(lat_h)
         rgb = _diverging(np.nan_to_num(a), 4.0)
     elif mode == "currents":
         s = _SEASON_OF_MONTH[m]

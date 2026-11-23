@@ -107,6 +107,8 @@ def solve(
     years=2,
     x_bc=None,
     w_init=None,
+    closed_faces=None,
+    bc_source=None,
 ) -> MoistureResult:
     """Monthly normals of the vapour budget on ``mesh``.
 
@@ -141,7 +143,7 @@ def solve(
             us, vs = circ_u[m, 0], circ_v[m, 0]
             uq = 0.6 * us + 0.4 * circ_u[m, 1]
             vq = 0.6 * vs + 0.4 * circ_v[m, 1]
-            tr = fv.transport(mesh, uq, vq)
+            tr = fv.transport(mesh, uq, vq, closed_faces)
             div_s = mesh.divergence(us, vs)
             ws = w_sat(t_air[m])
             warm = np.clip((t_air[m] - 14.0) / 12.0, 0.0, 1.0)
@@ -191,8 +193,9 @@ def solve(
                 # inflow through the open boundary: a specified column, or (zero gradient)
                 # the boundary cell's own column of the previous iterate; on the right-hand
                 # side, so the matrix stays an M-matrix and W >= 0 without clipping
-                xb_used = x_bc[m] if x_bc is not None else w_it
-                rhs = w_prev / dt + e0 + e_land + tr.import_rate * xb_used
+                xb_used = w_it if x_bc is None else np.where(np.isnan(x_bc[m]), w_it, x_bc[m])
+                src_bc = 0.0 if bc_source is None else bc_source[m]
+                rhs = w_prev / dt + e0 + e_land + tr.import_rate * xb_used + src_bc
                 mat = (tr.D + sparse.diags(1.0 / dt + e1 + k_tot)).tocsc()
                 w_new = sla.splu(mat).solve(rhs)
                 clipped = np.minimum(w_new, 0.0)
@@ -210,7 +213,7 @@ def solve(
             evap = (e0 - e1 * w_state + e_land) * dt  # kg/m^2
             prec_c = np.stack([k_conv, k_oro, k_front, np.zeros(n), k_bg]) * w_state * dt
             prec = prec_c.sum(axis=0)
-            imp = tr.import_rate * xb_used * dt
+            imp = (tr.import_rate * xb_used + (0.0 if bc_source is None else bc_source[m])) * dt
             exp_ = tr.export_rate * w_state * dt
             d_store = w_state - w_prev
             clip_kg = float((a * clipped).sum())  # negative W set to 0 (booked, ~never)
@@ -244,6 +247,8 @@ def solve(
         "method": "conservative_finite_volume_upwind_implicit_monthly",
         "picard_last_change_max": float(max(picard_log[-12:])) if picard_log else 0.0,
         "annual_relative_residual": abs(sum(x["residual_kg"] for x in ledger)) / max(tot_p, 1e-30),
-        "boundary_forcing": "synthetic_zero_gradient" if x_bc is None else "specified",
+        "boundary_forcing": "synthetic_zero_gradient"
+        if x_bc is None and closed_faces is None and bc_source is None
+        else "boundary_profiles",
     }
     return res

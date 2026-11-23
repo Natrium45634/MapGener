@@ -231,6 +231,15 @@ def build(
     pet = np.stack([potential_et(t_air[m]) * days[m] / days.sum() for m in range(12)])
     cu = np.stack([circ.u[:, 0], circ.u[:, 1]], axis=1).reshape(12, 2, n).astype(np.float64)
     cv = np.stack([circ.v[:, 0], circ.v[:, 1]], axis=1).reshape(12, 2, n).astype(np.float64)
+    from .. import boundary as bnd
+
+    profiles = bnd.from_json(getattr(atm, "boundary_profiles_json", "") or "")
+    dmode = getattr(atm, "domain_mode", "isolated_approximation")
+    x_bc = closed = bc_src = None
+    bc_prov = {}
+    if profiles or dmode == "closed_test_basin":
+        x_bc, closed, bc_src, bc_prov = bnd.atmosphere_bc(profiles, mesh, dmode)
+    bc_kw = {"x_bc": x_bc, "closed_faces": closed, "bc_source": bc_src}
     mr = moisture.solve(
         mesh,
         cu,
@@ -246,6 +255,7 @@ def build(
         cc * 1000.0,
         pet_mm=pet,
         picard={"fast": 2, "balanced": 3, "high": 4}.get(atm.quality, 3),
+        **bc_kw,
     )
     feedback = None
     if getattr(atm, "latent_feedback", True) and getattr(atm, "quality", "balanced") != "fast":
@@ -293,6 +303,7 @@ def build(
             cc * 1000.0,
             pet_mm=pet,
             picard={"fast": 2, "balanced": 3, "high": 4}.get(atm.quality, 3),
+            **bc_kw,
         )
         feedback = {
             "latent_hpa_per_mm_day": LATENT_HPA_PER_MM_DAY,
@@ -325,6 +336,7 @@ def build(
             if getattr(atm, "domain_mode", "isolated_approximation") == "isolated_approximation"
             else atm.domain_mode,
             "storm_component": "not_attributed_in_5.4a",
+            "boundary_sides": bc_prov or "zero_gradient_synthetic",
         }
     )
     diag = {

@@ -77,9 +77,12 @@ def attach_normals(wc, params, atm, planet, earth, land_h, cont, cell_km, t_zone
             winds4 = [
                 (u_r[list(ms)].mean(axis=0), -v_r[list(ms)].mean(axis=0)) for ms in SEASON_MONTHS
             ]  # raster convention: v + south
+            from ..boundary import ocean_exchange
+
             oc_new = run_ocean(
-                planet, wc.lat, wc.sea, winds4, cell_km, earth, years=2, prev=es.ocean
-            )
+                planet, wc.lat, wc.sea, winds4, cell_km, earth, years=2, prev=es.ocean,
+                exchange=ocean_exchange(atm),
+            )  # fmt: skip
             sea = wc.sea
             d_sst = float(
                 np.sqrt(np.nanmean((oc_new.sst_monthly - es.ocean.sst_monthly)[:, sea] ** 2))

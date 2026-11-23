@@ -23,7 +23,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy import ndimage
 
-from .ocean import run_ocean, sst_target
+from .ebm import for_planet
+from .ocean import run_ocean
 from .winds import thermal_wind
 
 UPWIND_KM = 300.0
@@ -60,7 +61,8 @@ def _upwind(field_, u, v, cell_km):
     return ndimage.map_coordinates(field_, [jj - v * k, ii - u * k], order=1, mode="nearest")
 
 
-def couple(params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, sea_ice0):
+def couple(params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, sea_ice0,
+           exchange=None):  # fmt: skip
     from ..stages.climate import (
         COAST_SEASONALITY,
         MARITIME_WARMING,
@@ -99,10 +101,13 @@ def couple(params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, 
             oc = None
             break
         oc = run_ocean(planet, lat, sea, [(u, v) for _, u, v in winds], cell_km, earth,
+                       exchange=exchange,
                        years=years_first if prev is None else 2, prev=prev)  # fmt: skip
         sst_ann = oc.sst_monthly.mean(axis=0)
         ice_new_sea = oc.sea_ice_monthly.max(axis=0)
-        anom_sea = np.where(sea, np.nan_to_num(sst_ann) - sst_target(lat), 0.0)
+        # anomaly of the solved SST against the planet's zonal background (currents,
+        # upwelling, ice): what the land downwind feels beyond the zonal climate
+        anom_sea = np.where(sea, np.nan_to_num(sst_ann) - for_planet(planet).annual(lat), 0.0)
         anom_fill = _fill_from_sea(anom_sea, sea, sigma)
         u_ann = np.mean([w[1] for w in winds], axis=0)
         v_ann = np.mean([w[2] for w in winds], axis=0)

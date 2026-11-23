@@ -73,7 +73,16 @@ class _Row:
         self.slider = None
         self.auto = None
         self._busy = False
-        if p.kind == "choice":
+        self._value = ""
+        if p.kind == "text":
+            from PySide6.QtWidgets import QLineEdit
+
+            self.edit = QLineEdit()
+            self.edit.textChanged.connect(lambda _t: self.on_change())
+        elif p.kind == "json":
+            self.edit = QPushButton("Изменить…")
+            self.edit.clicked.connect(self._edit_json)
+        elif p.kind == "choice":
             self.edit = QComboBox()
             for v, title in p.choices:
                 self.edit.addItem(title, v)
@@ -147,8 +156,20 @@ class _Row:
         self.on_change()
 
     # -- value ----
+    def _edit_json(self):
+        from .boundary_editor import BoundaryEditor
+
+        dlg = BoundaryEditor(self._value, self.edit.window())
+        if dlg.exec():
+            self.set(dlg.result_text)
+            self.on_change()
+
     def get(self):
         p = self.p
+        if p.kind == "text":
+            return self.edit.text()
+        if p.kind == "json":
+            return self._value
         if p.kind == "choice":
             return self.edit.currentData()
         if p.kind == "bool":
@@ -161,7 +182,18 @@ class _Row:
         p = self.p
         self._busy = True
         try:
-            if p.kind == "choice":
+            if p.kind == "text":
+                self.edit.setText(str(v or ""))
+            elif p.kind == "json":
+                self._value = str(v or "")
+                from .. import boundary as bnd
+
+                try:
+                    sides = sorted({x for q in bnd.from_json(self._value) for x in q.sides})
+                except Exception:  # noqa: BLE001 - only the button label
+                    sides = ["?"]
+                self.edit.setText(f"Изменить… ({', '.join(sides) or 'нет'})")
+            elif p.kind == "choice":
                 i = self.edit.findData(v)
                 self.edit.setCurrentIndex(max(i, 0))
             elif p.kind == "bool":

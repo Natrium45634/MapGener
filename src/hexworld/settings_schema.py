@@ -1809,8 +1809,25 @@ PARAMS: tuple[Param, ...] = (
             ("auto", "по режиму карты"),
             ("planetary_background", "фон всей планеты"),
             ("isolated_approximation", "изолированный регион (приближение)"),
+            ("custom_region", "свои профили на всех сторонах"),
+            ("closed_test_basin", "закрытый тестовый бассейн"),
         ),
         tech=True,
+    ),
+    _p(
+        "atmosphere.boundary_profiles_json",
+        "Границы региона: профили",
+        "atmosphere",
+        "json",
+        help="Что входит через края области: воздушные массы (T, влажность), поток влаги, "
+        "обмен с внешним морем. Пресеты по сторонам, импорт/экспорт JSON, проверка.",
+    ),
+    _p(
+        "atmosphere.weather_year_seed",
+        "Сид погодного года",
+        "atmosphere",
+        "text",
+        help="Пусто — от сида мира. Смена сида не меняет геологию и климат.",
     ),
     _p(
         "atmosphere.latent_feedback",

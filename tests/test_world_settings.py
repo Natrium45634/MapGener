@@ -17,7 +17,7 @@ def test_schema_covers_every_config_parameter():
     missing = [p for p in ss.all_config_paths() if p not in bases]
     # the seed has its own field; the simulation bounds are always derived ("auto"); the
     # weather-year seed is a text value of the config / CLI (empty = the world seed)
-    assert sorted(missing) == ["atmosphere.weather_year_seed", "seed", "simulation_bounds_km"]
+    assert sorted(missing) == ["seed", "simulation_bounds_km"]
 
 
 def test_schema_paths_labels_and_ranges():

@@ -526,6 +526,10 @@ class AtmosphereParams:
     #: ``planetary_background`` or ``isolated_approximation``. A specified boundary
     #: (inflow columns per edge) is an API argument (``moisture.solve(x_bc=...)``).
     domain_mode: str = "auto"
+    #: Regional boundary profiles (canonical JSON of :mod:`hexworld.boundary`): what enters
+    #: through the open edges (air masses, moisture, ocean exchange). Empty = zero-gradient
+    #: synthetic inflow (``isolated_approximation``).
+    boundary_profiles_json: str = ""
     #: Latent heating of the convective rain deepens the troughs (one feedback pass;
     #: skipped at ``fast``).
     latent_feedback: bool = True
@@ -821,9 +825,26 @@ class Config:
             raise ConfigError("atmosphere.quality: fast, balanced or high")
         if ap.precipitation_coupling not in ("full", "seasonality_only"):
             raise ConfigError("atmosphere.precipitation_coupling: full or seasonality_only")
-        if ap.domain_mode not in ("auto", "planetary_background", "isolated_approximation"):
-            raise ConfigError("atmosphere.domain_mode: auto, planetary_background or "
-                              "isolated_approximation")  # fmt: skip
+        if ap.domain_mode not in ("auto", "planetary_background", "isolated_approximation",
+                                  "custom_region", "closed_test_basin"):  # fmt: skip
+            raise ConfigError(
+                "atmosphere.domain_mode: auto, planetary_background, "
+                "isolated_approximation, custom_region or closed_test_basin"
+            )
+        if ap.boundary_profiles_json or ap.domain_mode == "custom_region":
+            from . import boundary as _bnd
+
+            try:
+                profs = _bnd.from_json(ap.boundary_profiles_json)
+            except (ValueError, TypeError, KeyError) as exc:
+                raise ConfigError(f"atmosphere.boundary_profiles_json: {exc}") from exc
+            errs = _bnd.validate(profs)
+            covered = {s_ for p_ in profs for s_ in p_.sides}
+            if ap.domain_mode == "custom_region" and covered != set(_bnd.SIDES):
+                errs.append(f"custom_region needs a profile for every side, missing "
+                            f"{sorted(set(_bnd.SIDES) - covered)}")  # fmt: skip
+            if errs:
+                raise ConfigError("atmosphere boundary: " + "; ".join(errs))
         if not 0 <= int(ap.coupled_iterations) <= 5:
             raise ConfigError("atmosphere.coupled_iterations must be within [0, 5]")
         if ap.weather_year_mode not in ("unconditioned", "conditioned"):

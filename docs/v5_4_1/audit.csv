@@ -1,0 +1,12 @@
+requirement,file:symbol,producer,consumers,unit,dtype/shape,time semantics,tests,status,physics quality
+D01 boundary profiles,src/hexworld/boundary.py:BoundaryProfile/validate/atmosphere_bc/ocean_exchange,config atmosphere.boundary_profiles_json,atmosphere/normals.py moisture.solve; earth/ocean.py run_ocean,kg/kg; kg/(m s); m3/s; degC,JSON 12 monthly per side,climate normals,tests/test_v541_boundary.py,IMPLEMENTED_TESTED,column model donor (state) or direct flux; ocean two-way exchange without net volume
+D02 SST,src/hexworld/earth/ocean.py:run_ocean + earth/ebm.py,v4 world climate coupler,atmosphere normals; v53 layers; biomes,degC,(12 ny nx) float32 raster,monthly normal,tests/test_v53.py; tests/test_v541_ocean.py,IMPLEMENTED_TESTED,planetary EBM air-sea exchange; reduced order
+D03 weather year -> soil,src/hexworld/atmosphere/hydrostate.py (5.4.1c),v54 stage,v54 layers,mm,(H W) float32,actual year with carryover,tests/test_v541_hydro.py,see acceptance_report.md,monthly bucket
+D04 weather year -> glaciers,src/hexworld/atmosphere/hydrostate.py (5.4.1c),v54 stage,v54 layers,mm w.e.,(H W),actual year,tests/test_v541_hydro.py,see acceptance_report.md,PDD expected-value
+D05 T20 real windows,tests/test_v541_resolution.py (5.4.1e),pipeline,—,m/s,—,normals,tests/test_v541_resolution.py,see acceptance_report.md,—
+D06 fixtures 5.3,tests/fixtures/v5_3,—,—,—,—,—,tests/test_v541_fixtures.py,see acceptance_report.md,—
+D07 golden / legacy,tests/data/v1_project; tests/data/v2_project,—,io.load_project,—,—,—,tests/test_v2.py; tests/test_v541_legacy.py,PARTIAL (v1/v2 genuine; v3-v5.4 BLOCKED_MISSING_FIXTURE),—
+D08 moisture / storms,src/hexworld/atmosphere/moisture.py; storms.py,v4 world climate; v54,v45 months; v54,kg/m2; kg/(m s),(12 ny nx),monthly normal + events,tests/test_v54_*.py,IMPLEMENTED_TESTED,column model; storm proxies labelled
+D09 ash winds,src/hexworld/volcanism/tephra.py (wind_at_world),v54 grid fields,v51,m/s,—,monthly,tests/test_v54_integration.py::test_t73_wind_at_for_ash,IMPLEMENTED_TESTED,thermal wind levels + log-p interpolation
+E01 currents,src/hexworld/earth/ocean.py:Circulation/slab_current/ekman_transport,coupler,SST heat solve; views,m3/s; m/s,(4 ny nx),seasonal,tests/test_v53.py T09-T16; tests/test_v541_ocean.py,IMPLEMENTED_TESTED,Stommel streamfunction + drag-regularised Ekman
+E02 biomes,src/hexworld/pipeline_v50.py; biomes/*,v50 stage,views; export,class id,(H W),potential + actual,tests/test_v50.py; tests/test_v53_ecology.py; tests/test_v541_marine.py,see acceptance_report.md,—

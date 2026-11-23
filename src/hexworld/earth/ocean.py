@@ -24,11 +24,15 @@ downwelling of mixed-layer water), which is booked in the heat ledger.
 month, per-season operators::
 
     dE/dt = - div(rho c F_ml T) + div(rho c K h grad T) + W_up rho c (T_sub - T) + Q
-    Q = gamma (T_eq - T) + 0.6 (1 - alpha_eff) (S(m) - S_ann) - 0.6 S(m) (alpha_eff - 0.06)
+    Q = lambda (T_A(lat, month) - T) - 0.6 S(m) (alpha_eff - 0.06)
 
-``T_eq(lat)`` is an Earth SST climatology (the latitude profile kept as the *restoring*
-target and initial condition, not the result); ``gamma`` = 30 W m^-2 K^-1. The gyre moves
-heat in a layer of ``HEAT_LAYER_M`` of the ``WIND_LAYER_M`` deep wind-driven flow.
+``T_A`` is the atmosphere's equilibrium temperature over an ice-free ocean from the
+planet's seasonal energy-balance model (:mod:`hexworld.earth.ebm`: insolation, OLR,
+meridional transport), ``lambda`` = 35 W m^-2 K^-1 the linearised air-sea exchange
+(sensible + latent + long-wave; Haney 1971). The second term is the local ice-albedo
+loss of absorbed sunlight. TZ 5.4.1: the former restoring to an Earth SST table with a
+hidden zonal-mean calibration is gone (``docs/v5_4_1/defect_sst_root_cause.md``). The
+gyre moves heat in a layer of ``HEAT_LAYER_M`` of the ``WIND_LAYER_M`` deep flow.
 
 **Sea ice** (zero-layer thermodynamics, ``[ADAPT]`` from CICE/Icepack ideas): water cannot
 cool below ``T_f = -1.8 degC``; the deficit freezes ``dV = E_def / (rho_i L_f)``; a warming
@@ -54,7 +58,9 @@ C_W = 4000.0
 RHO_ICE = 917.0
 L_F = 334_000.0
 T_FREEZE = -1.8
-GAMMA = 10.0  # W m^-2 K^-1 large-scale effective restoring (with air-sea feedback)
+#: [K] linearised air-sea heat exchange with the atmosphere's equilibrium temperature
+#: (Haney 1971: 30-50 W m^-2 K^-1)
+GAMMA = 35.0
 WIND_LAYER_M = 800.0
 HEAT_LAYER_M = 400.0
 #: Free-drift speed limit of sea ice (internal ice stress), m/s.
@@ -174,13 +180,53 @@ class Circulation:
         return fx, fy
 
 
-def ekman_transport(tau_x, tau_y, lat, planet):
-    """Ekman transport (m^2/s) east and north; tapered to 0 within 5 deg of the equator."""
-    f = planet.coriolis(lat)
-    fmin = abs(float(planet.coriolis(5.0)))
-    fs = np.where(np.abs(f) < fmin, np.where(f >= 0, fmin, -fmin), f)
-    taper = np.clip((np.abs(lat) - 2.0) / 3.0, 0.0, 1.0)
-    return taper * tau_y / (RHO_W * fs), -taper * tau_x / (RHO_W * fs)
+#: [K] linear drag of the wind-driven surface layer, 1/s (slab response, TZ 5.4.1 sec. 5.3)
+R_SLAB = 1.0e-5
+
+
+def slab_current(tau_x, tau_y, f, r=R_SLAB, h=50.0, rho=RHO_W):
+    """Wind-driven slab current (m/s, east / north) with linear drag (TZ 5.4.1 sec. 5.3).
+
+    ``r u - f v = tau_x / (rho h)``, ``f u + r v = tau_y / (rho h)``: to the right of the
+    stress for f > 0, to the left for f < 0, and down the stress (drag-limited) at f = 0.
+    """
+    den = rho * h * (r * r + np.asarray(f, dtype=np.float64) ** 2)
+    u = (r * tau_x + f * tau_y) / den
+    v = (r * tau_y - f * tau_x) / den
+    return u, v
+
+
+def ekman_transport(tau_x, tau_y, lat, planet, r=R_SLAB):
+    """Wind-driven surface transport (m^2/s) east and north: ``h x`` the slab current.
+
+    The drag regularises the equator (no ``1/f``, the sign of f is kept in the south);
+    off the equator it equals the Ekman transport ``(tau_y, -tau_x) / (rho f)`` within
+    ``(r/f)^2``.
+    """
+    u, v = slab_current(tau_x, tau_y, planet.coriolis(lat), r=r, h=1.0)
+    return u, v
+
+
+def mixed_layer_warming_k(q_w_m2, h_m, seconds, rho=RHO_W, cp=3990.0):
+    """Temperature change of a mixed layer under a net flux (N05)."""
+    return q_w_m2 * seconds / (rho * cp * h_m)
+
+
+def exchange(t_a, t_b, v_a, v_b, q_m3):
+    """Equal, opposite volume exchange ``q_m3`` between two well-mixed boxes (N04 / N06)."""
+    ta = (t_a * (v_a - q_m3) + t_b * q_m3) / v_a
+    tb = (t_b * (v_b - q_m3) + t_a * q_m3) / v_b
+    return ta, tb
+
+
+def freeze_volume_m(energy_j_m2, rho_ice=RHO_ICE, lf=L_F):
+    """Ice thickness grown by a heat deficit at the freezing point (N09, isothermal ice)."""
+    return np.maximum(-np.asarray(energy_j_m2, dtype=np.float64), 0.0) / (rho_ice * lf)
+
+
+def effective_albedo(c, alpha_water=ALPHA_WATER, alpha_ice=0.6):
+    """Area-weighted surface albedo of a partly ice-covered cell (N10)."""
+    return (1.0 - c) * alpha_water + c * alpha_ice
 
 
 def _faces_from_cells(mx, my, ocean, dx):
@@ -281,7 +327,8 @@ def ice_concentration(hi):
 
 
 def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seasons=None,
-              years: int = 4, prev: OceanResult | None = None) -> OceanResult:  # fmt: skip
+              years: int = 4, prev: OceanResult | None = None,
+              exchange=None) -> OceanResult:  # fmt: skip
     """Ocean of the four seasons of winds ``winds = [(u, v), ...]`` (raster frame, v south)."""
     flip = lambda a: a[..., ::-1, :]  # noqa: E731  raster (rows south) -> north-up
     ocean_r, basin_r = ocean_mask(sea_raster)
@@ -297,11 +344,15 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
     idx[ocean] = np.arange(n)
     area = dx * dx
     vol = np.full(n, area * h)
-    t_eq = sst_target(lat) + _planet_shift(planet, lat)
+    from .ebm import for_planet
+
+    ebm = for_planet(planet)
+    t_eq_m = np.stack([ebm.at(lat, m) for m in range(12)])  # (12, ny, nx) seasonal
+    t_eq = t_eq_m.mean(axis=0)
     s_m = planet.monthly_insolation(lat)  # (12, ny, nx) W/m^2
     s_ann = s_m.mean(axis=0)
     psis, fxs, fys, us, vs, ups = [], [], [], [], [], []
-    w_up, w_down, tsub = [], [], []
+    w_up, w_down = [], []
     for u_r, v_r in winds:
         u = flip(u_r)
         v = -flip(v_r)  # +y south in the raster -> north
@@ -332,7 +383,27 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
         ups.append(np.where(ocean, div_e / area * 86400.0, 0.0))  # m/day (+ up)
         w_up.append(np.maximum(div_e, 0.0)[ocean])
         w_down.append(np.maximum(-div_e, 0.0)[ocean])
-        tsub.append(np.maximum(t_eq - 6.0, 2.0)[ocean])
+    # open ocean sides (TZ 5.4.1 G1): two-way exchange with an external sea, no net volume;
+    # per cell of the side an exchange g (m^3/s) at the external temperature T_ext
+    g_cell = np.zeros((12, n))
+    t_ext = np.zeros((12, n))
+    for side, q_m, t_m in exchange or []:
+        mask = np.zeros(ocean.shape, dtype=bool)
+        if side == "west":
+            mask[:, 0] = True
+        elif side == "east":
+            mask[:, -1] = True
+        elif side == "north":
+            mask[-1] = True  # north-up frame inside this module
+        elif side == "south":
+            mask[0] = True
+        cells = idx[mask & ocean]
+        if cells.size == 0:
+            continue
+        for m_ in range(12):
+            g_cell[m_, cells] += float(q_m[m_]) / cells.size
+            t_ext[m_, cells] = float(t_m[m_])
+    season_mid = (0, 3, 6, 9)
     ops = []
     dt = SECONDS_PER_MONTH / 2.0
     k_diff = float(params.eddy_diffusivity_m2_s)
@@ -343,7 +414,8 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
         a = a - csc_matrix((w_down[s] / vol, (np.arange(n), np.arange(n))), shape=(n, n))
         diag = np.arange(n)
         restore = csc_matrix((np.full(n, GAMMA / (RHO_W * C_W * h)), (diag, diag)), shape=(n, n))
-        m = identity(n, format="csc") - dt * (a - restore)
+        exch = csc_matrix((g_cell[season_mid[s]] / vol, (diag, diag)), shape=(n, n))
+        m = identity(n, format="csc") - dt * (a - restore - exch)
         ops.append((splu(m.tocsc()), a))
     drift_ops = []
     for s_ in range(4):
@@ -363,27 +435,32 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
     sst = np.zeros((12, n))
     ice = np.zeros((12, n))
     heat = np.zeros((12, n))
-    ledger = {"surface_j": 0.0, "vertical_j": 0.0, "latent_ice_j": 0.0, "storage_start_j": 0.0}
+    ledger = {"surface_j": 0.0, "vertical_j": 0.0, "latent_ice_j": 0.0, "storage_start_j": 0.0,
+              "boundary_j": 0.0}  # fmt: skip
     rc = RHO_W * C_W * h
     hi_min = np.full(n, np.inf)
     hi_max = np.zeros(n)
     sm_o = s_m[:, ocean]
     sa_o = s_ann[ocean]
-    teq_o = t_eq[ocean]
-    row_of = np.nonzero(ocean)[0]
-    zonal_bias = np.zeros(ny)
-    row_n = np.bincount(row_of, minlength=ny).astype(np.float64)
+
+    teq_mo = t_eq_m[:, ocean]
     t_year = np.zeros(n)
+    # subsurface reservoir of each basin (closed heat): downwelled mixed-layer water enters
+    # it, upwelled water leaves it at the reservoir temperature; T_deep is the flux-weighted
+    # mean of the water that went down in the previous year (no infinite cold sink)
+    from scipy import ndimage as _nd
+
+    lab, nb = _nd.label(ocean)
+    basin_o = lab[ocean] - 1
+    t_deep_b = np.full(max(nb, 1), float(np.mean(t)) - 4.0 if n else 0.0)
+    if prev is not None and getattr(prev, "diagnostics", {}).get("deep_reservoir_c") is not None:
+        old = np.asarray(prev.diagnostics["deep_reservoir_c"], dtype=np.float64)
+        if old.size == t_deep_b.size:
+            t_deep_b = old
     for year in range(years):
-        if year == max(1, years // 2):
-            # calibration: the zonal mean of the SST follows the climatology; the model
-            # supplies the deviations (currents, upwelling, ice), not the zonal mean
-            want = np.bincount(row_of, weights=teq_o, minlength=ny)
-            have = np.bincount(row_of, weights=t_year, minlength=ny)
-            bias = np.where(row_n > 0, (want - have) / np.maximum(row_n, 1), 0.0)
-            teq_o = teq_o + bias[row_of]
-            zonal_bias = bias
         t_year = np.zeros(n)
+        down_heat = np.zeros(max(nb, 1))
+        down_vol = np.zeros(max(nb, 1))
         if year == years - 1:
             ledger["storage_start_j"] = float(
                 (rc * t).sum() * area - RHO_ICE * L_F * (hi * area).sum()
@@ -396,21 +473,31 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
                 hot = (t > T_FREEZE + 0.5) | (s_m[m][ocean] > sa_o)
                 a_ice = np.where(hot, 0.5, 0.65)
                 alpha = (1 - c) * ALPHA_WATER + c * a_ice
-                q_sw = 0.6 * (1 - alpha) * (sm_o[m] - sa_o) - 0.6 * sm_o[m] * (alpha - ALPHA_WATER)
-                # restoring flux (implicit in the matrix) + the explicit part
-                q_rest_explicit = GAMMA * teq_o
+                # sunlight lost to the ice albedo (the ice-free cycle is in T_A)
+                q_sw = -0.6 * sm_o[m] * (alpha - ALPHA_WATER)
+                teq_now = teq_mo[m]
+                # air-sea exchange: implicit part in the matrix + the explicit part
+                q_rest_explicit = GAMMA * teq_now
                 q = q_sw
                 # insulation by ice of the cooling part of the flux
-                ins = np.where(q + GAMMA * (teq_o - t) < 0, 1.0 / (1.0 + hi / H_ICE_SCALE), 1.0)
+                ins = np.where(q + GAMMA * (teq_now - t) < 0, 1.0 / (1.0 + hi / H_ICE_SCALE), 1.0)
                 q_eff = (1 - c) * q + c * q * ins
-                rhs = t + dt * (q_eff + q_rest_explicit) / rc + dt * w_up[s] * tsub[s] / vol
+                t_sub = t_deep_b[basin_o]
+                g_s = g_cell[season_mid[s]]
+                rhs = (t + dt * (q_eff + q_rest_explicit) / rc + dt * w_up[s] * t_sub / vol
+                       + dt * g_s * t_ext[m] / vol)  # fmt: skip
                 t_new = lu.solve(rhs)
                 # surface heat actually exchanged (for the ledger)
-                q_tot = q_eff + GAMMA * (teq_o - t_new)
+                q_tot = q_eff + GAMMA * (teq_now - t_new)
                 if year == years - 1:
                     ledger["surface_j"] += float((q_tot * area).sum() * dt)
-                    vert = (w_up[s] * tsub[s] - w_down[s] * t_new) / vol
+                    ledger["boundary_j"] += float(
+                        (rc * dt * g_s * (t_ext[m] - t_new) / vol * area).sum()
+                    )
+                    vert = (w_up[s] * t_sub - w_down[s] * t_new) / vol
                     ledger["vertical_j"] += float((rc * dt * vert * area).sum())
+                np.add.at(down_heat, basin_o, w_down[s] * t_new * dt)
+                np.add.at(down_vol, basin_o, w_down[s] * dt)
                 # freezing and melting
                 deficit = np.maximum(T_FREEZE - t_new, 0.0) * rc  # J/m^2 below freezing
                 grow = deficit / (RHO_ICE * L_F)
@@ -434,12 +521,16 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
             t_year += t / 12.0
             ice[m] = hi
             heat[m] = rc * (t + 273.15)
+            if m == 11:
+                ok = down_vol > 0
+                t_deep_b = np.where(ok, down_heat / np.maximum(down_vol, 1e-30), t_deep_b)
             if year == years - 1:
                 hi_min = np.minimum(hi_min, hi)
                 hi_max = np.maximum(hi_max, hi)
-    diag_bias = float(np.abs(zonal_bias).max()) if years > 1 else 0.0
     storage_end = float((rc * t).sum() * area - RHO_ICE * L_F * (hi * area).sum())
-    resid = (storage_end - ledger["storage_start_j"]) - (ledger["surface_j"] + ledger["vertical_j"])
+    resid = (storage_end - ledger["storage_start_j"]) - (
+        ledger["surface_j"] + ledger["vertical_j"] + ledger["boundary_j"]
+    )
 
     # back to the raster frame
     def grid(vals, fill=np.nan):
@@ -479,7 +570,14 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
         "ice_volume_km3_max": float((hi_max * area).sum() / 1e9),
         "divergence_max": 0.0,
         "flow_quality": "approximate_stommel_streamfunction",
-        "zonal_calibration_max_k": diag_bias,
+        "zonal_calibration_max_k": 0.0,  # removed in 5.4.1 (no hidden zonal forcing)
+        "sst_forcing": "planetary_seasonal_ebm_air_sea_exchange",
+        "boundary_heat_j": ledger["boundary_j"],
+        "boundary_sides": [e[0] for e in exchange or []],
+        "deep_reservoir_c": [round(float(x), 4) for x in t_deep_b],
+        "deep_reservoir": "per-basin closed heat: fed by downwelling, drained by upwelling",
+        "air_sea_lambda_w_m2_k": GAMMA,
+        "ebm_converged": bool(ebm.converged),
     }
     return OceanResult(
         ocean=ocean_r,

@@ -72,6 +72,12 @@ class Mesh:
         return out / self.area
 
 
+def boundary_sides(mesh: Mesh) -> np.ndarray:
+    """Side of each boundary face from its outward normal: 0 west, 1 east, 2 north, 3 south."""
+    e, n = mesh.bnormal[:, 0], mesh.bnormal[:, 1]
+    return np.where(np.abs(e) >= np.abs(n), np.where(e < 0, 0, 1), np.where(n > 0, 2, 3))
+
+
 def raster_mesh(ny: int, nx: int, cell_m: float) -> Mesh:
     """Square cells, rows growing southward (row j+1 is south of row j)."""
     idx = np.arange(ny * nx).reshape(ny, nx)
@@ -155,8 +161,11 @@ class Transport:
     import_rate: np.ndarray  # (n,) 1/s: inflow through the boundary (times X_bc)
 
 
-def transport(mesh: Mesh, u_east, v_north) -> Transport:
+def transport(mesh: Mesh, u_east, v_north, closed_faces=None) -> Transport:
+    """``closed_faces`` (k,) bool marks boundary faces without advective exchange."""
     un, ub = mesh.face_velocity(u_east, v_north)
+    if closed_faces is not None:
+        ub = np.where(closed_faces, 0.0, ub)
     a = mesh.area
     pos = np.maximum(un, 0.0) * mesh.length
     neg = np.maximum(-un, 0.0) * mesh.length

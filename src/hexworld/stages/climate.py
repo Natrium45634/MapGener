@@ -454,11 +454,13 @@ def world_climate(
     )
     earth_state = None
     if use_earth:
+        from ..boundary import ocean_exchange
         from ..earth.coupler import couple
 
         earth_state = couple(
-            params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, sea_ice
-        )
+            params, earth, planet, lat, phi, sea, cont, t_zone, land_h, cell_km, sea_ice,
+            exchange=ocean_exchange(atmosphere),
+        )  # fmt: skip
         t_sl, seasonal, winds = earth_state.t_sl, earth_state.seasonal, earth_state.winds
     else:
         winds = seasonal_winds(params, lat, cont, seasonal, land_h, cell_km)
