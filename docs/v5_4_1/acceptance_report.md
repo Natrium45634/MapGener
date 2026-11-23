@@ -5,10 +5,14 @@ and tested; open items are listed at the end. Windows GUI: NOT VERIFIED (no Wind
 real display; the dialogs are exercised offscreen only — status `UNVERIFIED_WINDOWS`).
 
 Commits: `5692ca6` (a/b: boundaries, SST), `826b025` (c: water / ice state),
-`72d36b1` (d: marine habitats), this commit (e: T20, fixtures, legacy, reports).
+`72d36b1` (d: marine habitats), `47f29dd` (e: T20, fixtures, legacy, reports), `3994d54`
+(GUI fix found by the full suite), this commit (final totals).
 Environment: Python 3.13.18, NumPy 2.5.4, SciPy 1.18.1, PySide6 6.12.0, Linux x86_64,
 4 vCPU / 16 GB. Commands: `pytest tests -n 3` (quick + integration),
-`pytest -m slow tests/test_v541_resolution.py` (T20, ~8 min). Results: FULL_SUITE_RESULT.
+`pytest -m slow tests/test_v541_resolution.py` (T20, ~8 min). Results: full suite at `47f29dd`:
+**694 passed, 1 failed** in 26 min (`test_hex_info.py::test_click_opens_the_hex_panel`:
+IndexError in the GUI info text, fixed in `3994d54`; the file then passed 9 / 9);
+slow T20: **2 passed** in 7.5 min.
 Observational validation (ERA5 / OISST / WOA / GLORYS): **NOT_RUN** — the model is not
 called observationally calibrated.
 
@@ -20,7 +24,7 @@ called observationally calibrated.
 | D02 cold SST | root cause found and fixed | `defect_sst_before.md`, `defect_sst_root_cause.md`, `ocean_model_adr.md`, `test_v541_ocean.py`, 5.3 ocean tests |
 | D03 weather year → soil | implemented, tested (monthly mode) | `hydrostate.py`, `weather_state_contract.md`, `test_v541_hydro.py` |
 | D04 weather year → glaciers | implemented, tested (mass; geometry pending) | same |
-| D05 v5_4::T20 on real windows | passed (A resolution, B nested windows) | `test_v541_resolution.py` (slow): SLOW_RESULT |
+| D05 v5_4::T20 on real windows | passed (A resolution, B nested windows) | `test_v541_resolution.py` (slow): 2 passed; resolution NRMSE 0.015, corr 0.9999; nested windows NRMSE 0.006, median angle 0 |
 | D06 fixtures 5.3 | 24 fixtures linked to existing tests; statuses PASS / PARTIAL / OPEN | `tests/fixtures/v5_3/S01–S24.json`, `test_v541_fixtures.py` |
 | D07 golden / legacy | v1/v2 genuine read + upgrade copy + current golden; v3–v5.4 BLOCKED_MISSING_FIXTURE | `legacy_fixture_inventory.md`, `test_v541_legacy.py`, `tests/golden/` |
 | D08 moisture / storms | conservative column budget (5.4 tests), honest proxies; boundary import booked | `test_v54_*.py`, `test_v541_boundary.py` |
@@ -64,7 +68,7 @@ called observationally calibrated.
 | T76, T77 T20 resolution / nested | PASS | slow tests |
 | T78 physical scale | PARTIAL: CFL / transport in physical units are tested; no dedicated fixed-shape km sweep | — |
 | T79 remap | PASS (conservative block remap of rain, 5.4) | `normals.upsample(conservative=True)` |
-| T80 1000×800 benchmark | measured | `performance_report.md` |
+| T80 1000×800 benchmark | measured: 926 s, 6.4 GB peak | `performance_report.md` |
 | T81 GUI layers | PASS offscreen (new map modes, boundary editor) | — |
 | T82 old 5.3 fixtures | PASS (linked; statuses honest) | `test_v541_fixtures.py` |
 | T83 old 5.4 regression | PASS | `test_v54_*.py` |
