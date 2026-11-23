@@ -56,7 +56,8 @@ so the total is unchanged (no double count; `tc_rain_attribution` in the summary
 
 ```text
 P_actual(month) = generator(background) + events
-background      = (P_norm - P_storm - 0.5 P_front) x interannual factor
+background      = P_norm x (1 - event rain / P_norm, domain total per month)
+                  x interannual factor        (events are drawn first)
 events          = TC / ETC fronts / AR rain, each limited by the vapour it can draw and
                   by one shared monthly pool (W x days / 8 d) — overlapping events never
                   spend the same water (T60)

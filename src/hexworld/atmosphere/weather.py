@@ -18,9 +18,9 @@ Events (sparse, metric geometry in world km, own ids, one RNG stream each):
 tropical cyclones (Poisson of the month's Lambda, steered tracks), extratropical cyclones
 with a cold and a warm front, atmospheric rivers (IVT features of a transient day),
 droughts (3-month deficit against the cell's own norm; no drought in a hyperarid cell,
-T67). Event rain is not added on top of the norm: the generator draws the background
-rain (norm minus the expected storm and frontal shares) and the events add what they
-realise, so the month keeps a closed ledger (T50, T60).
+T67). Event rain is not added on top of the norm: the events are drawn first, then the
+generator draws the background rain = norm x (1 - event rain / norm), a domain total per
+month, so the month keeps a closed ledger and no water is counted twice (T50, T60).
 
 Interannual mode: with a planetary domain and a tropical ocean basin with equatorial
 upwelling, ``X_y = rho X_(y-1) + sqrt(1 - rho^2) eps_y`` scales a rain response computed
@@ -467,10 +467,42 @@ def generate(
 
     shape = G["lat_deg"].shape
     cell = grid["cell_km"]
-    comps = G["precip_components_mm"].astype(np.float64)
     p_norm = G["precipitation_mm"].astype(np.float64)
-    # background = the norm without the storm / frontal shares the events will realise
-    p_bg = np.maximum(p_norm - comps[3] - 0.5 * comps[2], 0.0)
+    start = np.concatenate([[0], np.cumsum(np.round(days).astype(int))])
+    # 1) the events of the year and their rain (limited by the vapour they can draw)
+    events = []
+    gen_idx = G.get("tc_genesis_index")
+    if gen_idx is not None and storm_lambda is not None:
+        events += tc_events(G, grid, planet, storm_lambda, gen_idx, rng_factory, tag)
+    if incoming_tc_per_year > 0:
+        events += incoming_tc_events(G, grid, planet, incoming_tc_per_year, rng_factory, tag)
+    if "etc_activity" in G:
+        events += etc_events(G, grid, rng_factory, tag, days)
+        events += ar_events(G, grid, rng_factory, tag)
+    ev_m = np.zeros((12,) + shape)
+    # snow share of the month's rain from the surface air temperature [A]; ETC fronts use
+    # their own profile-based share: snow is a part of the same water, never added (T74)
+    snow_share = np.clip((1.0 - G["t_air_c"].astype(np.float64)) / 4.0, 0.0, 1.0)
+    ev_snow = np.zeros((12,) + shape)
+    # the vapour events can spend in a month: the column renewed every ~8 days
+    pool = G["column_vapor_kg_m2"].astype(np.float64) * (np.asarray(days).reshape(12, 1, 1) / 8.0)
+    events.sort(key=lambda e: e["event_id"])  # deterministic, independent of generation order
+    ev_rain = []
+    for ev in events:
+        r = event_rain(ev, G, grid, shape, pool[ev["month"] - 1])
+        m = ev["month"] - 1
+        ev_m[m] += r
+        ev_rain.append(r)
+        if ev["event_type"] == "ETC":
+            ev_snow[m] += r * ev["fronts"][0]["snow_fraction"]
+        else:
+            ev_snow[m] += r * snow_share[m]
+    # 2) background = the norm minus what the events realised, as a domain total per month
+    #    (the norm's spatial pattern is kept; no double count of storm water, T50 / T60)
+    tot_norm = p_norm.reshape(12, -1).sum(axis=1)
+    tot_ev = ev_m.reshape(12, -1).sum(axis=1)
+    bg_scale = np.maximum(tot_norm - tot_ev, 0.0) / np.maximum(tot_norm, 1e-12)
+    p_bg = p_norm * bg_scale.reshape(12, 1, 1)
     # interannual: an ocean mode where one exists, else a regional persistence proxy
     xs = interannual_sequence(rng_factory, year)
     if ocean_mode is not None:
@@ -494,7 +526,6 @@ def generate(
     a_all = correlated_uniforms(
         rng_factory("daily/amount"), shape, int(round(sum(days))), cell, corr_km=300.0, rho=0.3
     )
-    start = np.concatenate([[0], np.cumsum(np.round(days).astype(int))])
     daily = np.zeros((int(start[-1]),) + shape)
     for m in range(12):
         d0, d1 = int(start[m]), int(start[m + 1])
@@ -506,31 +537,8 @@ def generate(
         gen_m = gen_m * nudge
         for m in range(12):
             daily[int(start[m]) : int(start[m + 1])] *= nudge[m]
-    events = []
-    gen_idx = G.get("tc_genesis_index")
-    if gen_idx is not None and storm_lambda is not None:
-        events += tc_events(G, grid, planet, storm_lambda, gen_idx, rng_factory, tag)
-    if incoming_tc_per_year > 0:
-        events += incoming_tc_events(G, grid, planet, incoming_tc_per_year, rng_factory, tag)
-    if "etc_activity" in G:
-        events += etc_events(G, grid, rng_factory, tag, days)
-        events += ar_events(G, grid, rng_factory, tag)
-    ev_m = np.zeros((12,) + shape)
-    # snow share of the month's rain from the surface air temperature [A]; ETC fronts use
-    # their own profile-based share: snow is a part of the same water, never added (T74)
-    snow_share = np.clip((1.0 - G["t_air_c"].astype(np.float64)) / 4.0, 0.0, 1.0)
-    ev_snow = np.zeros((12,) + shape)
-    # the vapour events can spend in a month: the column renewed every ~8 days
-    pool = G["column_vapor_kg_m2"].astype(np.float64) * (np.asarray(days).reshape(12, 1, 1) / 8.0)
-    events.sort(key=lambda e: e["event_id"])  # deterministic, independent of generation order
-    for ev in events:
-        r = event_rain(ev, G, grid, shape, pool[ev["month"] - 1])
+    for ev, r in zip(events, ev_rain, strict=True):
         m = ev["month"] - 1
-        ev_m[m] += r
-        if ev["event_type"] == "ETC":
-            ev_snow[m] += r * ev["fronts"][0]["snow_fraction"]
-        else:
-            ev_snow[m] += r * snow_share[m]
         d = int(start[m]) + min(int(ev.get("start_day", 0)), int(days[m]) - 1)
         daily[d] += r  # the event day carries its rain (dynamic hydrology input)
     p_act = gen_m + ev_m
@@ -573,7 +581,8 @@ def generate(
             "event_mm_cells": float(ev_m.sum()),
             "norm_mm_cells": float(p_norm.sum()),
             "background_target_mm_cells": float(p_bg.sum()),
-            "note": "events realise the storm / frontal shares removed from the background",
+            "background_scale_by_month": [round(float(x), 4) for x in bg_scale],
+            "note": "background = norm x (1 - event rain / norm) per month (domain totals)",
         },
         "quality": "synthetic_weather_year_sample (not a forecast)",
     }
