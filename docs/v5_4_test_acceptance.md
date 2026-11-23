@@ -90,7 +90,7 @@ U = `tests/test_v54_atmosphere.py`, I = `tests/test_v54_integration.py`.
 | T70 | I `test_t70_calendars` | pass |
 | T73 | I `test_t73_wind_at_for_ash` | pass |
 | T76 | I `test_t76_save_load_keeps_the_snapshot` | pass |
-| T78 | benchmark script, not a pytest case (time / RSS in `v5_4_benchmarks_and_coverage.md`) | measured, not gated |
+| T78 | measured, not a pytest case: 1000×800 generation 1113 s, peak RSS 5.8 GB, 5.4 share ~48 s (`v5_4_benchmarks_and_coverage.md`) | measured |
 | T79 | I `test_t79_views_do_not_change_the_snapshot` | pass |
 | T80 | I `test_t80_windows_gui_not_verified_is_stated` — Windows GUI: NOT VERIFIED | stated |
 
