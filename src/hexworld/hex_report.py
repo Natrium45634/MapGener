@@ -549,7 +549,8 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
 
 _REALM = {1: "суша", 2: "внутренние воды", 3: "океан"}
 _ICE_COVER = {0: None, 1: "сезонный морской лёд", 2: "многолетний морской лёд",
-              3: "припай", 4: "озёрный лёд"}  # fmt: skip
+              3: "припай", 4: "озёрный лёд", 5: "ледниковый щит (на суше)",
+              6: "шельфовый ледник (плавучий)"}  # fmt: skip
 
 
 def _earth_section(project, earth, col, row, sections) -> None:
@@ -587,6 +588,21 @@ def _earth_section(project, earth, col, row, sections) -> None:
             parts.append(f"{int(p)} гПа: " + ("ниже поверхности" if below else
                          f"{np.hypot(u, v):.0f} м/с {_direction(u, v)}"))  # fmt: skip
         s.add("Ветер на высотах (зима)", "; ".join(parts))
+    if "land_ice_thickness_m" in E:
+        h = float(E["land_ice_thickness_m"][row, col])
+        if h > 1.0:
+            smb = float(np.nan_to_num(E["land_ice_smb_m_yr"][row, col]))
+            s.add("Наземный лёд", f"{h:.0f} м; баланс массы {smb:+.2f} м/год; "
+                  f"течение {float(E['ice_velocity_m_yr'][row, col]):.0f} м/год")  # fmt: skip
+            w = float(E["bedrock_deflection_m"][row, col])
+            if w < -1.0:
+                s.add("Прогиб ложа под льдом", f"{w:.0f} м (рельеф v4 не изменён)")
+        sh = float(E["shelf_thickness_m"][row, col])
+        if sh > 0:
+            d = sh * 917.0 / 1028.0
+            s.add("Шельфовый ледник", f"{sh:.0f} м (осадка {d:.0f} м, над водой {sh - d:.0f} м)")
+        if E["grounding_line"][row, col]:
+            s.add("Линия налегания", "лёд здесь сходит в море")
     if realm == 1 and np.isfinite(E["et0_annual_mm"][row, col]):
         s.add("Испаряемость ET0", _n(float(E["et0_annual_mm"][row, col]), 0, "мм/год"))
     if s.rows:

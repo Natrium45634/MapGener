@@ -3,7 +3,7 @@
 #: Version of the application people install (installer, window title, «О программе»).
 PRODUCT_VERSION = "1.1.0"
 #: Version of the generator algorithms and data format (internal history 1.0 … 5.x).
-GENERATOR_VERSION = "5.5.0a1"
+GENERATOR_VERSION = "5.5.0a2"
 #: Bumped whenever a change alters generated geology for the same seed + config.
 ALGORITHM_VERSION = "tectonics-1"
 #: Seed -> stream derivation and raw number generation scheme.

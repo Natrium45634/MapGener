@@ -36,6 +36,7 @@ from .volcanism.provinces import build_provinces
 from .volcanism.scheduler import aggregate, schedule, select_explicit
 from .volcanism.systems import build_systems
 from .volcanism.tephra import fast_deposit, transport
+from .volcanism.terrain import BULK_DENSITY, apply_deltas, delta_from_volumes, rebuild
 
 HYDROTHERMAL_KINDS = (
     "none",
@@ -153,6 +154,14 @@ def run_volcanism(config, project, report=None) -> dict:
     new_land = np.zeros(n)
     budgets = Counter()
     ice_proxy = venv.ice_cover_proxy(project)
+    earth = getattr(project, "earth", None)
+    if earth is not None and "land_ice_thickness_m" in earth.layers:
+        # the v5.3 ice sheet: subglacial melt from the actual ice mass, not a proxy
+        ice_proxy = earth.layers["land_ice_thickness_m"].astype(np.float64).ravel()
+        ice_quality = "v53_ice_sheet"
+    else:
+        ice_quality = "proxy_glacial_potential_approximate"
+    deltas = []
     glac = np.nan_to_num(H["glacial_potential"].ravel().astype(np.float64))
 
     def barren_add(idx, frac, age):
@@ -171,6 +180,8 @@ def run_volcanism(config, project, report=None) -> dict:
         if fl is not None:
             hx = fl["hex_index"]
             np.add.at(lava_frac, hx, fl["hex_fraction"])
+            deltas.append(delta_from_volumes(e.event_id, "lava", hx, fl["hex_volume_m3"],
+                                             hex_area_m2, e.years_bp))  # fmt: skip
             np.add.at(lava_vol, hx, fl["hex_volume_m3"])
             np.minimum.at(lava_age, hx, e.years_bp)
             barren_add(hx, fl["hex_fraction"], e.years_bp)
@@ -199,6 +210,9 @@ def run_volcanism(config, project, report=None) -> dict:
             np.maximum.at(pdc_hazard, pdc["hazard_hex"], pdc["hazard_fraction"])
             np.add.at(pdc_dep, pdc["deposit_hex"], pdc["deposit_fraction"])
             np.add.at(pdc_vol, pdc["deposit_hex"], pdc["deposit_volume_m3"])
+            deltas.append(delta_from_volumes(e.event_id, "pdc", pdc["deposit_hex"],
+                                             pdc["deposit_volume_m3"], hex_area_m2,
+                                             e.years_bp))  # fmt: skip
             barren_add(pdc["deposit_hex"], pdc["deposit_fraction"], e.years_bp * 2.0)
             budgets["pdc_m3"] += pdc["volume_m3"]
             budgets["pdc_residual_m3"] += abs(pdc["volume_m3"] - pdc["placed_m3"])
@@ -218,6 +232,10 @@ def run_volcanism(config, project, report=None) -> dict:
         t_teph += time.perf_counter() - tt
         if tp is not None:
             np.add.at(tephra_load, tp["hex_index"], tp["load_kg_m2"])
+            deltas.append(delta_from_volumes(
+                e.event_id, "tephra", tp["hex_index"],
+                tp["load_kg_m2"] * hex_area_m2 / BULK_DENSITY["tephra"], hex_area_m2,
+                e.years_bp))  # fmt: skip
             np.add.at(tephra_recent, tp["hex_index"], tp["load_kg_m2"] * math.exp(-e.years_bp / 50))
             for k in ("source_kg", "deposited_kg", "exported_kg", "airborne_kg"):
                 budgets[f"tephra_{k}"] += tp[k]
@@ -246,6 +264,9 @@ def run_volcanism(config, project, report=None) -> dict:
                 barren_add(lh["hex_index"], lh["hex_fraction"] * 0.5, e.years_bp * 4.0)
                 budgets["lahar_m3"] += lh["volume_m3"]
                 budgets["lahar_residual_m3"] += abs(lh["budget_residual_m3"])
+                deltas.append(delta_from_volumes(e.event_id, "lahar_sediment", lh["hex_index"],
+                                                 lh["deposit_volume_m3"], hex_area_m2,
+                                                 e.years_bp))  # fmt: skip
                 res["lahar"] = {
                     k: lh[k]
                     for k in (
@@ -305,6 +326,9 @@ def run_volcanism(config, project, report=None) -> dict:
         lava_frac[fh] += f
         lava_vol[fh] += a["lava_m3"]
         lava_age[fh] = min(lava_age[fh], a["newest_years_bp"])
+        deltas.append(delta_from_volumes(f"AGG-{vid}", "lava", [fh], [a["lava_m3"]],
+                                         hex_area_m2, a["newest_years_bp"],
+                                         method="aggregated_events_vent_hex"))  # fmt: skip
         if s.environment not in ("deep_submarine", "shallow_submarine") and a["lava_m3"] > 0:
             f_fresh = f * fresh[vid] / a["lava_m3"]
             np.multiply.at(barren_keep, [fh], 1.0 - min(f_fresh, 0.95))
@@ -312,6 +336,10 @@ def run_volcanism(config, project, report=None) -> dict:
             fd = fast_deposit(project, s.x_km, s.y_km, a["tephra_kg"], 4000.0)
             if fd is not None:
                 np.add.at(tephra_load, fd["hex_index"], fd["load_kg_m2"])
+                deltas.append(delta_from_volumes(
+                    f"AGG-{vid}", "tephra", fd["hex_index"],
+                    fd["load_kg_m2"] * hex_area_m2 / BULK_DENSITY["tephra"], hex_area_m2,
+                    a["newest_years_bp"], method="aggregated_fast_analytic"))  # fmt: skip
                 budgets["tephra_fast_kg"] += fd["deposited_kg"]
     timings["v51_aggregates"] = round(time.perf_counter() - t0, 3)
 
@@ -396,6 +424,38 @@ def run_volcanism(config, project, report=None) -> dict:
     )
     hazard[ocean] = 0.0  # a hazard index for land use: the sea floor is not scored
 
+    # -- G7: the deposits change the surface; drainage, lakes, ocean rebuilt (snapshot) -------
+    t0 = time.perf_counter()
+    terrain_layers: dict = {}
+    terrain_summary: dict = {"committed": False}
+    terrain_quality = "not_applied"
+    if getattr(prm, "apply_terrain", True) and deltas:
+        z_pre = H["elevation_m"].astype(np.float64).ravel()
+        z_post, applied = apply_deltas(z_pre, deltas, hex_area_m2)
+        if applied["committed"]:
+            reb = rebuild(project, z_post)
+            terrain_layers = {
+                "post_volcanic_elevation_m": z_post.reshape(shape).astype(np.float32),
+                "volcanic_dz_m": (z_post - z_pre).reshape(shape).astype(np.float32),
+                "post_volcanic_flow_receiver": reb["receiver"].reshape(shape).astype(np.int64),
+                "post_volcanic_lake_id": reb["lake_id"].reshape(shape).astype(np.int32),
+                "post_volcanic_discharge_m3_s": reb["discharge_m3_s"].reshape(shape).astype(
+                    np.float32),
+                "post_volcanic_ocean_mask": reb["ocean"].reshape(shape),
+                "volcanic_new_lake": reb["new_lake"].reshape(shape),
+                "volcanic_drainage_changed": reb["drainage_changed"].reshape(shape),
+                "volcanic_new_land": reb["new_land"].reshape(shape),
+            }  # fmt: skip
+            terrain_summary = {**{k: v for k, v in applied.items() if k != "applied_keys"},
+                               "applied_events": len(applied["applied"]),
+                               **reb["summary"]}  # fmt: skip
+            terrain_summary.pop("applied", None)
+            terrain_quality = "applied_snapshot_full_drainage_rebuild"
+        else:
+            terrain_summary = applied
+            warnings.append(f"v5.1 terrain delta rejected: {applied.get('error')}")
+    timings["v51_terrain"] = round(time.perf_counter() - t0, 3)
+
     def g(a, dtype=np.float32):
         return np.ascontiguousarray(np.asarray(a).reshape(shape).astype(dtype))
 
@@ -422,6 +482,7 @@ def run_volcanism(config, project, report=None) -> dict:
         "volcanic_deposit_delta_m": g(deposit_m),
         "volcanic_new_land_km2": g(new_land),
         "volcanic_dam_flag": g(dam, np.bool_),
+        **terrain_layers,
     }
     # -- summary and budgets -----------------------------------------------------------------------
     styles = Counter(e.style_phases[0] for e in events)
@@ -459,6 +520,8 @@ def run_volcanism(config, project, report=None) -> dict:
         ),
         "hydrothermal_fields": dict(Counter(f["kind"] for f in fields)),
         "subglacial_events": len(subglacial),
+        "subglacial_ice_source": ice_quality,
+        "terrain": terrain_summary,
         "emergent_islands": len(emergences),
         "climate_pulses": len(pulses),
         "mud_volcano_fields": len(mud),
@@ -471,7 +534,7 @@ def run_volcanism(config, project, report=None) -> dict:
             ),
             "pdc": "energy_cone_hazard+weighted_routing",
             "lahar": "receiver_routing_bulked",
-            "terrain_feedback": "layers_only_no_reroute",
+            "terrain_feedback": terrain_quality,
         },
     }
     if summary["reservoir_max_relative_residual"] > 1e-9:

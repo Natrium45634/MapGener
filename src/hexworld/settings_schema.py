@@ -1715,6 +1715,60 @@ PARAMS: tuple[Param, ...] = (
         choices=(("fast", "быстро"), ("balanced", "сбалансированно"), ("high", "точно")),
         tech=True,
     ),  # fmt: skip
+    _p(
+        "earth.ice_sheets", "Ледниковые щиты (поток льда до равновесия)", "earth", "bool", tech=True
+    ),  # fmt: skip
+    _p(
+        "earth.ice_init_mode",
+        "Начальное состояние щитов",
+        "earth",
+        "choice",
+        choices=(
+            ("analytic_steady_seed", "профиль Вялова (быстро к равновесию)"),
+            ("paleoclimate_spinup", "рост в холодную эпоху, затем сейчас"),
+            ("cold_start", "без льда (долго, может не дойти)"),
+        ),
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.ice_min_spinup_years",
+        "Разгон щитов: минимум",
+        "earth",
+        "float",
+        0,
+        10000,
+        None,
+        0,
+        unit="лет",
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.ice_max_spinup_years",
+        "Разгон щитов: максимум",
+        "earth",
+        "float",
+        1000,
+        200000,
+        None,
+        0,
+        log=True,
+        unit="лет",
+        tech=True,
+    ),  # fmt: skip
+    _p(
+        "earth.ice_window_years",
+        "Окно проверки равновесия",
+        "earth",
+        "float",
+        100,
+        5000,
+        None,
+        0,
+        unit="лет",
+        tech=True,
+    ),  # fmt: skip
+    _p("earth.ice_shelves", "Шельфовые ледники", "earth", "bool", tech=True),
+    _p("earth.isostasy", "Прогиб коры под льдом", "earth", "bool", tech=True),
     # -- volcanism (v5.1) --------------------------------------------------------------------------------------
     _p("volcanism.enabled", "Вулканизм (v5.1)", "volcanism", "bool", tech=True),
     _p(
@@ -1795,6 +1849,8 @@ PARAMS: tuple[Param, ...] = (
     _p("volcanism.subglacial", "Подлёдные извержения", "volcanism", "bool", tech=True),
     _p("volcanism.hydrothermal", "Гидротермальные поля", "volcanism", "bool", tech=True),
     _p("volcanism.mud_volcanoes", "Грязевые вулканы", "volcanism", "bool", rand=ON),
+    _p("volcanism.apply_terrain", "Отложения меняют рельеф и сток", "volcanism", "bool",
+       tech=True),  # fmt: skip
     _p(
         "volcanism.lava_cell_m",
         "Ячейка расчёта лавы",

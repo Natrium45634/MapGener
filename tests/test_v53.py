@@ -453,7 +453,7 @@ def test_t07_views_render_without_physics(eproject, monkeypatch):
         raise AssertionError("a view must not run the ocean model")
 
     monkeypatch.setattr(ocean_mod, "run_ocean", boom)
-    for vid in ("ocean", "sea_ice", "atmosphere", "evapotranspiration"):
+    for vid in ("ocean_physics", "sea_ice", "atmosphere", "evapotranspiration"):
         v = VIEWS[vid]
         assert v.availability(eproject)[0]
         for m in v.modes:

@@ -61,6 +61,7 @@ def upstream_keys(project) -> dict:
         "topo": topo.stage_keys if topo is not None else {},
         "hydro": project.hydro.stage_keys,
         "volcanism": volc.stage_keys if volc is not None else {},
+        **({"earth": project.earth.stage_keys} if getattr(project, "earth", None) else {}),
     }
 
 
@@ -256,6 +257,13 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     U = d["hex"].size
     uh = d["hex"]
     typ = d["type"]
+    volc0 = getattr(project, "volcanism", None)
+    if volc0 is not None and "volcanic_new_lake" in volc0.layers:
+        # v5.3 G7: a lake dammed by lava / lahar / PDC deposits is water now (the rebuilt
+        # post-volcanic drainage, not an overlay)
+        newlake = volc0.layers["volcanic_new_lake"].ravel()
+        typ = np.where((typ == 0) & newlake[d["hex"]], 1, typ).astype(typ.dtype)
+        d["type"] = typ
     dry = typ == 0
     flat = lambda a: np.asarray(a).ravel()  # noqa: E731
     lat = flat(L["latitude_deg"]).astype(np.float64)
@@ -271,7 +279,16 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     p_hex = np.nan_to_num(project.env.monthly["precip_monthly_mm"].reshape(12, n_hex))
     snow_hex = (p_hex * (1.0 - np.clip((t_hex + 1.0) / 3.0, 0, 1))).sum(axis=0)
     land_hex = flat(L["land_mask"]) & (flat(L["lake_id"]) < 0)
-    seed = paleo_seed(t_hex.mean(axis=0), snow_hex, land_hex, cp)
+    earth = getattr(project, "earth", None)
+    sheet = earth.layers.get("land_ice_thickness_m") if earth is not None else None
+    if sheet is not None:
+        # v5.3 grounded ice sheets spun up to (or towards) equilibrium are the initial state
+        seed = flat(sheet).astype(np.float64)
+        cold_u = cold_u | (dry & (seed[uh] > 0))
+        seed_source = "v53_ice_sheet"
+    else:
+        seed = paleo_seed(t_hex.mean(axis=0), snow_hex, land_hex, cp)
+        seed_source = "v50_paleo_seed" if cp.paleo_ice else "none"
     cidx = np.nonzero(cold_u)[0]
     cryo_unit = {k: np.zeros(U) for k in ("snow_max_mm", "firn_swe_mm", "firn_age_yr",
                                           "ice_swe_mm", "ice_thickness_m", "annual_balance_mm",
@@ -282,13 +299,15 @@ def run_biomes(config, geometry, project, report=None):  # noqa: C901 - one line
     cryo_summary = {"spinup_years": cp.spinup_years, "mass_residual_mm_max": 0.0,
                     "ice_hexes": 0, "max_ice_thickness_m": 0.0, "seeded_paleo_ice_hexes": 0,
                     "flow_d_capped_edges": 0}  # fmt: skip
+    cryo_summary["seed_source"] = seed_source
     ice_hex = np.zeros(n_hex)
     bal_hex = np.zeros(n_hex)
     if cidx.size:
         res = run_cryosphere(
             uh[cidx], d["w"][cidx], np.ones(cidx.size, dtype=bool), d["t_m"][:, cidx],
             d["p_m"][:, cidx], d["pet_m"][:, cidx], flat(L["elevation_m"]).astype(np.float64),
-            nbr, layout.spacing_km, n_hex, cp, seed_ice_hex=seed if cp.paleo_ice else None,
+            nbr, layout.spacing_km, n_hex, cp,
+            seed_ice_hex=seed if (cp.paleo_ice or sheet is not None) else None,
             progress=lambda f: rep(0.02 + 0.85 * f),
         )  # fmt: skip
         for k, v in res.unit.items():

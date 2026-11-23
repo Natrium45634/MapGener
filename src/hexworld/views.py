@@ -116,6 +116,8 @@ VIEWS: dict[str, ViewSpec] = {}
 
 
 def register_view(spec: ViewSpec) -> ViewSpec:
+    if spec.id in VIEWS and VIEWS[spec.id] is not spec:
+        raise ValueError(f"view id {spec.id!r} is already registered")
     VIEWS[spec.id] = spec
     return spec
 
@@ -4429,7 +4431,7 @@ def _legend_pet(project: Project, mode: str) -> list[LegendItem]:
 
 
 for _spec in (
-    ViewSpec(id="ocean", title="Океан (v5.3)", stage="v53",
+    ViewSpec(id="ocean_physics", title="Океан (v5.3)", stage="v53",
              layers=("sst_monthly_c", "current_u_ms", "upwelling_m_day"),
              modes=(Option("sst", "Температура поверхности моря"),
                     Option("sst_anomaly", "Отклонение от зонального среднего"),
@@ -4468,3 +4470,62 @@ for _spec in (
              render=_render_pet, legend=_legend_pet),
 ):  # fmt: skip
     register_view(_spec)
+
+
+# -- v5.3b: grounded ice sheets, shelves, isostasy ------------------------------------------------
+_ICE_SCALES = {
+    "thickness": ("land_ice_thickness_m", 0.0, 4000.0, 0.7, "толщина льда", "м"),
+    "smb": ("land_ice_smb_m_yr", -2.0, 2.0, 1.0, "баланс массы поверхности", "м льда/год"),
+    "velocity": ("ice_velocity_m_yr", 0.0, 300.0, 0.5, "скорость течения льда", "м/год"),
+    "seed": ("ice_seed_m", 0.0, 4000.0, 0.7, "начальный щит (затравка Вялова)", "м"),
+    "shelves": ("shelf_thickness_m", 0.0, 800.0, 0.7, "шельфовый ледник (плавучий)", "м"),
+    "deflection": ("bedrock_deflection_m", -1500.0, 0.0, 1.0, "прогиб ложа под льдом", "м"),
+    "erosion": ("glacial_erosion_mm_yr", 0.0, 5.0, 0.5, "ледниковая эрозия", "мм/год"),
+    "surface": ("land_surface_with_ice_m", 0.0, 5000.0, 0.7, "поверхность со льдом", "м"),
+}
+
+
+def _render_icesheet(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    E = project.earth.layers
+    key, lo, hi, pw, _t, _u = _ICE_SCALES[mode]
+    if key not in E:  # ice sheets switched off: nothing to draw, not "no ice"
+        rgb = np.full(project.layer("elevation_m").shape + (3,), 150, dtype=np.uint8)
+        return _v53_base(project, rgb, overlays)
+    v = np.nan_to_num(E[key].astype(float))
+    if mode == "smb":
+        rgb = _diverging(v, 2.0)
+        rgb[~project.hydro.layers["land_mask"]] = (160, 185, 210)
+    elif mode == "deflection":
+        rgb = _ramp_rgb(-v, 0.0, -lo, pw)
+    else:
+        rgb = _ramp_rgb(v, lo, hi, pw)
+        rgb[v <= 0] = (200, 196, 188)
+        rgb[(v <= 0) & project.hydro.layers["ocean_mask"]] = (160, 185, 210)
+    rgb = np.asarray(rgb, np.uint8).copy()
+    if "grounding" in overlays and "grounding_line" in E:
+        rgb[E["grounding_line"]] = (220, 40, 40)
+    return _v53_base(project, rgb, overlays)
+
+
+def _legend_icesheet(project: Project, mode: str) -> list[LegendItem]:
+    ice = project.earth.summary.get("ice") or {}
+    _k, lo, hi, _pw, title, unit = _ICE_SCALES[mode]
+    lo_c, hi_c = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    head = LegendItem(
+        f"{title}; разгон {ice.get('years', 0):g} лет, статус {ice.get('status')}; "
+        f"объём {ice.get('volume_km3', 0):,.0f} км³ ≈ {ice.get('sea_level_equivalent_m', 0):g} м "
+        "уровня моря".replace(",", " ")
+    )
+    return [head, LegendItem(f"{lo:g} {unit}", lo_c), LegendItem(f"{hi:g} {unit}", hi_c),
+            LegendItem("линия налегания", (220, 40, 40))]  # fmt: skip
+
+
+register_view(
+    ViewSpec(id="ice_sheets", title="Ледниковые щиты (v5.3)", stage="v53",
+             layers=("land_ice_thickness_m", "land_ice_smb_m_yr", "shelf_thickness_m"),
+             modes=tuple(Option(k, v[4][0].upper() + v[4][1:]) for k, v in _ICE_SCALES.items()),
+             overlays=(Option("coast", "Берег", True), Option("grounding", "Линия налегания",
+                                                               True)),
+             note="Наземный лёд ≠ шельфовый ≠ морской; разгон до сходимости или честный статус",
+             render=_render_icesheet, legend=_legend_icesheet)
+)  # fmt: skip

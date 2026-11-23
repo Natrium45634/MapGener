@@ -448,6 +448,8 @@ class VolcanismParams:
     mud_volcanoes: bool = True
     #: Cell of the local lava lattice around a vent, m.
     lava_cell_m: float = 400.0
+    #: v5.3 G7: the deposits change the surface and the drainage is rebuilt (snapshot).
+    apply_terrain: bool = True
 
 
 @dataclass(frozen=True)
@@ -483,6 +485,17 @@ class EarthParams:
     coupler_max_iter: int = 8
     coupler_relaxation: float = 0.6
     quality: str = "balanced"
+    #: Grounded ice sheets: SMB, Vialov seed, semi-implicit SIA spin-up to convergence.
+    ice_sheets: bool = True
+    #: ``cold_start`` / ``analytic_steady_seed`` / ``paleoclimate_spinup``.
+    ice_init_mode: str = "analytic_steady_seed"
+    ice_min_spinup_years: float = 500.0
+    ice_max_spinup_years: float = 50000.0
+    ice_window_years: float = 500.0
+    #: Floating ice shelves fed across the grounding line; calving and basal melt.
+    ice_shelves: bool = True
+    #: Delayed Airy isostasy under the ice load and the sea-level equivalent.
+    isostasy: bool = True
 
 
 @dataclass(frozen=True)
@@ -741,6 +754,13 @@ class Config:
             raise ConfigError("earth.coupler_relaxation must be within [0.05, 1]")
         if ep.quality not in ("fast", "balanced", "high"):
             raise ConfigError("earth.quality: fast, balanced or high")
+        if ep.ice_init_mode not in ("cold_start", "analytic_steady_seed", "paleoclimate_spinup"):
+            raise ConfigError("earth.ice_init_mode: cold_start, analytic_steady_seed or "
+                              "paleoclimate_spinup")  # fmt: skip
+        if not 0.0 <= ep.ice_min_spinup_years <= ep.ice_max_spinup_years <= 1e6:
+            raise ConfigError("earth: 0 <= ice_min_spinup_years <= ice_max_spinup_years <= 1e6")
+        if not 50.0 <= ep.ice_window_years <= 1e5:
+            raise ConfigError("earth.ice_window_years must be within [50, 1e5]")
         vp = self.volcanism
         if vp.world_profile not in ("earthlike_silicate", "icy_world"):
             raise ConfigError("volcanism.world_profile: earthlike_silicate or icy_world")

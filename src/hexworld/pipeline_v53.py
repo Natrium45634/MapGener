@@ -65,6 +65,105 @@ def _filled(field_, valid):
     return field_[..., jj, ii]
 
 
+STEP_YEARS = {"fast": 500.0, "balanced": 250.0, "high": 100.0}
+
+
+def _ice_sheets(config, project, out, ocean_hex, shape):
+    """Grounded sheets (spin-up to convergence), shelves, isostasy, sea-level equivalent."""
+    from .earth.icesheet import (
+        glacial_erosion_rate,
+        isostatic_deflection,
+        sea_level_equivalent_m,
+        spinup,
+    )
+    from .earth.shelves import build_shelves
+    from .pipeline_v50 import _hex_neighbours
+
+    ep = config.earth
+    lay = project.layout
+    L = project.hydro.layers
+    n = lay.width * lay.height
+    nbr = _hex_neighbours(lay)
+    ocean = ocean_hex.ravel()
+    land = L["land_mask"].ravel().astype(bool) & (L["lake_id"].ravel() < 0) & ~ocean
+    bed = (L["elevation_m"].astype(np.float64) - project.hydro.sea_level_m).ravel()
+    M = project.env.monthly
+    t_m = M["temperature_monthly_c"].reshape(12, n).astype(np.float64)
+    p_m = np.nan_to_num(M["precip_monthly_mm"].reshape(12, n).astype(np.float64))
+    pet = np.nan_to_num(M["pet_monthly_mm"].reshape(12, n).astype(np.float64))
+    # sublimation: a share of the evaporative demand of the freezing months (as v5.0)
+    sub = 0.12 * np.where(t_m < 0.0, pet, 0.0).sum(axis=0)
+    spacing = lay.spacing_km * 1000.0
+    res = spinup(t_m, p_m, bed, land, ocean, nbr, spacing, mode=ep.ice_init_mode,
+                 min_years=ep.ice_min_spinup_years, max_years=ep.ice_max_spinup_years,
+                 window=ep.ice_window_years, step_years=STEP_YEARS.get(ep.quality, 250.0),
+                 sublimation_mm=sub)  # fmt: skip
+    h = res.thickness_m
+    area = lay.hex_area_km2 * 1e6
+    shelf = np.zeros(n)
+    gl = np.zeros(n, dtype=bool)
+    shelf_ledger = {}
+    if ep.ice_shelves and h.any():
+        depth = np.nan_to_num(L["water_depth_m"].ravel().astype(np.float64))
+        sst = out.get("sst_monthly_c")
+        if sst is not None:
+            sst_ann = np.nan_to_num(sst.astype(np.float64), nan=0.0).mean(axis=0).ravel()
+        else:
+            sst_ann = np.full(n, -1.8)
+        sh = build_shelves(h, bed, depth, ocean, sst_ann, nbr, spacing,
+                           inflow_hex=res.calving_m3_yr_hex)  # fmt: skip
+        shelf, gl, shelf_ledger = sh.thickness_m, sh.grounding_line, sh.ledger
+    w = np.zeros(n)
+    if ep.isostasy and h.any():
+        years = res.years if ep.ice_init_mode == "cold_start" else 1e6  # an old sheet: w_eq
+        w = isostatic_deflection(h, years, grid_shape=shape)
+    t_ann = t_m.mean(axis=0)
+    erosion = glacial_erosion_rate(res.velocity_m_yr, h, t_ann) * 1000.0  # mm/yr
+    # the ice above flotation is what would raise the sea (bed below sea level displaces)
+    above = np.maximum(h + np.minimum(bed, 0.0) * 1028.0 / 917.0, 0.0)
+    # the planet's ocean (share of sea in this map x the sphere): a regional window does not
+    # hold the whole ocean, so its own sea area would exaggerate the equivalent
+    sea_share = float(ocean.mean()) if n else 0.7
+    radius_m = config.earth.planet_radius_km * 1000.0
+    ocean_area = max(sea_share, 0.05) * 4.0 * np.pi * radius_m**2
+    g = lambda a, dt=np.float32: np.asarray(a).reshape(shape).astype(dt)  # noqa: E731
+    out["land_ice_thickness_m"] = g(h)
+    out["land_ice_smb_m_yr"] = g(np.where(land, res.smb_m_yr, np.nan))
+    out["ice_velocity_m_yr"] = g(res.velocity_m_yr)
+    out["ice_seed_m"] = g(res.seed_m)
+    out["shelf_thickness_m"] = g(shelf)
+    out["grounding_line"] = g(gl, np.bool_)
+    out["bedrock_deflection_m"] = g(w)
+    out["land_surface_with_ice_m"] = g(np.where(land, bed + w + h, np.nan))
+    out["glacial_erosion_mm_yr"] = g(erosion)
+    ice = h > 10.0
+    return {
+        "status": res.status,
+        "init_mode": ep.ice_init_mode,
+        "years": round(res.years, 1),
+        "ledger": {k: float(v) for k, v in res.ledger.items()},
+        "convergence_history": res.history[-6:],
+        "ice_hexes": int(ice.sum()),
+        "area_km2": round(float(ice.sum() * area / 1e6), 1),
+        "volume_km3": round(float((h * area).sum() / 1e9), 1),
+        "h_max_m": round(float(h.max()), 1) if n else 0.0,
+        "h_mean_m": round(float(h[ice].mean()), 1) if ice.any() else 0.0,
+        "smb_positive_area_km2": round(float(((res.smb_m_yr > 0) & land).sum() * area / 1e6), 1),
+        "smb_negative_ice_area_km2": round(float(((res.smb_m_yr < 0) & ice).sum() * area / 1e6),
+                                           1),  # fmt: skip
+        "sea_level_equivalent_m": round(sea_level_equivalent_m((above * area).sum(),
+                                                               ocean_area), 3),  # fmt: skip
+        "shelves": {k: float(v) for k, v in shelf_ledger.items()},
+        "shelf_hexes": int((shelf > 0).sum()),
+        "max_bed_deflection_m": round(float(w.min()), 1) if n else 0.0,
+        "applied_to_relief": False,
+        "quality": {"flow": "SIA_semi_implicit_CALIBRATED_APPROXIMATION",
+                    "shelves": "flux_constrained_P0_no_buttressing",
+                    "isostasy": "delayed_local_airy_smoothed_P1",
+                    "erosion": "sliding_proxy_SYNTHETIC_PROXY"},
+    }  # fmt: skip
+
+
 def run_earth(config, project) -> dict:
     from .stages.climate import _bilinear
 
@@ -127,9 +226,14 @@ def run_earth(config, project) -> dict:
         out["winds_aloft_below_ground"] = (sz < surface[None, None]).astype(np.bool_)
         out["jet_intensity_ms"] = np.stack([_bilinear(al.jet_intensity[s], g, hx, hy)
                                             for s in range(4)]).astype(np.float16)  # fmt: skip
+    ice_summary = None
+    if config.earth.ice_sheets:
+        ice_summary = _ice_sheets(config, project, out, ocean_hex, shape)
     # lake ice: a lake freezes in the months with a mean air temperature below -1 degC
     t_m = project.env.monthly["temperature_monthly_c"]
     lake_ice = ((t_m < -1.0).sum(axis=0) * lake_hex).astype(np.uint8)
+    if "land_ice_thickness_m" in out:  # a lake under the sheet is subglacial, not ice-covered
+        lake_ice = np.where(out["land_ice_thickness_m"] > 10.0, 0, lake_ice).astype(np.uint8)
     out["lake_ice_months"] = lake_ice
     realm = np.where(ocean_hex, 3, np.where(lake_hex, 2, 1)).astype(np.uint8)
     out["realm"] = realm
@@ -138,6 +242,9 @@ def run_earth(config, project) -> dict:
         st = out["sea_ice_type"]
         cover = np.where(st == 1, 1, np.where(st == 2, 2, np.where(st == 3, 3, 0)))
     cover = np.where(lake_ice > 0, 4, cover).astype(np.uint8)
+    if "land_ice_thickness_m" in out:
+        cover = np.where(out["land_ice_thickness_m"] > 10.0, 5, cover)
+        cover = np.where(out["shelf_thickness_m"] > 0.0, 6, cover).astype(np.uint8)
     out["ice_cover"] = cover
     pet = project.env.monthly["pet_monthly_mm"].astype(np.float64).sum(axis=0)
     out["et0_annual_mm"] = np.where(realm == 1, pet, np.nan).astype(np.float32)
@@ -151,9 +258,11 @@ def run_earth(config, project) -> dict:
         "sea_ice_hexes_max": int((np.asarray(out.get("sea_ice_concentration_monthly", 0)).max(
             axis=0) > 0.15).sum()) if "sea_ice_concentration_monthly" in out else 0,  # fmt: skip
         "lake_ice_hexes": int((lake_ice > 0).sum()),
+        "ice": ice_summary,
         "conventions": {"current_v_ms / winds_aloft_v_ms": "+ south (map y), like wind_v_ms",
                         "realm": "1 land, 2 inland water, 3 ocean",
-                        "ice_cover": "0 none, 1 seasonal sea ice, 2 multiyear, 3 fast, 4 lake"},
+                        "ice_cover": "0 none, 1 seasonal sea ice, 2 multiyear, 3 fast, 4 lake, "
+                                     "5 grounded ice, 6 floating ice shelf"},
     }  # fmt: skip
     return {"layers": out, "summary": summary,
             "timings": {"v53_earth": round(time.perf_counter() - t0, 3)}}  # fmt: skip
