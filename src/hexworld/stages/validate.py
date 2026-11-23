@@ -499,6 +499,55 @@ def validate_biomes(project) -> dict:
     return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
 
 
+def validate_resources(project) -> dict:
+    """Invariants of v5.2: finite non-negative bodies, grades 0..1, contained <= ore,
+    element ledgers close, NoData off the soil, unique ids."""
+    r = project.resources
+    s = r.summary
+    errors: list[str] = []
+    ids = [x["deposit_id"] for x in r.catalog["systems"]]
+    if len(ids) != len(set(ids)):
+        errors.append("duplicate deposit ids")
+    bids = [b["body_id"] for b in r.catalog["bodies"]]
+    if len(bids) != len(set(bids)):
+        errors.append("duplicate body ids")
+    for b in r.catalog["bodies"]:
+        vals = [b["ore_t"], b["volume_m3"], *b["axes_m"]]
+        if not all(np.isfinite(v) and v >= 0 for v in vals):
+            errors.append(f"body {b['body_id']}: negative / non-finite geometry or mass")
+            break
+        bad = [el for el, g in b["grades"].items() if not el.endswith("_mg_per_l")
+               and not 0.0 <= g <= 1.0]  # fmt: skip
+        if bad:
+            errors.append(f"body {b['body_id']}: grade outside 0..1 ({bad})")
+            break
+        if b["shape"] != "evaporite_bed" and sum(b["contained_t"].values()) > b["ore_t"] * (
+            1 + 1e-9
+        ):
+            errors.append(f"body {b['body_id']}: contained mass above the ore mass")
+            break
+    worst = max((v["max_relative_residual"] for v in s["element_budget_over_soil_age"].values()),
+                default=0.0)  # fmt: skip
+    if worst > 1e-9:
+        errors.append(f"soil element ledger residual {worst:.2e}")
+    for el, led in s["erosion_transport_ledger"].items():
+        if abs(led["residual_kg_yr"]) > 1e-6 * max(led["eroded_kg_yr"], 1.0):
+            errors.append(f"erosion transport ledger of {el} does not close")
+    for el, led in s["placer_ledger"].items():
+        if abs(led["residual_t"]) > 1e-6 * max(led["released_t"], 1e-9):
+            errors.append(f"placer ledger of {el} does not close")
+    L = r.layers
+    soil = project.env.layers["soil_present"].astype(bool)
+    if np.isfinite(L["soil_ph"][~soil]).any():
+        errors.append("soil chemistry outside the soil (must be NoData)")
+    ph = L["soil_ph"][soil]
+    if ph.size and (np.nanmin(ph) < 3.0 or np.nanmax(ph) > 10.5):
+        errors.append("soil pH outside 3..10.5")
+    checks = {"systems": s["systems"], "bodies": s["bodies"], "soil_ledger_worst": worst,
+              "monthly_check": s.get("monthly_check")}  # fmt: skip
+    return {"ok": not errors, "errors": errors, "warnings": [], "checks": checks}
+
+
 def validate_earth(project) -> dict:
     """Invariants of v5.3a: closed heat budget, valid ranges, ice in the right realm."""
     e = project.earth

@@ -40,6 +40,7 @@ GROUPS = (
     ("volcanism", "Вулканизм"),
     ("earth", "Планета, океан, лёд"),
     ("atmosphere", "Атмосфера и сезоны"),
+    ("resources", "Плодородие и недра"),
     ("technical", "Технические"),
 )
 
@@ -2019,6 +2020,45 @@ PARAMS: tuple[Param, ...] = (
         2048,
         None,
         0,
+        tech=True,
+    ),
+    # -- soil fertility and geological resources (v5.2) ----------------------------------------
+    _p(
+        "resources.enabled",
+        "Плодородие почв и полезные ископаемые (v5.2)",
+        "resources",
+        "bool",
+        help="Запасы C/N/P/K, pH, соли; месторождения из геологической истории.",
+    ),
+    _p(
+        "resources.deposit_intensity",
+        "Обилие месторождений",
+        "resources",
+        "float",
+        0.0,
+        5.0,
+        (0.5, 2.0),
+        2,
+        help="Множитель всех интенсивностей; 0 — без месторождений; геология не меняется.",
+    ),
+    _p(
+        "resources.suitability_alpha",
+        "Вес главного ограничения в пригодности",
+        "resources",
+        "float",
+        0.0,
+        1.0,
+        None,
+        2,
+        tech=True,
+    ),
+    _p("resources.include_p1", "Нефть и газ (упрощённо, P1)", "resources", "bool", tech=True),
+    _p(
+        "resources.fertility_mode",
+        "Режим плодородия",
+        "resources",
+        "choice",
+        choices=(("static_equilibrium", "равновесное состояние"),),
         tech=True,
     ),
 )

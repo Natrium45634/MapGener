@@ -281,6 +281,8 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
             _add_volcanism(config, geometry, project, base, report)
         if through == "v50" and config.biomes.enabled:
             _add_biomes(config, geometry, project, base, report)
+            if config.resources.enabled and project.hist is not None:
+                _add_resources(config, geometry, project, base, report)
     project.timings["total"] = round(time.perf_counter() - t_total, 4)
     report("done", 1.0)
     return project
@@ -432,6 +434,23 @@ def _add_biomes(config, geometry, project: Project, previous: Project | None, re
     project.timings.update(bio.timings)
     bio.validation = validate_biomes(project)
     project.warnings.extend(bio.warnings)
+
+
+def _add_resources(config, geometry, project: Project, previous: Project | None, report) -> None:
+    """Run the v5.2 soil fertility and geological resources (after v5.0)."""
+    from .pipeline_v52 import run_v52
+    from .stages.validate import validate_resources
+
+    prev = getattr(previous, "resources", None) if previous is not None else None
+    old_keys = prev.stage_keys if prev is not None else {}
+    old_cache = previous.cache if previous is not None else {}
+    data, cache, reused = run_v52(config, geometry, project, old_keys, old_cache, report)
+    project.resources = data
+    project.cache.update(cache)
+    project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
+    project.timings.update({f"v52_{k}": v for k, v in data.timings.items()})
+    data.validation = validate_resources(project)
+    project.warnings.extend(data.warnings)
 
 
 def generate(
@@ -701,6 +720,8 @@ def generate(
             _add_volcanism(config, geometry, project, reuse, report)
         if through == "v50" and config.biomes.enabled:
             _add_biomes(config, geometry, project, reuse, report)
+            if config.resources.enabled and project.hist is not None:
+                _add_resources(config, geometry, project, reuse, report)
     if project.stats["plates_visible"] < 2:
         project.warnings.append(
             "Only one plate is visible: there are no boundaries in this window."

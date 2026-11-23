@@ -79,7 +79,7 @@ class ViewSpec:
         if project is None:
             return False, "Нет проекта"
         if (
-            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54")
+            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52")
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -106,6 +106,8 @@ class ViewSpec:
             return False, f"«{self.title}»: атмосфера (v5.4) не рассчитана"
         if self.stage == "v51" and getattr(project, "volcanism", None) is None:
             return False, f"«{self.title}»: вулканизм (v5.1) не рассчитан"
+        if self.stage == "v52" and getattr(project, "resources", None) is None:
+            return False, f"«{self.title}»: плодородие и ресурсы (v5.2) не рассчитаны"
         return True, ""
 
     def default_mode(self) -> str:
@@ -4254,7 +4256,7 @@ def _grey_land(project, rgb):
     return rgb
 
 
-def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+def _render_ocean53(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
     E = project.earth.layers
     m = _month_of(overlays)
     if mode == "sst":
@@ -4286,7 +4288,7 @@ def _render_ocean(project: Project, mode: str, overlays: frozenset) -> np.ndarra
     return _v53_base(project, _grey_land(project, np.asarray(rgb, np.uint8).copy()), overlays)
 
 
-def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
+def _legend_ocean53(project: Project, mode: str) -> list[LegendItem]:
     c = project.earth.summary.get("coupler", {})
     o = c.get("ocean") or {}
     head = LegendItem(
@@ -4303,7 +4305,7 @@ def _legend_ocean(project: Project, mode: str) -> list[LegendItem]:
     return [head, LegendItem(t[0], lo), LegendItem(t[1], hi)]
 
 
-def _vectors_ocean(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+def _vectors_ocean53(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
     if mode != "currents":
         return []
     E = project.earth.layers
@@ -4446,7 +4448,7 @@ for _spec in (
                     Option("salinity", "Солёность (качественно)")),
              overlays=_V53_OVERLAYS, months=True,
              note="Ветровые течения и перенос тепла на маске связного океана",
-             render=_render_ocean, legend=_legend_ocean, vectors=_vectors_ocean),
+             render=_render_ocean53, legend=_legend_ocean53, vectors=_vectors_ocean53),
     ViewSpec(id="sea_ice", title="Морской лёд (v5.3)", stage="v53",
              layers=("sea_ice_concentration_monthly", "sea_ice_thickness_monthly_m"),
              modes=(Option("concentration", "Сплочённость по месяцам"),
@@ -4652,7 +4654,7 @@ register_view(
 
 
 # -- v5.4: atmosphere and seasons ------------------------------------------------------------
-_REGIME_RGB = np.array(
+_V54_REGIME_RGB = np.array(
     [
         [225, 200, 140],
         [30, 120, 60],
@@ -4664,7 +4666,7 @@ _REGIME_RGB = np.array(
     ],
     dtype=np.uint8,
 )
-_REGIME_TITLES = (
+_V54_REGIME_TITLES = (
     "засушливый",
     "круглый год влажно",
     "тропический муссон",
@@ -4722,7 +4724,7 @@ def _render_atm54(project: Project, mode: str, overlays: frozenset) -> np.ndarra
         on = L["monsoon_onset_month"].astype(int)
         rgb = np.where((on > 0)[..., None], _MONTH_RGB[np.maximum(on - 1, 0)], 200).astype(np.uint8)
     elif mode == "regime":
-        rgb = _REGIME_RGB[L["rain_regime"].astype(int)]
+        rgb = _V54_REGIME_RGB[L["rain_regime"].astype(int)]
     elif mode == "dry_months":
         rgb = _ramp_rgb(L["dry_season_months"].astype(float), 0.0, 12.0)
     elif mode == "seasonality":
@@ -4787,7 +4789,7 @@ def _legend_atm54(project: Project, mode: str) -> list[LegendItem]:
     if mode == "regime":
         return head + [
             LegendItem(t, tuple(int(c) for c in rgb))
-            for t, rgb in zip(_REGIME_TITLES, _REGIME_RGB, strict=True)
+            for t, rgb in zip(_V54_REGIME_TITLES, _V54_REGIME_RGB, strict=True)
         ]
     if mode == "onset":
         from .stages.environment import MONTH_NAMES
@@ -4917,5 +4919,268 @@ register_view(
         render=_render_atm54,
         legend=_legend_atm54,
         vectors=_vectors_atm54,
+    )
+)
+
+
+# -- v5.2: soil fertility and mineral resources ----------------------------------------------------
+_V52_SOIL_MODES = {
+    # mode: (layer, lo, hi, power, unit / note)
+    "fertility": ("soil_fertility_potential", 0.0, 1.0, 1.0, "0..1, диагностический агрегат"),
+    "soc": ("soil_soc_kg_m2", 0.0, 40.0, 0.6, "кг C/м² (запас, не %)"),
+    "n_available": (None, 0.0, 0.004, 0.6, "кг N/м² (NH4 + NO3)"),
+    "p_labile": ("soil_P_labile_kg_m2", 0.0, 0.006, 0.7, "кг P/м² доступного P"),
+    "k_exchange": ("soil_K_exchange_kg_m2", 0.0, 0.5, 0.6, "кг K/м² обменного K"),
+    "ph": ("soil_ph", 3.5, 9.0, 1.0, "pH"),
+    "cec": ("soil_cec_cmolc_kg", 0.0, 40.0, 0.8, "смоль(+)/кг"),
+    "base_saturation": ("soil_base_saturation_frac", 0.0, 1.0, 1.0, "0..1"),
+    "salinity": ("soil_salinity_ec_ds_m", 0.0, 16.0, 0.5, "dS/m (по массе солей, proxy)"),
+    "oxygen": ("soil_oxic_fraction", 0.0, 1.0, 1.0, "доля времени с кислородом у корней"),
+    "soil_age": ("soil_age_yr", 2.0, 6.5, 1.0, "lg лет с последнего обновления поверхности"),
+    "weathering": ("soil_weathering_degree", 0.0, 1.0, 1.0, "доля выветрелых минералов"),
+    "erosion_risk": ("soil_erosion_risk", 0.0, 1.0, 1.0, "риск потери верхнего слоя"),
+    "suit_wheat": ("suitability_crop_wheat", 0.0, 1.0, 1.0, "пригодность: пшеница"),
+    "suit_rice": ("suitability_crop_rice_paddy", 0.0, 1.0, 1.0, "пригодность: рис (чеки)"),
+    "suit_maize": ("suitability_crop_maize", 0.0, 1.0, 1.0, "пригодность: кукуруза"),
+    "suit_cassava": ("suitability_crop_cassava", 0.0, 1.0, 1.0, "пригодность: маниок"),
+    "suit_forest": ("suitability_forest", 0.0, 1.0, 1.0, "пригодность: лес (эдафически)"),
+    "suit_grass": ("suitability_grassland", 0.0, 1.0, 1.0, "пригодность: травы"),
+}
+_V52_LIMIT_RGB = np.array([[200, 120, 40], [220, 190, 60], [170, 60, 150], [60, 120, 200],
+                       [130, 100, 70], [230, 230, 230]], dtype=np.uint8)  # fmt: skip
+_V52_LIMIT_TITLES = (
+    "питание N/P/K",
+    "вода",
+    "кислотность / щёлочность",
+    "кислород (переувлажнение)",
+    "корнеобитаемая толща",
+    "засоление / солонцеватость",
+)
+
+
+def _render_soil52(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    L = project.resources.layers
+    if mode == "limiting":
+        lim = L["soil_limiting_factor"].astype(int)
+        rgb = np.where((lim < 6)[..., None], _V52_LIMIT_RGB[np.minimum(lim, 5)], 0).astype(np.uint8)
+        valid = lim < 6
+    else:
+        name, lo, hi, pw, _u = _V52_SOIL_MODES[mode]
+        if name is None:
+            v = L["soil_ammonium_N_kg_m2"].astype(float) + L["soil_nitrate_N_kg_m2"].astype(float)
+        else:
+            v = L[name].astype(float)
+        if mode == "soil_age":
+            v = np.log10(np.maximum(v, 1.0))
+        rgb = _ramp_rgb(v, lo, hi, pw)
+        valid = np.isfinite(v)
+    return _finish_env(project, rgb, valid, overlays)
+
+
+def _legend_soil52(project: Project, mode: str) -> list[LegendItem]:
+    head = [LegendItem("v5.2, quality: approximate; NoData (серый) = нет почвы (скала, лёд, вода), "
+                       "а не «бедная почва»")]  # fmt: skip
+    if mode == "limiting":
+        pairs = zip(_V52_LIMIT_TITLES, _V52_LIMIT_RGB, strict=True)
+        return head + [LegendItem(t, tuple(int(c) for c in rgb)) for t, rgb in pairs]
+    name, lo, hi, _pw, unit = _V52_SOIL_MODES[mode]
+    lo_c, hi_c = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    return head + [LegendItem(f"{lo:g}: {unit}", lo_c), LegendItem(f"{hi:g}", hi_c)]
+
+
+_V52_FAMILY_MODES = tuple(f"prosp_{f}" for f in ("base_metals", "precious_metals", "ferrous_alloy",
+                                                  "light_battery", "critical_rare", "energy",
+                                                  "industrial", "gems", "marine"))  # fmt: skip
+
+
+def _render_res52(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .resources.models import FAMILIES
+
+    L = project.resources.layers
+    land = project.hydro.layers["land_mask"].astype(bool)
+    if mode.startswith("prosp_"):
+        k = FAMILIES.index(mode[6:])
+        rgb = _ramp_rgb(L["prospectivity_by_family"][k].astype(float), 0.0, 1.0, 0.8)
+    elif mode.startswith("insitu_"):
+        k = FAMILIES.index(mode[7:])
+        v = np.log10(np.maximum(L["resource_in_situ_t_by_family"][k].astype(float), 1e-3))
+        rgb = _ramp_rgb(v, -1.0, 7.0)
+        rgb[L["resource_in_situ_t_by_family"][k] <= 0] = (235, 235, 230)
+    elif mode == "count":
+        rgb = _ramp_rgb(L["deposit_count"].astype(float), 0.0, 4.0)
+        rgb[L["deposit_count"] == 0] = (235, 235, 230)
+    elif mode == "depth":
+        d = L["shallowest_body_depth_m"].astype(float)
+        rgb = _ramp_rgb(-np.log10(np.maximum(d, 1.0)), -4.0, 0.0)
+        rgb[~np.isfinite(d)] = (235, 235, 230)
+    elif mode == "outcrops":
+        rgb = np.where(L["surface_occurrence_mask"][..., None], np.uint8([200, 60, 40]),
+                       np.uint8([235, 235, 230])).astype(np.uint8)  # fmt: skip
+    elif mode == "lithology":
+        from .resources.deposits import LITHOLOGY
+
+        rgb = id_colors(len(LITHOLOGY), 0.13)[L["geo_lithology_inferred"].astype(int)]
+    elif mode == "construction":
+        from .resources.secondary import CONSTRUCTION
+
+        cols = id_colors(len(CONSTRUCTION), 0.41)
+        cols[0] = (235, 235, 230)
+        rgb = cols[L["construction_material_class"].astype(int)]
+    elif mode == "access":
+        rgb = _ramp_rgb(L["resource_accessibility_proxy"].astype(float), 0.0, 1.0)
+    else:
+        rgb = np.full(land.shape + (3,), 200, np.uint8)
+    rgb = np.asarray(rgb, dtype=np.uint8).copy()
+    if mode not in ("lithology", "depth", "count", "access") and not mode.startswith(
+        ("prosp_", "insitu_")
+    ):
+        rgb[~land] = _SEA_RGB
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.4)
+    return rgb
+
+
+def _legend_res52(project: Project, mode: str) -> list[LegendItem]:
+    from .resources.deposits import LITHOLOGY, LITHOLOGY_TITLES
+    from .resources.models import FAMILY_TITLES
+    from .resources.secondary import CONSTRUCTION, CONSTRUCTION_TITLES
+
+    s = project.resources.summary
+    head = [LegendItem(f"v5.2: систем {s['systems']}, тел {s['bodies']}, выходов на "
+                       f"поверхность {s['surface_occurrences']}; "
+                       "synthetic_not_calibrated")]  # fmt: skip
+    lo, hi = tuple(render.ramp(np.array(0.0))), tuple(render.ramp(np.array(1.0)))
+    if mode.startswith("prosp_"):
+        return head + [LegendItem(f"благоприятность: {FAMILY_TITLES[mode[6:]]}"),
+                       LegendItem("0 — нет разрешающей обстановки", lo),
+                       LegendItem("1 — высокая (не доказанная руда)", hi)]  # fmt: skip
+    if mode.startswith("insitu_"):
+        return head + [LegendItem(f"геологический запас in situ, т: {FAMILY_TITLES[mode[7:]]}"),
+                       LegendItem("0.1 т", lo), LegendItem("10 млн т", hi),
+                       LegendItem("режим «истина генератора» (отладка / редактор)")]  # fmt: skip
+    if mode == "lithology":
+        cols = id_colors(len(LITHOLOGY), 0.13)
+        note = LegendItem("литология выведена (inferred_lithology), rock_type не изменён")
+        return head + [note] + [
+            LegendItem(LITHOLOGY_TITLES[n], tuple(int(c) for c in cols[i]))
+            for i, n in enumerate(LITHOLOGY) if i]  # fmt: skip
+    if mode == "construction":
+        cols = id_colors(len(CONSTRUCTION), 0.41)
+        return head + [LegendItem(t, tuple(int(c) for c in cols[i]))
+                       for i, t in enumerate(CONSTRUCTION_TITLES) if i]  # fmt: skip
+    if mode == "outcrops":
+        return head + [LegendItem("выход тела на поверхность (видно без разведки)", (200, 60, 40))]
+    if mode == "depth":
+        return head + [LegendItem("кровля ближайшего тела: 10 км", lo), LegendItem("0 м", hi),
+                       LegendItem("режим «истина генератора» (отладка / редактор)")]  # fmt: skip
+    return head + [LegendItem("0", lo), LegendItem("макс.", hi)]
+
+
+def _vectors_res52(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    """Deposit systems as points: player mode shows only surface occurrences; the ground
+    truth overlay (debug / editor) shows every system, also the hidden ones."""
+    cat = project.resources.catalog
+    truth = "ground_truth" in overlays
+    pts = [s for s in cat["systems"] if truth or s["surface_occurrence"]]
+    if not pts:
+        return []
+    x = np.array([s["x_km"] for s in pts])
+    y = np.array([s["y_km"] for s in pts])
+    hidden = np.array([not s["surface_occurrence"] for s in pts])
+    out = [VectorLayer("points", x[~hidden], y[~hidden], (200, 40, 30), 3.0, True,
+                       "выходы месторождений на поверхность")]  # fmt: skip
+    if truth and hidden.any():
+        out.append(VectorLayer("points", x[hidden], y[hidden], (40, 40, 40), 2.5, False,
+                               "скрытые тела (истина генератора)"))  # fmt: skip
+    return out
+
+
+register_view(
+    ViewSpec(
+        id="soil_fertility",
+        title="Плодородие почв (v5.2)",
+        stage="v52",
+        layers=("soil_fertility_potential", "soil_soc_kg_m2", "soil_ph"),
+        modes=(
+            Option("fertility", "Почвенное плодородие (природный потенциал)"),
+            Option("limiting", "Главный ограничивающий фактор"),
+            Option("soc", "Органический углерод (запас)"),
+            Option("n_available", "Доступный азот (NH4 + NO3)"),
+            Option("p_labile", "Доступный фосфор"),
+            Option("k_exchange", "Обменный калий"),
+            Option("ph", "pH"),
+            Option("cec", "Ёмкость катионного обмена"),
+            Option("base_saturation", "Насыщенность основаниями"),
+            Option("salinity", "Засоление (EC)"),
+            Option("oxygen", "Аэрация корнеобитаемого слоя"),
+            Option("soil_age", "Возраст почвы"),
+            Option("weathering", "Степень выветривания"),
+            Option("erosion_risk", "Риск эрозии плодородного слоя"),
+            Option("suit_wheat", "Пригодность: пшеница"),
+            Option("suit_rice", "Пригодность: рис"),
+            Option("suit_maize", "Пригодность: кукуруза"),
+            Option("suit_cassava", "Пригодность: маниок"),
+            Option("suit_forest", "Пригодность: лес"),
+            Option("suit_grass", "Пригодность: травы"),
+        ),
+        overlays=(Option("coast", "Берег", True), Option("rivers", "Реки")),
+        note="Запасы C/N/P/K, химия и пригодность почвы — отдельные слои; пригодность — не "
+        "урожайность; вкладка «Почвы» v4.5 не изменена",
+        render=_render_soil52,
+        legend=_legend_soil52,
+    )
+)
+
+register_view(
+    ViewSpec(
+        id="mineral_resources",
+        title="Полезные ископаемые (v5.2)",
+        stage="v52",
+        layers=("prospectivity_by_family", "deposit_count", "surface_occurrence_mask"),
+        modes=(
+            Option("outcrops", "Выходы на поверхность (вид игрока)"),
+            *(
+                Option(f"prosp_{f}", f"Благоприятность: {t}")
+                for f, t in (
+                    ("base_metals", "цветные металлы"),
+                    ("precious_metals", "благородные металлы"),
+                    ("ferrous_alloy", "чёрные и легирующие"),
+                    ("light_battery", "Al, Li, Ti"),
+                    ("critical_rare", "РЗЭ, Nb, Ta, Sn, U"),
+                    ("energy", "уголь, нефть, газ"),
+                    ("industrial", "P, K, соли, S, графит"),
+                    ("gems", "алмазы, самоцветы"),
+                    ("marine", "морские ресурсы"),
+                )
+            ),
+            *(
+                Option(f"insitu_{f}", f"Запас in situ (истина): {t}")
+                for f, t in (
+                    ("base_metals", "цветные"),
+                    ("precious_metals", "благородные"),
+                    ("ferrous_alloy", "чёрные"),
+                    ("light_battery", "Al, Li, Ti"),
+                    ("critical_rare", "редкие"),
+                    ("energy", "энергетика"),
+                    ("industrial", "агро- и хим. сырьё"),
+                    ("gems", "камни"),
+                    ("marine", "морские"),
+                )
+            ),
+            Option("count", "Число систем под гексом (истина)"),
+            Option("depth", "Глубина ближайшего тела (истина)"),
+            Option("lithology", "Литология (выведенная)"),
+            Option("construction", "Строительные материалы"),
+            Option("access", "Доступность (глубина, вода)"),
+        ),
+        overlays=(
+            Option("coast", "Берег", True),
+            Option("ground_truth", "Истина генератора: скрытые тела (отладка)"),
+        ),
+        note="Благоприятность ≠ доказанная руда; скрытые тела видны только в режиме "
+        "отладки / редактора; экономика не влияет на геологию",
+        render=_render_res52,
+        legend=_legend_res52,
+        vectors=_vectors_res52,
     )
 )

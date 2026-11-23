@@ -47,6 +47,7 @@ STAGES = (
     ("v47_topoclimate", "высотные пояса и топоклимат", (0.5, 80.0), (0.0, 1.0)),
     ("v51_volcanism", "вулканизм: извержения и продукты", (4.0, 10.0), (0.0, 1.0)),
     ("v50_biomes", "биомы, снег и ледники", (0.3, 50.0), (0.0, 1.0)),
+    ("v52_resources", "плодородие почв и полезные ископаемые", (1.0, 30.0), (0.0, 1.0)),
     ("done", "готово", (0.0, 0.0), None),
 )
 _ORDER = {k: i for i, (k, *_r) in enumerate(STAGES)}
@@ -54,7 +55,7 @@ TITLES = {k: t for k, t, *_r in STAGES}
 #: which stages a generation runs, by its ``through``
 _LAST = {"v1": "assemble", "v2": "sea_level_landmasses", "v3": "v3_sea", "v46": "v46_terrain",
          "v4": "v4_network", "v45": "v45_wetness", "v47": "v47_topoclimate",
-         "v51": "v51_volcanism", "v50": "v50_biomes"}  # fmt: skip
+         "v51": "v51_volcanism", "v50": "v52_resources"}  # fmt: skip
 
 
 def sub_report(stage: str, fraction: float) -> str:
@@ -80,7 +81,7 @@ class ProgressTracker:
     """Turns ``(stage, fraction)`` reports into an overall fraction, a stage list and an ETA."""
 
     def __init__(self, through: str = "v50", hexes: int = 10_000, clock=time.monotonic):
-        last = _ORDER.get(_LAST.get(through, "v50_biomes"), len(STAGES) - 2)
+        last = _ORDER.get(_LAST.get(through, "v52_resources"), len(STAGES) - 2)
         self.keys = [k for k, *_r in STAGES[: last + 1]] + ["done"]
         self.keys = list(dict.fromkeys(self.keys))
         mhex = max(hexes, 0) / 1e6

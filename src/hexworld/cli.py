@@ -943,6 +943,49 @@ def cmd_volcanism(args) -> int:
     return 0
 
 
+def cmd_resources(args) -> int:
+    """Print the v5.2 summary: soils, deposit systems, ledgers; queries and export."""
+    project = load_project(args.project)
+    r = getattr(project, "resources", None)
+    if r is None:
+        print("v5.2 soil fertility / resources are not calculated for this project.")
+        return 1
+    s = r.summary
+    print(f"resources {s['algorithm_version']}: {s['systems']} systems, {s['bodies']} bodies, "
+          f"{s['provinces']} provinces, {s['surface_occurrences']} surface "
+          "occurrences")  # fmt: skip
+    print(f"  soils: {s['soil_columns']} columns, SOC {s['soil_soc_total_pg']:.2f} Pg C, "
+          f"pH p05/p50/p95 {s['soil_ph_p05_p50_p95']}, "
+          f"fertility mean {s['soil_fertility_mean']}")  # fmt: skip
+    print("  systems by model: " + ", ".join(f"{k} {v}" for k, v in s["systems_by_model"].items()))
+    for el, led in s["element_budget_over_soil_age"].items():
+        print(f"  soil {el}: initial {led['initial_kg']:.3e} + added {led['added_kg']:.3e} = "
+              f"final {led['final_kg']:.3e} + exported {led['exported_kg']:.3e} kg "
+              f"(rel. residual {led['max_relative_residual']:.1e})")  # fmt: skip
+    for el, led in s["placer_ledger"].items():
+        print(f"  placer {el}: released {led['released_t']:.3g} t = deposited "
+              f"{led['deposited_t']:.3g} + exported {led['exported_t']:.3g}")  # fmt: skip
+    print(f"  validation: {r.validation.get('ok')} {r.validation.get('errors')}")
+    from .resources.api import (
+        compute_in_situ_resources,
+        export_resources,
+        query_deposits_at_world_xy,
+    )
+
+    tot = compute_in_situ_resources(project)
+    for el, row in sorted(tot.items(), key=lambda kv: -kv[1]["in_situ_t"])[:12]:
+        print(f"  in situ {el:10s} {row['in_situ_t']:12.4g} t in {row['systems']} systems "
+              f"({row['hidden_t']:.3g} t hidden)")  # fmt: skip
+    if args.query:
+        x, y = args.query
+        hits = query_deposits_at_world_xy(project, x * 1000.0, y * 1000.0, ground_truth=args.truth)
+        print(f"  bodies under ({x:g}, {y:g}) km: {hits or 'none'}")
+    if args.export:
+        files = export_resources(project, args.export)
+        print(f"  exported to {args.export}: {', '.join(files)}")
+    return 0
+
+
 def cmd_atmosphere(args) -> int:
     """Print the v5.4 summary and the monthly vapour budget; optional windAt and export."""
     project = load_project(args.project)
@@ -1285,6 +1328,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="write weather_events.csv, world_metric JSON, budget CSV, grid npz",
     )
     at.set_defaults(func=cmd_atmosphere)
+
+    rs = sub.add_parser("resources", help="v5.2 soil fertility and mineral resources")
+    rs.add_argument("project")
+    rs.add_argument("--query", type=float, nargs=2, metavar=("X_KM", "Y_KM"),
+                    help="bodies under a world point")  # fmt: skip
+    rs.add_argument("--truth", action="store_true",
+                    help="ground truth: also hidden (not cropping out) bodies")  # fmt: skip
+    rs.add_argument("--export", metavar="DIR",
+                    help="GeoJSON systems, JSON bodies, CSV totals, NPZ fields")  # fmt: skip
+    rs.set_defaults(func=cmd_resources)
 
     se = sub.add_parser("section", help="vertical cross-section along a line (v4.6)")
     se.add_argument("project")

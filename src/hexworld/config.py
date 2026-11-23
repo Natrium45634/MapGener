@@ -505,6 +505,22 @@ class EarthParams:
 
 
 @dataclass(frozen=True)
+class ResourceParams:
+    """v5.2 soil fertility and geological resources (TZ 5.2). [A] calibration
+    ``synthetic_not_calibrated``: a plausible generator, not an estimate of Earth."""
+
+    enabled: bool = True
+    #: ``static_equilibrium`` (P0); ``ecological_dynamics`` (P1) is not implemented
+    fertility_mode: str = "static_equilibrium"
+    #: weight of the limiting factor in the suitability S = min^a (prod s^w)^(1 - a)
+    suitability_alpha: float = 0.5
+    #: multiplier of every deposit intensity (1 = the calibration; 0 = no deposits)
+    deposit_intensity: float = 1.0
+    #: P1 oil and gas (simplified traps, no petroleum-system kinetics)
+    include_p1: bool = True
+
+
+@dataclass(frozen=True)
 class AtmosphereParams:
     """v5.4 atmosphere: monthly circulation normals, moisture transport, ITCZ, monsoons,
     storm climatology and an optional weather year (TZ 5.4).
@@ -585,6 +601,7 @@ class Config:
     volcanism: VolcanismParams = field(default_factory=VolcanismParams)
     earth: EarthParams = field(default_factory=EarthParams)
     atmosphere: AtmosphereParams = field(default_factory=AtmosphereParams)
+    resources: ResourceParams = field(default_factory=ResourceParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -853,6 +870,17 @@ class Config:
             raise ConfigError("atmosphere.incoming_tc_per_year must be within [0, 200]")
         if not 1 <= int(ap.weather_year_index) <= 100000:
             raise ConfigError("atmosphere.weather_year_index must be within [1, 100000]")
+        rp = self.resources
+        if rp.fertility_mode not in ("static_equilibrium", "ecological_dynamics"):
+            raise ConfigError("resources.fertility_mode: static_equilibrium or ecological_dynamics")
+        if rp.fertility_mode == "ecological_dynamics":
+            raise ConfigError(
+                "resources.fertility_mode ecological_dynamics (P1) is not implemented"
+            )
+        if not 0.0 <= float(rp.suitability_alpha) <= 1.0:
+            raise ConfigError("resources.suitability_alpha must be within [0, 1]")
+        if not 0.0 <= float(rp.deposit_intensity) <= 10.0:
+            raise ConfigError("resources.deposit_intensity must be within [0, 10]")
         vp = self.volcanism
         if vp.world_profile not in ("earthlike_silicate", "icy_world"):
             raise ConfigError("volcanism.world_profile: earthlike_silicate or icy_world")
@@ -906,6 +934,7 @@ class Config:
             "volcanism": VolcanismParams,
             "earth": EarthParams,
             "atmosphere": AtmosphereParams,
+            "resources": ResourceParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
@@ -930,6 +959,8 @@ class Config:
             kwargs["earth"] = EarthParams(enabled=False)
         if "atmosphere" not in data:  # saved before v5.4: no new atmosphere
             kwargs["atmosphere"] = AtmosphereParams(enabled=False)
+        if "resources" not in data:  # saved before v5.2-resources: no new stage
+            kwargs["resources"] = ResourceParams(enabled=False)
         return cls(**kwargs)
 
     def to_json(self) -> str:

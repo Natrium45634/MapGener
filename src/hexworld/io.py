@@ -81,6 +81,7 @@ V50_DATA_FILES = (
 V51_DATA_FILES = ("volcanism_fields.npz", "volcanism.json")
 V53_DATA_FILES = ("earth_fields.npz", "earth.json")
 V54_DATA_FILES = ("atmosphere_fields.npz", "atmosphere_grid.npz", "atmosphere.json")
+V52_DATA_FILES = ("resources_fields.npz", "resources_index.npz", "resources.json")
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -588,6 +589,34 @@ def _write_v54_data(project: Project, path: Path) -> None:
     )  # fmt: skip
 
 
+def _write_v52_data(project: Project, path: Path) -> None:
+    from .resources import ALGORITHM_VERSION as RES_VERSION
+
+    r = project.resources
+    np.savez_compressed(path / "resources_fields.npz", **r.layers)
+    np.savez_compressed(path / "resources_index.npz", hex_offsets=r.catalog["hex_offsets"],
+                        hex_bodies=r.catalog["hex_bodies"])  # fmt: skip
+    cat = {k: v for k, v in r.catalog.items() if k not in ("hex_offsets", "hex_bodies")}
+    _write_json(
+        path / "resources.json",
+        _plain({
+            "world_id": project.world_id,
+            "stage": "soil_fertility_resources_5_2",
+            "schema_version": "5.2.0",
+            "algorithm_version": RES_VERSION,
+            "catalog": cat,
+            "summary": r.summary,
+            "provenance": r.provenance,
+            "stage_keys": r.stage_keys,
+            "warnings": r.warnings,
+            "timings_s": r.timings,
+            "nodata": "soil fields are NaN where no soil (rock, ice, water): not 'poor soil'; "
+                      "no catalogue = not generated (never 'no resources')",
+            "units": "soil kg/m2, deposits t, grades mass fraction, depths m (datum)",
+        }),
+    )  # fmt: skip
+
+
 def _write_v53_data(project: Project, path: Path) -> None:
     e = project.earth
     np.savez_compressed(path / "earth_fields.npz", **e.layers)
@@ -838,6 +867,22 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
     else:
         for name in V54_DATA_FILES:
             (path / name).unlink(missing_ok=True)
+    v52_manifest = None
+    res = getattr(project, "resources", None)
+    if res is not None and project.env is not None:
+        from .resources import ALGORITHM_VERSION as RES_VERSION
+
+        _write_v52_data(project, path)
+        files += list(V52_DATA_FILES)
+        v52_manifest = {
+            "algorithm_version": RES_VERSION,
+            "files": list(V52_DATA_FILES),
+            "content_hashes": res.content_hashes(),
+            "stage_keys": res.stage_keys,
+        }
+    else:
+        for name in V52_DATA_FILES:
+            (path / name).unlink(missing_ok=True)
     v51_manifest = None
     volc = getattr(project, "volcanism", None)
     if volc is not None and project.hydro is not None:
@@ -1033,6 +1078,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v51": v51_manifest,
         "v53": v53_manifest,
         "v54": v54_manifest,
+        "v52": v52_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -1212,6 +1258,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_atmosphere(project, path, manifest, config, verify)
     _load_volcanism(project, path, manifest, config, verify)
     _load_biomes(project, path, manifest, config, verify)
+    _load_resources(project, path, manifest, config, verify)
     return project
 
 
@@ -1439,6 +1486,53 @@ def _load_atmosphere(project: Project, path: Path, manifest: dict, config, verif
     project.atmosphere = a
     a.validation = validate_atmosphere(project)
     project.cache["v54_atmosphere"] = a
+
+
+def _load_resources(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach stored v5.2 data (fertility layers, deposit catalogue) without regenerating."""
+    from .pipeline_v52 import resource_stage_keys
+    from .project import ResourceData
+    from .resources import ALGORITHM_VERSION as RES_VERSION
+    from .stages.validate import validate_resources
+
+    v52 = manifest.get("v52")
+    if not v52 or project.env is None or project.hist is None:
+        return
+    if not all((path / name).exists() for name in V52_DATA_FILES):
+        project.warnings.append("The manifest lists v5.2 data, but its files are missing.")
+        return
+    doc = json.loads((path / "resources.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != RES_VERSION:
+        project.warnings.append(
+            f"The stored resources were produced by {doc.get('algorithm_version')}, this "
+            f"build uses {RES_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    keys = resource_stage_keys(config, project)
+    if keys["v52_resources"] != doc["stage_keys"].get("v52_resources"):
+        project.warnings.append(
+            "The stored resources belong to another world state or configuration: NOT "
+            "loaded (not generated)."
+        )
+        return
+    with np.load(path / "resources_fields.npz") as data:
+        layers = {k: data[k] for k in data.files}
+    with np.load(path / "resources_index.npz") as data:
+        index = {k: data[k] for k in data.files}
+    catalog = dict(doc["catalog"])
+    catalog.update(index)
+    r = ResourceData(layers=layers, catalog=catalog, summary=doc["summary"],
+                     provenance=doc["provenance"], stage_keys=dict(doc["stage_keys"]),
+                     warnings=list(doc.get("warnings", [])),
+                     timings=dict(doc.get("timings_s", {})))  # fmt: skip
+    if verify:
+        actual = r.content_hashes()
+        for key, expected in v52["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.resources = r
+    r.validation = validate_resources(project)
+    project.cache["v52_resources"] = r
 
 
 def _load_volcanism(project: Project, path: Path, manifest: dict, config, verify) -> None:

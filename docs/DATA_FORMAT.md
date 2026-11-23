@@ -510,6 +510,38 @@ swe_max_mm,gsl_days,gst_c,thermal_margin,belt,quality` (`quality`:
 
 Отсутствие раздела `v50` означает «не сгенерировано», а не «нулевая растительность».
 
+## Данные v5.2 (плодородие почв и полезные ископаемые)
+
+Файлы `resources_fields.npz`, `resources_index.npz`, `resources.json`; раздел манифеста
+`v52` (версия алгоритма `hexworld-resources-5.2.0`, хэши массивов, `stage_keys`). Данные
+привязаны к ключу стадии: другая геология, климат или настройки → данные не загружаются
+(«не сгенерировано», никогда «нет ресурсов»).
+
+`resources_fields.npz` — плотные слои гексов (`RESOURCE_LAYER_SPECS` в `pipeline_v52.py`):
+
+| Слой | Форма | Единицы | Смысл |
+|---|---|---|---|
+| `soil_layer_bottom_m`, `soil_bulk_density_kg_m3`, `soil_soc_layers_kg_m2`, `soil_ph_layers` | (3, H, W) | м, кг/м³, кг C/м², pH | функциональные слои 0–0.3 / 0.3–1.0 м / глубже (не генетические горизонты) |
+| `soil_soc_kg_m2`, `soil_organic_N_kg_m2`, `soil_ammonium_N_kg_m2`, `soil_nitrate_N_kg_m2` | (H, W) | кг/м² | запасы профиля |
+| `soil_P_{primary,labile,sorbed,organic,occluded}_kg_m2`, `soil_K_{mineral,exchange,solution}_kg_m2` | (H, W) | кг элемента/м² | P и K, не P₂O₅ / K₂O |
+| `soil_cec_cmolc_kg`, `soil_base_saturation_frac`, `soil_ph`, `soil_acid_equivalent_molc_m2`, `soil_buffer_capacity_molc_m2_per_ph`, `soil_carbonate_kg_m2` | (H, W) | | химия и буферность (pH — proxy) |
+| `soil_salt_mass_kg_m2`, `soil_salinity_ec_ds_m`, `soil_esp_pct` | (H, W) | кг/м², dS/m, % | соли (EC — proxy по массе и поровой воде) |
+| `soil_fertility_potential`, `suitability_<профиль>`, `soil_limiting_factor` | (H, W) | 0..1, enum | диагностика, не урожайность |
+| `prospectivity_by_family`, `resource_in_situ_t_by_family` | (9, H, W) | 0..1, т | группы `resources.models.FAMILIES` |
+| `deposit_count`, `shallowest_body_depth_m`, `surface_occurrence_mask`, `overburden_m`, `resource_accessibility_proxy` | (H, W) | | агрегаты каталога |
+| `geo_lithology_inferred`, `construction_material_class`, `construction_material_quality` | (H, W) | enum, 0..1 | адаптер литологии (не заменяет `rock_type`), стройматериалы |
+
+NoData: почвенные поля — NaN там, где нет почвы (скала, лёд, вода).
+
+`resources.json` — каталог: `systems` (месторождения: генетический тип, эпоха, происхождение,
+руда т, содержания — массовые доли элемента, содержащийся компонент т, сохранность, глубина
+кровли, выход на поверхность, `discovery_state`), `bodies` (параметрические тела: форма,
+центр и полуоси в м мировой системы / датума, азимут, кровля / подошва, объём, плотность,
+доля эрозии), `provinces`, `eroded` (снятые эрозией массы — источник россыпей), сводка с
+балансами (`element_budget_over_soil_age`, `erosion_transport_ledger`, `placer_ledger`,
+`closed_basins`, `monthly_check`). `resources_index.npz` — CSR «гекс → тела» (`hex_offsets`,
+`hex_bodies`).
+
 ## Хэши и версии
 
 - `content_hashes` — SHA-256 от типа, формы и байтов каждого массива. Не зависит от

@@ -488,6 +488,43 @@ class VolcanismData:
 
 
 @dataclass
+class ResourceData:
+    """Results of v5.2: soil fertility layers, the deposit catalogue and the aggregates.
+
+    ``layers`` are hex fields ((H, W), (3, H, W) per soil layer, (F, H, W) per commodity
+    family); ``catalog`` holds the sparse objects: ``systems`` (deposit systems),
+    ``bodies`` (parametric ore bodies), ``provinces``, ``eroded`` (released masses of
+    fully / partly eroded systems) and the hex index (``hex_offsets``, ``hex_bodies``).
+    """
+
+    layers: dict
+    catalog: dict
+    summary: dict
+    provenance: dict
+    stage_keys: dict
+    warnings: list = field(default_factory=list)
+    validation: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
+
+    def content_hashes(self) -> dict:
+        out = {f"resources/{k}": array_hash(v) for k, v in self.layers.items()}
+        ids = "|".join(f"{s['deposit_id']}:{s['ore_t']:.6g}" for s in self.catalog["systems"])
+        out["resources_catalog/systems"] = hashlib.sha256(ids.encode()).hexdigest()
+        return out
+
+    def bodies_at(self, flat_index: int) -> list[dict]:
+        off = self.catalog["hex_offsets"]
+        idx = self.catalog["hex_bodies"][int(off[flat_index]) : int(off[flat_index + 1])]
+        return [self.catalog["bodies"][int(i)] for i in idx]
+
+    def system(self, deposit_id: str) -> dict | None:
+        for s in self.catalog["systems"]:
+            if s["deposit_id"] == deposit_id:
+                return s
+        return None
+
+
+@dataclass
 class BiomeData:
     """Results of v5.0: hex layers, sparse biome fractions, unit results."""
 
@@ -584,6 +621,8 @@ class Project:
     #: v5.3a Earth system on the hexes (ocean, sea ice, winds aloft); ``None`` if absent.
     earth: EarthData | None = None
     atmosphere: AtmosphereData | None = None
+    #: v5.2 soil fertility and geological resources; ``None`` if not generated.
+    resources: ResourceData | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

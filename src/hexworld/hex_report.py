@@ -514,6 +514,11 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
     if volc is not None:
         _volcanism_section(project, volc, col, row, sections)
 
+    # -- soil fertility and resources (v5.2) ---------------------------------------------------
+    res = getattr(project, "resources", None)
+    if res is not None:
+        _resources_sections(project, res, col, row, sections)
+
     # -- coast and sea floor -------------------------------------------------------------------
     s = Section("sea", "Берег и дно моря")
     if info.get("coast_type"):
@@ -755,6 +760,93 @@ def _volcanism_section(project, volc, col, row, sections) -> None:
     s.add("Грязевые вулканы", "есть" if V["mud_volcano_flag"][row, col] else None)
     if s.rows:
         sections.append(s)
+
+
+def _fmt_mass_t(t: float) -> str:
+    if t >= 1e6:
+        return f"{t / 1e6:,.1f} млн т"
+    if t >= 1e3:
+        return f"{t / 1e3:,.1f} тыс. т"
+    if t >= 1.0:
+        return f"{t:,.1f} т"
+    return f"{t * 1000:,.1f} кг"
+
+
+_ELEMENT_TITLES = {"diamond": "алмазы", "coal": "уголь", "oil": "нефть", "gas": "газ",
+                   "NaCl": "каменная соль", "C_graphite": "графит", "gem": "самоцветы",
+                   "REE": "РЗЭ", "Li_mg_per_l": "Li, мг/л"}  # fmt: skip
+
+
+def _resources_sections(project, res, col, row, sections) -> None:
+    from .resources.deposits import LITHOLOGY, LITHOLOGY_TITLES
+    from .resources.secondary import CONSTRUCTION_TITLES
+    from .resources.soil import FACTORS
+
+    L = res.layers
+    flat = row * project.layout.width + col
+    s = Section("fertility", "Плодородие почвы (v5.2)")
+    if np.isfinite(L["soil_ph"][row, col]):
+        lim_titles = {"nutrient": "питание N/P/K", "water": "вода", "ph": "кислотность",
+                      "oxygen": "переувлажнение", "rooting": "корнеобитаемый слой",
+                      "salinity": "засоление"}  # fmt: skip
+        s.add("Природный потенциал", f"{float(L['soil_fertility_potential'][row, col]):.2f} "
+              f"(0..1, не урожайность)")  # fmt: skip
+        lim = int(L["soil_limiting_factor"][row, col])
+        s.add(
+            "Главное ограничение", lim_titles.get(FACTORS[lim], "") if lim < len(FACTORS) else None
+        )
+        s.add("Органический углерод", f"{float(L['soil_soc_kg_m2'][row, col]):.1f} кг C/м² "
+              f"({float(L['soil_soc_kg_m2'][row, col]) * 10:.0f} т C/га)")  # fmt: skip
+        n_av = float(L["soil_ammonium_N_kg_m2"][row, col] + L["soil_nitrate_N_kg_m2"][row, col])
+        s.add("Азот доступный / органический", f"{n_av * 1e4:.0f} / "
+              f"{float(L['soil_organic_N_kg_m2'][row, col]) * 1e4:,.0f} кг N/га")  # fmt: skip
+        s.add("Фосфор доступный / окклюдированный",
+              f"{float(L['soil_P_labile_kg_m2'][row, col]) * 1e4:.0f} / "
+              f"{float(L['soil_P_occluded_kg_m2'][row, col]) * 1e4:.0f} кг P/га")  # fmt: skip
+        s.add("Калий обменный", f"{float(L['soil_K_exchange_kg_m2'][row, col]) * 1e4:,.0f} кг K/га")
+        s.add("pH / насыщенность основаниями", f"{float(L['soil_ph'][row, col]):.1f} / "
+              f"{100 * float(L['soil_base_saturation_frac'][row, col]):.0f} %")  # fmt: skip
+        s.add("ЕКО", _n(float(L["soil_cec_cmolc_kg"][row, col]), 1, "смоль(+)/кг"))
+        ec = float(L["soil_salinity_ec_ds_m"][row, col])
+        s.add("Засоление (EC, proxy)", f"{ec:.1f} dS/m" if ec >= 0.5 else None)
+        s.add("Возраст почвы", f"{float(L['soil_age_yr'][row, col]):,.0f} лет")
+        wheat = float(L["suitability_crop_wheat"][row, col])
+        rice = float(L["suitability_crop_rice_paddy"][row, col])
+        s.add("Пригодность: пшеница / рис", f"{wheat:.2f} / {rice:.2f}")
+    else:
+        s.add("Почва", "нет (скала, лёд или вода): NoData, не «бедная почва»")
+    sections.append(s)
+
+    s = Section("resources", "Полезные ископаемые (v5.2)")
+    s.add(
+        "Литология (выведена)",
+        LITHOLOGY_TITLES.get(LITHOLOGY[int(L["geo_lithology_inferred"][row, col])]),
+    )
+    cls = int(L["construction_material_class"][row, col])
+    if cls:
+        s.add("Строительные материалы", f"{CONSTRUCTION_TITLES[cls]}, качество "
+              f"{float(L['construction_material_quality'][row, col]):.2f}")  # fmt: skip
+    bodies = res.bodies_at(flat)
+    seen = []
+    for b in bodies:
+        sy = res.system(b["system_id"])
+        if sy is None or sy["deposit_id"] in seen:
+            continue
+        seen.append(sy["deposit_id"])
+        visible = sy["surface_occurrence"]
+        tag = "" if visible else " [истина генератора: скрыто]"
+        comps = ", ".join(
+            f"{_ELEMENT_TITLES.get(el, el)} {_fmt_mass_t(m)}"
+            for el, m in sorted(sy["contained_t"].items(), key=lambda kv: -kv[1])[:3]
+        )
+        s.add(f"  {sy['title']}{tag}", f"{_fmt_mass_t(sy['ore_t'])} руды; {comps}")
+        s.add("    глубина кровли", f"{sy['depth_top_m']:,.0f} м; образовано "
+              f"{sy['formation_epoch_ma']:,.1f} млн лет назад ({sy['provenance']})")  # fmt: skip
+        if len(seen) >= 4:
+            break
+    if not seen and int(L["deposit_count"][row, col]) == 0:
+        s.add("Месторождения", "не сгенерированы под этим гексом")
+    sections.append(s)
 
 
 def _names():
