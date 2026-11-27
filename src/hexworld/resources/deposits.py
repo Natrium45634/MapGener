@@ -445,6 +445,17 @@ def tract_suitability(ctx: GeoContext) -> dict:
     return out
 
 
+def _unique_pid(pid: str, used: set) -> str:
+    """Two provinces of one type whose centroids round to the same 100 km cell get
+    ``-2``, ``-3``... in the deterministic label order (ids stay unique)."""
+    k, out = 2, pid
+    while out in used:
+        out = f"{pid}-{k}"
+        k += 1
+    used.add(out)
+    return out
+
+
 def _provinces(mask2d):
     lab, k = ndimage.label(mask2d, structure=np.ones((3, 3), bool))
     return lab.ravel(), k
@@ -783,6 +794,7 @@ def plan_deposit_systems(ctx: GeoContext, prospect: dict | None = None, lambda_s
             if rec:
                 eroded.append(rec)
     # 2) tract systems: provinces -> Poisson count -> anchors
+    used_pids: set = set()
     for mid in sorted(prospect):
         mask, s, prov = prospect[mid]
         if mid not in TRACT_LAMBDA or not mask.any():
@@ -801,7 +813,7 @@ def plan_deposit_systems(ctx: GeoContext, prospect: dict | None = None, lambda_s
                 continue
             pcx, pcy = cx[p] / wsum[p], cy[p] / wsum[p]
             ph = stable_hash(ctx.seed, "province", mid, round(pcx / 100.0), round(pcy / 100.0))
-            pid = f"P-{mid}-{ph[:10]}"
+            pid = _unique_pid(f"P-{mid}-{ph[:10]}", used_pids)
             lam = TRACT_LAMBDA[mid] * lambda_scale * sums[p]
             st = _stream(ctx.seed, mid, pid, "count")
             count = poisson_from_uniform(lam, st.random())

@@ -8,7 +8,10 @@ Windows GUI on a real display: **NOT VERIFIED** (offscreen only, status `UNVERIF
 
 Environment: Linux x86_64, 4 vCPU / 16 GB, Python 3.13.18, NumPy 2.5.4, SciPy 1.18.1,
 PySide6 6.12.0. Tests: `tests/test_v52_soil.py` (27), `tests/test_v52_deposits.py` (25, one
-slow), `tests/test_v52_integration.py` (15). Results: REGRESSION_RESULT.
+slow), `tests/test_v52_integration.py` (16). Results: full suite at `e80c4d7`: **763 passed,
+0 failed** (31 min); the slow N20 test failed on its own window (outside the simulation
+bounds), fixed in the next commit; a duplicate province id found by the 500×300 benchmark is
+fixed as well (see `performance_report.md`).
 
 ## Gates
 

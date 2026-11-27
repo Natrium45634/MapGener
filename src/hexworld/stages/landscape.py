@@ -27,6 +27,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..geomorph.surface_water import flood as ocean_flood
+from ..mountains.backend import limit_elevation
 from .climate import SECONDS_PER_YEAR, hex_climate
 from .hydrology import Graph, hydrology, routing_choice
 
@@ -74,6 +75,20 @@ def _laplacian(z, graph: Graph):
     zn = np.where(valid, z[np.maximum(graph.nbr, 0)], z[:, None])
     length = graph.dist[:, 0]
     return (2.0 / 3.0) * (zn - z[:, None]).sum(axis=1) / (length * length)
+
+
+def _uplift_step(t0, dt, tau):
+    """Duration-equivalent of a decaying rate over [t0, t0 + dt]: the rate times this is
+    the uplift of the step (``dt`` for a constant rate, ``tau = 0``)."""
+    if tau <= 0.0:
+        return dt
+    return tau * (np.exp(-t0 / tau) - np.exp(-(t0 + dt) / tau))
+
+
+def _uplift_reach(z, sea_level_m):
+    """1 on land and the shelf, fading to 0 on the deep sea floor (below -500 m)."""
+    t = np.clip((np.asarray(z) - (sea_level_m - 500.0)) / 300.0, 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
 
 
 def evolve(
@@ -171,8 +186,19 @@ def evolve(
         in_lake = (hyd["flood_depth_m"] > 0.01) & ~routing.outlet
 
         # -- uplift, then implicit stream power from the outlets upwards --------------------
-        z_up = z + uplift * dt
-        budget["uplift_m3"] += float((uplift * dt * area)[~sea].sum())
+        # The epoch's rate decays after the epoch (a pulse, e-folding ``uplift_decay_ma``),
+        # acts on land and shelves only (a spreading ridge does not keep rising out of the
+        # sea) and approaches the elevation cap softly instead of passing it.
+        dz_u = uplift * _uplift_step(step * dt, dt, params.uplift_decay_ma * 1e6)
+        dz_u = dz_u * _uplift_reach(z, sea_level_m)
+        z_up = z + dz_u
+        high = z_up > z
+        z_up[high] = np.maximum(
+            limit_elevation(z_up[high] - sea_level_m, config.mountains.max_elevation_m)
+            + sea_level_m,
+            z[high],
+        )
+        budget["uplift_m3"] += float(((z_up - z) * area)[~sea].sum())
         f = k * dt * np.power(np.maximum(a_eff, 0.0), params.m_exponent) / length
         z_new = implicit_incision(z_up, rc, order, f, threshold * dt, routing.outlet | in_lake)
         rcl = rc.tolist()

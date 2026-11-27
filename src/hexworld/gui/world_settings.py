@@ -292,6 +292,9 @@ class WorldSettingsDialog(QDialog):
         self.start = False
         self.rows: dict[str, _Row] = {}
         base = config or Config()
+        #: the full settings the fields are applied onto (keeps every setting that has no
+        #: field in the dialog, e.g. from a world code or an opened project)
+        self.base_config = base
         lay = QVBoxLayout(self)
 
         # -- seed ------------------------------------------------------------------------------
@@ -299,11 +302,16 @@ class WorldSettingsDialog(QDialog):
         top.addWidget(QLabel("<b>Сид мира:</b>"))
         self.seed = QLineEdit(base.seed)
         self.seed.setValidator(
-            QRegularExpressionValidator(QRegularExpression("[A-Za-z0-9]{1,64}"), self)
+            QRegularExpressionValidator(
+                QRegularExpression("[A-Za-z0-9]{1,64}|HW[12]-[A-Za-z0-9_\\-]{0,4000}"), self
+            )
         )
-        self.seed.setToolTip("Буквы и цифры; регистр важен. Один сид + одни настройки = один мир.")
+        self.seed.setToolTip(
+            "Буквы и цифры; регистр важен. Один сид + одни настройки = один мир.\n"
+            "Сюда можно вставить и код мира «HW2-…»: подставятся сид и все настройки."
+        )
         self.seed.textEdited.connect(lambda _t: self.seed_lock.setChecked(True))
-        self.seed.textChanged.connect(lambda _t: self._update_footer())
+        self.seed.textChanged.connect(self._on_seed_text)
         top.addWidget(self.seed, 1)
         dice = QPushButton("🎲 Случайный сид")
         dice.clicked.connect(self.new_seed)
@@ -334,12 +342,12 @@ class WorldSettingsDialog(QDialog):
         save_btn.clicked.connect(self.save_file)
         code_btn = QPushButton("📋 Код мира")
         code_btn.setToolTip(
-            "Скопировать короткий код этого мира (сид + все изменённые настройки), "
-            "чтобы поделиться им или вернуться к миру позже"
+            "Скопировать короткий код этого мира: сид и все настройки целиком. По нему мир "
+            "восстанавливается точно, в том числе в будущих версиях"
         )
         code_btn.clicked.connect(self.copy_code)
         paste_btn = QPushButton("📥 Вставить код…")
-        paste_btn.setToolTip("Восстановить мир по коду «HW1-…»")
+        paste_btn.setToolTip("Восстановить мир по коду «HW2-…» (или старому «HW1-…»)")
         paste_btn.clicked.connect(self.paste_code)
         for b in (unlock, lock_all, load_btn, save_btn, code_btn, paste_btn):
             pre.addWidget(b)
@@ -377,6 +385,11 @@ class WorldSettingsDialog(QDialog):
             scroll.setWidgetResizable(True)
             scroll.setWidget(page)
             self.tabs.addTab(scroll, gtitle)
+        # which map tabs the main window shows (a display preference, saved on «Старт»)
+        from .saved_dialogs import ViewsChooser
+
+        self.views_chooser = ViewsChooser(self)
+        self.tabs.addTab(self.views_chooser, "☑ Вкладки карты")
 
         # -- footer ------------------------------------------------------------------------------
         self.footer = QLabel("")
@@ -495,7 +508,7 @@ class WorldSettingsDialog(QDialog):
         ).replace(",", " ")
         if not errors and self.current is not None:
             try:
-                new_cfg = ss.config_from_values(v, seed=self.seed.text())
+                new_cfg = ss.config_from_values(v, base=self.base_config, seed=self.seed.text())
                 plan = wt.regeneration_plan(self.current, new_cfg)
             except Exception:  # noqa: BLE001
                 plan = None
@@ -535,17 +548,21 @@ class WorldSettingsDialog(QDialog):
         self.accept_start()
 
     def reset_defaults(self):
+        self.base_config = Config()
         self.set_values(ss.values_from_config(Config(seed=self.seed.text() or "HexWorld1")))
         self._on_change()
 
     def accept_start(self):
         try:
-            self.config = ss.config_from_values(self.values(), seed=self.seed.text())
+            self.config = ss.config_from_values(
+                self.values(), base=self.base_config, seed=self.seed.text()
+            )
         except Exception as exc:  # noqa: BLE001 - shown to the user
             QMessageBox.warning(self, "Настройки", str(exc))
             return
         self.through = self.through_box.currentData()
         self.start = True
+        self.views_chooser.save()
         self._remember_locks()
         self._stop_preview()
         self.accept()
@@ -555,8 +572,19 @@ class WorldSettingsDialog(QDialog):
         super().reject()
 
     # -- world code ----
+    def _on_seed_text(self, text: str):
+        if wt.is_world_code(text):
+            try:
+                self.apply_code(text)  # sets the plain seed back into the field
+            except ValueError as exc:
+                self.seed.setStyleSheet("color: #b00")
+                self.seed.setToolTip(str(exc))
+                return
+        self.seed.setStyleSheet("")
+        self._update_footer()
+
     def world_code(self) -> str:
-        cfg = ss.config_from_values(self.values(), seed=self.seed.text())
+        cfg = ss.config_from_values(self.values(), base=self.base_config, seed=self.seed.text())
         return wt.world_code(cfg, self.through_box.currentData())
 
     def copy_code(self):
@@ -575,6 +603,7 @@ class WorldSettingsDialog(QDialog):
 
     def apply_code(self, code: str):
         cfg, through = wt.parse_world_code(code)
+        self.base_config = cfg
         self.seed.setText(cfg.seed)
         self.seed_lock.setChecked(True)
         self.set_values(ss.values_from_config(cfg))
@@ -583,8 +612,8 @@ class WorldSettingsDialog(QDialog):
 
     def paste_code(self):
         text = QGuiApplication.clipboard().text().strip()
-        default = text if text.startswith(wt.CODE_PREFIX) else ""
-        code, ok = QInputDialog.getText(self, "Код мира", "Код мира (HW1-…):", text=default)
+        default = text if wt.is_world_code(text) else ""
+        code, ok = QInputDialog.getText(self, "Код мира", "Код мира (HW2-…):", text=default)
         if not ok or not code.strip():
             return
         try:
@@ -640,7 +669,9 @@ class WorldSettingsDialog(QDialog):
 
     def refresh_preview(self):
         try:
-            cfg = ss.config_from_values(self.values(), seed=self.seed.text() or "HexWorld1")
+            cfg = ss.config_from_values(
+                self.values(), base=self.base_config, seed=self.seed.text() or "HexWorld1"
+            )
         except Exception as exc:  # noqa: BLE001
             self.preview_status.setText(f"эскиз недоступен: {exc}")
             return
@@ -714,9 +745,17 @@ class WorldSettingsDialog(QDialog):
             "through": self.through_box.currentData(),
             "values": self.values(),
             "locked": sorted(self.locked()),
+            # the full settings (also those without a field) and the exact code
+            "config": json.loads(
+                ss.config_from_values(
+                    self.values(), base=self.base_config, seed=self.seed.text() or "HexWorld1"
+                ).to_json()
+            ),
         }
 
     def apply_document(self, doc: dict):
+        if doc.get("config"):
+            self.base_config = Config.from_dict(doc["config"])
         if doc.get("seed"):
             self.seed.setText(doc["seed"])
         self.set_values(doc.get("values", {}))

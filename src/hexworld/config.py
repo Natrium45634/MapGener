@@ -274,6 +274,10 @@ class ErosionParams:
     k_transport: float = 0.02
     #: Keep tectonic uplift of the selected epoch acting during the erosion period.
     continue_uplift: bool = True
+    #: e-folding time of that uplift after the epoch, Ma (0 = constant rate). The rate of
+    #: the last epoch is a pulse, not a permanent state: a constant rate over a long
+    #: erosion period lifted whole continents into flat plateaus.
+    uplift_decay_ma: float = 3.0
     #: Recompute the hex-scale climate after every step (lapse rate, orographic rain).
     update_climate: bool = True
 
@@ -712,6 +716,8 @@ class Config:
         er = self.erosion
         if not 0.0 <= er.duration_ma <= 50.0:
             raise ConfigError("erosion.duration_ma must be within [0, 50]")
+        if not 0.0 <= er.uplift_decay_ma <= 100.0:
+            raise ConfigError("erosion.uplift_decay_ma must be within [0, 100]")
         if not isinstance(er.steps, int) or not 1 <= er.steps <= 200:
             raise ConfigError("erosion.steps must be an integer within [1, 200]")
         if not 0.0 <= er.k_stream <= 1e-3 or not 0.0 <= er.k_transport <= 10.0:
@@ -941,6 +947,10 @@ class Config:
         if unknown:
             raise ConfigError(f"Unknown config keys: {sorted(unknown)}")
         kwargs: dict[str, Any] = {}
+        data = dict(data)
+        if "erosion" in data and "uplift_decay_ma" not in data["erosion"]:
+            # saved before the uplift decay: keep the constant rate of that time
+            data["erosion"] = {**data["erosion"], "uplift_decay_ma": 0.0}
         for key, value in data.items():
             if key in sections:
                 sub = sections[key]

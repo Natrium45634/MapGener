@@ -986,6 +986,23 @@ def cmd_resources(args) -> int:
     return 0
 
 
+def cmd_worlds(args) -> int:
+    """List the saved worlds (one folder each) with their codes; save one from a project."""
+    from . import saved_worlds as sw
+
+    if args.save:
+        project = load_project(args.save)
+        folder = sw.save_world(project, args.title, with_data=not args.code_only)
+        print(f"saved: {folder}")
+        return 0
+    worlds = sw.list_worlds()
+    print(f"worlds folder: {sw.worlds_root()} ({len(worlds)} worlds)")
+    for m in worlds:
+        kind = "data" if m["has_data"] else "code"
+        print(f"  {m.get('saved', ''):16s} [{kind}] {m['title']}: {m['code']}")
+    return 0
+
+
 def cmd_atmosphere(args) -> int:
     """Print the v5.4 summary and the monthly vapour budget; optional windAt and export."""
     project = load_project(args.project)
@@ -1114,7 +1131,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = sub.add_parser("generate", help="generate a project")
     g.add_argument("--config", help="JSON config file (see examples/)")
-    g.add_argument("--code", help="world code «HW1-…» (seed + settings, from the GUI)")
+    g.add_argument("--code", help="world code «HW2-…» (seed + settings, from the GUI)")
     g.add_argument(
         "--through",
         choices=("v1", "v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50"),
@@ -1243,7 +1260,7 @@ def build_parser() -> argparse.ArgumentParser:
     eg.add_argument("--px-per-hex", type=float, default=8.0, help="pixels per hex (default 8)")
     eg.set_defaults(func=cmd_export_game)
 
-    cd = sub.add_parser("code", help="print the world code «HW1-…» of a saved project")
+    cd = sub.add_parser("code", help="print the world code «HW2-…» of a saved project")
     cd.add_argument("project")
     cd.set_defaults(func=cmd_code)
 
@@ -1328,6 +1345,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="write weather_events.csv, world_metric JSON, budget CSV, grid npz",
     )
     at.set_defaults(func=cmd_atmosphere)
+
+    wl = sub.add_parser("worlds", help="saved worlds (one folder per world) and their codes")
+    wl.add_argument("--save", metavar="PROJECT", help="save this project as a world folder")
+    wl.add_argument("--title", help="title of the saved world (default: the seed)")
+    wl.add_argument("--code-only", action="store_true", help="save only the code, no data")
+    wl.set_defaults(func=cmd_worlds)
 
     rs = sub.add_parser("resources", help="v5.2 soil fertility and mineral resources")
     rs.add_argument("project")

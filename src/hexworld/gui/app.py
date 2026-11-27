@@ -13,6 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -138,7 +140,7 @@ class MainWindow(QMainWindow):
             spec.id: (spec.default_mode(), set(spec.default_overlays()))
             for spec in views.VIEWS.values()
         }
-        self._view_ids = list(views.VIEWS)
+        self._view_ids: list[str] = []
 
         self.view = MapView()
         self.view.hexHovered.connect(self._on_hover)
@@ -148,12 +150,7 @@ class MainWindow(QMainWindow):
         # -- tabs + per-view controls above the map ---------------------------
         self.tabs = QTabBar()
         self.tabs.setExpanding(False)
-        for i, spec in enumerate(views.VIEWS.values()):
-            self.tabs.addTab(spec.title)
-            if spec.status != "ready":
-                self.tabs.setTabEnabled(i, False)
-                self.tabs.setTabText(i, f"{spec.title} (запланировано)")
-                self.tabs.setTabToolTip(i, "Запланировано: этой стадии генерации ещё нет")
+        self._rebuild_tabs()
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.mode_box = QComboBox()
         self.mode_box.currentIndexChanged.connect(self._on_mode_changed)
@@ -324,11 +321,30 @@ class MainWindow(QMainWindow):
         act(world, "🌍 Новый мир…", self.new_world, "Ctrl+N", "Все настройки генерации и старт")
         act(world, "🎲 Пакет миров…", self.open_batch, "Ctrl+B",
             "Много быстрых эскизов сразу — выберите понравившийся мир")  # fmt: skip
-        act(world, "📚 Мои миры…", self.open_library, "Ctrl+L", "История миров и избранное")
+        world.addSeparator()
+        act(world, "📂 Сохранённые миры…", self.open_saved_worlds, "Ctrl+O",
+            "Папка с мирами: открыть, пересчитать, скопировать код")  # fmt: skip
+        self.recent_menu = world.addMenu("🕘 Недавние миры")
+        self.recent_menu.aboutToShow.connect(self._fill_recent)
+        act(world, "💾 Сохранить мир…", self.save_world, "Ctrl+S",
+            "Своя папка для мира: данные, код, картинка")  # fmt: skip
+        act(world, "💾 Сохранить только сид и настройки…", self.save_world_code, "Ctrl+Shift+S",
+            "Лёгкая запись: по коду мир пересчитывается точно таким же")  # fmt: skip
+        act(world, "📋 Скопировать код мира", self.copy_world_code, "Ctrl+Shift+C",
+            "Сид и все настройки одной строкой «HW2-…»")  # fmt: skip
+        act(world, "📥 Открыть мир по коду…", self.open_world_code, "Ctrl+Shift+V")
+        world.addSeparator()
+        act(
+            world,
+            "📚 Мои миры (история)…",
+            self.open_library,
+            "Ctrl+L",
+            "История миров и избранное",
+        )
         act(world, "⚖ Сравнить с миром из «Моих миров»…", self.compare_with_library)
         world.addSeparator()
-        act(world, "Открыть проект…", self.open_project, "Ctrl+O")
-        act(world, "Сохранить проект…", self.save_project, "Ctrl+S")
+        act(world, "Открыть папку проекта…", self.open_project)
+        act(world, "Сохранить проект в папку…", self.save_project)
         world.addSeparator()
         act(
             world,
@@ -342,6 +358,7 @@ class MainWindow(QMainWindow):
         act(world, "Выход", self.close, "Ctrl+Q")
         view = bar.addMenu("&Вид")
         act(view, "Вся карта", self.view.fit, "Home")
+        act(view, "☑ Вкладки карты…", self.choose_views, tip="Какие вкладки показывать")
         act(view, "🌐 Глобус…", self.open_globe, "Ctrl+G", "Мир на вращающемся шаре")
         act(view, "Информация о гексе (панель справа)", self._toggle_hex_panel, "Ctrl+I")
         self.names_action = act(view, "Названия на карте", self._toggle_names, "Ctrl+T")
@@ -373,8 +390,15 @@ class MainWindow(QMainWindow):
             "<b>Карта</b>: колесо мыши — масштаб, перетаскивание — сдвиг, щелчок по гексу — "
             "вся информация о нём справа, двойной щелчок — приблизить, правая кнопка — "
             "вертикальный разрез, Home — вся карта. Вкладки над картой — разные слои мира.<br><br>"
-            "<b>Мои миры</b> (Ctrl+L): все созданные миры, избранное, сравнение двух миров. "
-            "Каждый мир восстанавливается точно по своему коду «HW1-…».<br><br>"
+            "<b>Сохранённые миры</b> (Ctrl+O): у каждого мира своя папка (данные, код, картинка, "
+            "заметки). «Сохранить мир» (Ctrl+S) — весь мир, открывается сразу; «Сохранить "
+            "только сид и настройки» (Ctrl+Shift+S) — лёгкая запись, мир пересчитается таким же."
+            "<br><br>"
+            "<b>Код мира</b> «HW2-…» (Ctrl+Shift+C) — сид и все настройки одной строкой: "
+            "вставьте его в поле сида в «Новом мире» или «Мир → Открыть мир по коду».<br><br>"
+            "<b>Вкладки карты</b>: «Вид → Вкладки карты» или вкладка «☑ Вкладки карты» в "
+            "настройках мира — показывать только нужные.<br><br>"
+            "<b>Мои миры</b> (Ctrl+L): история всех созданных миров, избранное, сравнение.<br><br>"
             "<b>Пакет миров</b> (Ctrl+B): много эскизов за минуту — выберите лучший.<br><br>"
             "<b>Глобус</b> (Ctrl+G) и <b>экспорт для игр</b> — в меню «Вид» и «Мир».",
         )
@@ -627,6 +651,36 @@ class MainWindow(QMainWindow):
         self.mode.setCurrentText(data["mode"])
 
     # -- views (tabs) ------------------------------------------------------
+    def _rebuild_tabs(self):
+        """Tabs of the map: the views the user chose to see (Вид → Вкладки карты)."""
+        from .. import saved_worlds as sw
+
+        keep = self._view_ids[self.tabs.currentIndex()] if self._view_ids and \
+            self.tabs.currentIndex() >= 0 else None  # fmt: skip
+        self.tabs.blockSignals(True)
+        while self.tabs.count():
+            self.tabs.removeTab(0)
+        self._view_ids = sw.visible_views(list(views.VIEWS))
+        for i, vid in enumerate(self._view_ids):
+            spec = views.VIEWS[vid]
+            self.tabs.addTab(spec.title)
+            if spec.status != "ready":
+                self.tabs.setTabEnabled(i, False)
+                self.tabs.setTabText(i, f"{spec.title} (запланировано)")
+                self.tabs.setTabToolTip(i, "Запланировано: этой стадии генерации ещё нет")
+        if keep in self._view_ids:
+            self.tabs.setCurrentIndex(self._view_ids.index(keep))
+        self.tabs.blockSignals(False)
+
+    def choose_views(self):
+        from .saved_dialogs import ViewsDialog
+
+        if ViewsDialog(self).exec():
+            self._rebuild_tabs()
+            self._refresh_view_controls()
+            if self.project is not None:
+                self._apply_view()
+
     def current_view(self) -> views.ViewSpec:
         return views.VIEWS[self._view_ids[self.tabs.currentIndex()]]
 
@@ -882,6 +936,8 @@ class MainWindow(QMainWindow):
         self._settings_dialog = dlg
         if not dlg.exec() or not dlg.start or dlg.config is None:
             return
+        self._rebuild_tabs()
+        self._refresh_view_controls()
         self.generate_with(dlg.config, dlg.through)
 
     # -- library, batch, globe, export -------------------------------------------------
@@ -1083,6 +1139,124 @@ class MainWindow(QMainWindow):
             ),
             lambda project: self._show_project(project, f"Снимок t = {when:g} млн лет"),
         )
+
+    # -- saved worlds ------------------------------------------------------------------
+    def save_world(self):
+        from .. import saved_worlds as sw
+        from .saved_dialogs import SaveWorldDialog
+
+        if self.project is None:
+            self.save_world_code()
+            return
+        dlg = SaveWorldDialog(self.project.config.seed, True, self)
+        if not dlg.exec():
+            return
+        project, title = self.project, dlg.title.text()
+        with_data, notes = dlg.with_data.isChecked(), dlg.notes.toPlainText()
+        through = self._project_through(project)
+        self._run(
+            lambda _p: sw.save_world(
+                project, title, through=through, with_data=with_data, notes=notes
+            ),  # fmt: skip
+            lambda folder: (
+                sw.remember_recent(folder),
+                self.statusBar().showMessage(f"Мир сохранён: {folder}"),
+            ),  # fmt: skip
+        )
+
+    def save_world_code(self):
+        from .. import saved_worlds as sw
+
+        try:
+            config = self.project.config if self.project is not None else self.build_config()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Сохранить", str(exc))
+            return
+        title, ok = QInputDialog.getText(self, "Сохранить сид и настройки", "Название:",
+                                         text=config.seed)  # fmt: skip
+        if not ok:
+            return
+        through = self._project_through(self.project) if self.project is not None else "v50"
+        folder = sw.save_code(config, title, through=through)
+        sw.remember_recent(folder)
+        self.statusBar().showMessage(f"Сохранено: {folder}")
+
+    @staticmethod
+    def _project_through(project) -> str:
+        try:
+            return stage_depth(project)
+        except Exception:  # noqa: BLE001
+            return "v50"
+
+    def copy_world_code(self):
+        from ..world_tools import world_code
+
+        try:
+            config = self.project.config if self.project is not None else self.build_config()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Код мира", str(exc))
+            return
+        through = self._project_through(self.project) if self.project is not None else "v50"
+        code = world_code(config, through)
+        QGuiApplication.clipboard().setText(code)
+        self.statusBar().showMessage(f"Код мира скопирован: {code}")
+
+    def open_world_code(self):
+        from ..world_tools import is_world_code, parse_world_code
+
+        text = QGuiApplication.clipboard().text().strip()
+        code, ok = QInputDialog.getText(self, "Мир по коду", "Код мира (HW2-…):",
+                                        text=text if is_world_code(text) else "")  # fmt: skip
+        if not ok or not code.strip():
+            return
+        try:
+            config, through = parse_world_code(code)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Код мира", str(exc))
+            return
+        self.new_world(config, through)
+
+    def open_saved_worlds(self):
+        from .saved_dialogs import SavedWorldsDialog
+
+        dlg = SavedWorldsDialog(self)
+        if dlg.exec() and dlg.meta is not None:
+            self._open_saved(dlg.meta["folder"], dlg.action)
+
+    def _open_saved(self, folder: str, action: str = "open"):
+        from .. import saved_worlds as sw
+        from ..world_tools import parse_world_code
+
+        meta = sw.read_meta(folder)
+        if meta is None:
+            QMessageBox.warning(self, "Сохранённые миры", f"Не найден мир в папке {folder}")
+            return
+        try:
+            config, through = parse_world_code(meta["code"])
+        except ValueError as exc:
+            QMessageBox.warning(self, "Сохранённые миры", str(exc))
+            return
+        sw.remember_recent(folder)
+        if action == "settings":
+            self.new_world(config, through)
+        elif action == "open" and (Path(folder) / "project" / "manifest.json").exists():
+            self.load_path(str(Path(folder) / "project"))
+        else:
+            self.generate_with(config, through)
+
+    def _fill_recent(self):
+        from .. import saved_worlds as sw
+
+        self.recent_menu.clear()
+        items = sw.recent_worlds()
+        if not items:
+            a = self.recent_menu.addAction("(пусто)")
+            a.setEnabled(False)
+            return
+        for folder in items:
+            meta = sw.read_meta(folder) or {}
+            a = self.recent_menu.addAction(meta.get("title", folder.name))
+            a.triggered.connect(lambda _c=False, f=str(folder): self._open_saved(f, "open"))
 
     def open_project(self):
         path = QFileDialog.getExistingDirectory(self, "Открыть проект HexWorld")

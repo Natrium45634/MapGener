@@ -460,10 +460,11 @@ def construction_materials(ctx, parent_material, soil_depth_m, weathering):
 
 def tract_systems(ctx, prospect, lam, lambda_scale=1.0):
     """Poisson systems of extra tracts (same process as the primary tract types)."""
-    from .deposits import _provinces, _stream, poisson_from_uniform
+    from .deposits import _provinces, _stream, _unique_pid, poisson_from_uniform
 
     systems, bodies, provinces = [], [], []
     area = ctx.hex_area_km2
+    used_pids: set = set()
     for mid in sorted(prospect):
         mask, s, prov = prospect[mid]
         if not mask.any():
@@ -480,7 +481,7 @@ def tract_systems(ctx, prospect, lam, lambda_scale=1.0):
             pcx = float((ctx.x_km[idx] * w).sum() / w.sum())
             pcy = float((ctx.y_km[idx] * w).sum() / w.sum())
             ph = stable_hash(ctx.seed, "province", mid, round(pcx / 100.0), round(pcy / 100.0))
-            pid = f"P-{mid}-{ph[:10]}"
+            pid = _unique_pid(f"P-{mid}-{ph[:10]}", used_pids)
             L_ = lam[mid] * lambda_scale * sums[p]
             count = poisson_from_uniform(L_, _stream(ctx.seed, mid, pid, "count").random())
             provinces.append(

@@ -13,7 +13,9 @@ import numpy as np
 
 from .config import Config
 
-CODE_PREFIX = "HW1-"
+CODE_PREFIX = "HW2-"
+LEGACY_CODE_PREFIX = "HW1-"
+CODE_PREFIXES = (CODE_PREFIX, LEGACY_CODE_PREFIX)
 
 #: Pipeline levels in run order: (through key, title, config sections that start it).
 LEVELS = (
@@ -57,41 +59,92 @@ def _diff(new: dict, base: dict) -> dict:
     return out
 
 
-def world_code(config: Config, through: str = "v50") -> str:
-    """A short text that recreates the world: seed + every setting that differs from default.
+def _frozen_defaults(dict_id: int) -> dict:
+    return json.loads(_dictionary(dict_id).decode("utf-8"))["c"]
 
-    ``HW1-`` + base64url(zlib(JSON)). Paste it into «Новый мир» or ``hexworld generate --code``.
-    """
-    data = {"s": config.seed, "d": _diff(config.to_dict(), Config().to_dict())}
-    data["d"].pop("seed", None)
+
+def _merge(base: dict, diff: dict) -> dict:
+    for k, v in diff.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def _canonical(config: Config, through: str) -> bytes:
+    """Changes of the full settings against the *frozen* defaults of dictionary 1 (not the
+    defaults of this build): decoding merges them back into the same frozen text, so every
+    build gets the identical full configuration."""
+    payload = {"d": _diff(config.to_dict(), _frozen_defaults(1))}
     if through != "v50":
-        data["t"] = through
-    raw = json.dumps(data, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
-    packed = base64.urlsafe_b64encode(zlib.compress(raw.encode("utf-8"), 9)).decode("ascii")
-    return CODE_PREFIX + packed.rstrip("=")
+        payload["t"] = through
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode(
+        "utf-8"
+    )
+
+
+def world_code(config: Config, through: str = "v50") -> str:
+    """A short text that recreates the world exactly: seed + **every** setting.
+
+    ``HW2-`` + base64url(dictionary id, CRC-24, raw deflate of the full settings JSON with a
+    frozen dictionary). The settings are stored as changes against the frozen default text
+    of the dictionary (never against this build's defaults), so the full configuration is
+    restored exactly in every later build; ~60-90 characters for a world with a few changes.
+    """
+    raw = _canonical(config, through)
+    comp = zlib.compressobj(9, zlib.DEFLATED, -15, 9, zlib.Z_DEFAULT_STRATEGY, zdict=_dictionary(1))
+    body = comp.compress(raw) + comp.flush()
+    crc = (zlib.crc32(raw) & 0xFFFFFF).to_bytes(3, "big")
+    packed = base64.urlsafe_b64encode(bytes([1]) + crc + body).decode("ascii").rstrip("=")
+    return CODE_PREFIX + packed
+
+
+def _dictionary(dict_id: int) -> bytes:
+    from . import _world_code_dict as wcd
+
+    try:
+        return getattr(wcd, f"DICT_{dict_id}").encode("utf-8")
+    except AttributeError as exc:
+        raise ValueError(f"код мира из более новой версии (словарь {dict_id})") from exc
+
+
+def is_world_code(text: str) -> bool:
+    return "".join(str(text).split()).startswith(CODE_PREFIXES)
 
 
 def parse_world_code(code: str) -> tuple[Config, str]:
-    """``(config, through)`` of a world code; raises ``ValueError`` on a bad code."""
+    """``(config, through)`` of a world code (``HW2-`` or the older ``HW1-``); raises
+    ``ValueError`` on a bad or damaged code."""
     text = "".join(str(code).split())
+    if text.startswith(LEGACY_CODE_PREFIX):
+        return _parse_v1(text[len(LEGACY_CODE_PREFIX) :])
     if not text.startswith(CODE_PREFIX):
-        raise ValueError("код мира должен начинаться с «HW1-»")
+        raise ValueError("код мира должен начинаться с «HW2-» (или «HW1-»)")
     body = text[len(CODE_PREFIX) :]
+    try:
+        blob = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
+        dec = zlib.decompressobj(-15, zdict=_dictionary(blob[0]))
+        raw = dec.decompress(blob[4:]) + dec.flush()
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"код мира повреждён: {exc}") from exc
+    if (zlib.crc32(raw) & 0xFFFFFF).to_bytes(3, "big") != blob[1:4]:
+        raise ValueError("код мира повреждён: контрольная сумма не совпадает")
+    data = json.loads(raw.decode("utf-8"))
+    full = _merge(_frozen_defaults(blob[0]), data.get("d", {}))
+    return Config.from_dict(full), data.get("t", "v50")
+
+
+def _parse_v1(body: str) -> tuple[Config, str]:
     try:
         raw = zlib.decompress(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
         data = json.loads(raw.decode("utf-8"))
     except Exception as exc:  # noqa: BLE001
         raise ValueError(f"код мира повреждён: {exc}") from exc
 
-    def merge(base: dict, diff: dict) -> dict:
-        for k, v in diff.items():
-            if isinstance(v, dict) and isinstance(base.get(k), dict):
-                merge(base[k], v)
-            else:
-                base[k] = v
-        return base
-
-    d = merge(Config().to_dict(), data.get("d", {}))
+    d = _merge(Config().to_dict(), data.get("d", {}))
     d["seed"] = data["s"]
     return Config.from_dict(d), data.get("t", "v50")
 

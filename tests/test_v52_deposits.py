@@ -469,7 +469,7 @@ def test_n20_r20_same_world_two_resolutions():
     """Object-anchored systems keep ids and world coordinates across hex sizes."""
     from hexworld import Config, generate
 
-    bounds = (0.0, 0.0, 6000.0, 4000.0)
+    bounds = (0.0, 0.0, 6000.0, 4200.0)
     pa = generate(
         Config(seed="Terra7", width=80, height=54, hex_spacing_km=75.0, simulation_bounds_km=bounds)
     )
@@ -494,3 +494,11 @@ def test_n20_r20_same_world_two_resolutions():
     share = len(common) / max(len(set(a) | set(b)), 1)
     print("N20: anchored systems", len(a), len(b), "common share", round(share, 3))
     assert share >= 0.8
+
+
+def test_province_ids_stay_unique_when_centroids_share_a_cell():
+    used: set = set()
+    a = dep._unique_pid("P-R31-abc", used)
+    b = dep._unique_pid("P-R31-abc", used)
+    c = dep._unique_pid("P-R31-abc", used)
+    assert (a, b, c) == ("P-R31-abc", "P-R31-abc-2", "P-R31-abc-3")
