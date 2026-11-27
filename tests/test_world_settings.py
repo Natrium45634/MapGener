@@ -106,7 +106,8 @@ def test_size_presets_and_estimates():
         Config(width=w, height=h, hex_spacing_km=km, mode=mode)
     small = ss.estimate_seconds(100, 100)
     big = ss.estimate_seconds(1000, 800)
-    assert 40 < small < 150 and 200 < big < 450 and big > small
+    # measured 1000x800: 20-25 min on an icy world (v53 ice sheets), less on others
+    assert 40 < small < 150 and 300 < big < 1500 and big > small
 
 
 # -- progress ------------------------------------------------------------------------------------

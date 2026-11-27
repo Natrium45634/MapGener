@@ -70,7 +70,7 @@ def _filled(field_, valid):
 STEP_YEARS = {"fast": 500.0, "balanced": 250.0, "high": 100.0}
 
 
-def _ice_sheets(config, project, out, ocean_hex, shape):
+def _ice_sheets(config, project, out, ocean_hex, shape, progress=None):
     """Grounded sheets (spin-up to convergence), shelves, isostasy, sea-level equivalent."""
     from .earth.icesheet import (
         glacial_erosion_rate,
@@ -99,7 +99,7 @@ def _ice_sheets(config, project, out, ocean_hex, shape):
     res = spinup(t_m, p_m, bed, land, ocean, nbr, spacing, mode=ep.ice_init_mode,
                  min_years=ep.ice_min_spinup_years, max_years=ep.ice_max_spinup_years,
                  window=ep.ice_window_years, step_years=STEP_YEARS.get(ep.quality, 250.0),
-                 sublimation_mm=sub)  # fmt: skip
+                 sublimation_mm=sub, progress=progress)  # fmt: skip
     h = res.thickness_m
     area = lay.hex_area_km2 * 1e6
     shelf = np.zeros(n)
@@ -227,7 +227,7 @@ def _morphodynamics(project, out, ocean_hex, lake_hex, shape):
     }  # fmt: skip
 
 
-def run_earth(config, project) -> dict:
+def run_earth(config, project, progress=None) -> dict:
     from .stages.climate import _bilinear
 
     t0 = time.perf_counter()
@@ -298,7 +298,16 @@ def run_earth(config, project) -> dict:
     ).astype(np.float16)
     ice_summary = None
     if config.earth.ice_sheets:
-        ice_summary = _ice_sheets(config, project, out, ocean_hex, shape)
+        if progress is not None:
+            progress(0.1)
+        ice_summary = _ice_sheets(
+            config,
+            project,
+            out,
+            ocean_hex,
+            shape,
+            None if progress is None else (lambda f: progress(0.1 + 0.8 * f)),
+        )
     morpho_summary = None
     if getattr(config.earth, "morphodynamics", False):
         morpho_summary = _morphodynamics(project, out, ocean_hex, lake_hex, shape)
@@ -347,8 +356,10 @@ def run_v53(config, geometry, project, old_keys: dict, old_cache: dict, report):
     if old_keys.get("v53_earth") == keys["v53_earth"] and "v53_earth" in old_cache:
         data = old_cache["v53_earth"]
         return data, {"v53_earth": data}, ["v53_earth"]
+    from .progress import sub_report
+
     report("v53_earth", 0.997)
-    res = run_earth(config, project)
+    res = run_earth(config, project, lambda f: report(sub_report("v53_earth", f), 0.997))
     data = EarthData(layers=res["layers"], summary=res["summary"],
                      provenance={"algorithm_version": EARTH_ALGORITHM_VERSION,
                                  "params": asdict(config.earth)},

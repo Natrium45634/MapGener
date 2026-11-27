@@ -196,21 +196,25 @@ class SIA:
         if m == 0:
             return h.copy(), {"smb_m3": 0.0, "calving_m3": 0.0, "margin_m3": 0.0}
         gain = np.where(cells, np.maximum(smb * dt, -h), 0.0)
+        # only the edges touching the cells carry ice; the rest of the map is skipped
+        near = np.nonzero(cells[self.i] | cells[self.j])[0]
+        ei, ej = self.i[near], self.j[near]
         h_iter = h.copy()
         for _ in range(max(1, picard)):
-            s = self.bed + h_iter
-            grad = (s[self.j] - s[self.i]) / self.L
+            si = self.bed[ei] + h_iter[ei]
+            sj = self.bed[ej] + h_iter[ej]
+            grad = (sj - si) / self.L
             # upstream thickness (the side with the higher surface): a margin next to an
             # empty hex keeps its outflow (a mean thickness would lock the margin shut)
-            hm = np.where(s[self.i] >= s[self.j], h_iter[self.i], h_iter[self.j])
+            hm = np.where(si >= sj, h_iter[ei], h_iter[ej])
             # slope regularisation (eps = 3e-4): a flat dome still conducts, otherwise the
             # lagged D of a flat interior is zero and the outflow never reaches the centre
             dcoef = (
                 self.gam * hm ** (self.n + 2) * (grad * grad + SLOPE_EPS**2) ** ((self.n - 1) / 2.0)
             )
-            k = dcoef * self.face / self.L / self.area * dt  # per edge, dimensionless
-            use = (cells[self.i] | cells[self.j]) & (k > 0)
-            ii, jj, kk = self.i[use], self.j[use], k[use]
+            k_near = dcoef * self.face / self.L / self.area * dt  # per edge, dimensionless
+            use = k_near > 0
+            ii, jj, kk = ei[use], ej[use], k_near[use]
             rows, cols, vals = [], [], []
             rhs = np.zeros(m)
             for a, b in ((ii, jj), (jj, ii)):
@@ -266,9 +270,9 @@ class SIA:
         # budget value (m^3 per step per ocean hex)
         s_sol = self.bed + np.where(cells, h_iter, 0.0)
         into = np.zeros(n)
-        for a, b in ((self.i, self.j), (self.j, self.i)):
+        for a, b in ((ei, ej), (ej, ei)):
             e = cells[a] & self.ocean[b]
-            f = k[e] * self.area * np.maximum(s_sol[a[e]] - s_sol[b[e]], 0.0)
+            f = k_near[e] * self.area * np.maximum(s_sol[a[e]] - s_sol[b[e]], 0.0)
             np.add.at(into, b[e], f)
         tot = float(into.sum())
         self.last_calving_hex = into * (max(calving, 0.0) / tot) if tot > 0 else into
@@ -322,8 +326,10 @@ def seed(mode, smb, t_annual, land, nbr, spacing_m, a_yr=GLEN_A_YR):
 def spinup(t_m, p_m, z_bed, land, ocean, nbr, spacing_m, mode="analytic_steady_seed",
            min_years=500.0, max_years=50000.0, window=500.0, k_melt_mm=5.0,
            paleo_cooling_k=6.0, initial=None, step_years=100.0,
-           sublimation_mm=0.0) -> IceSheetResult:  # fmt: skip
-    """Seed + SIA spin-up to the convergence criteria; mass ledger closed."""
+           sublimation_mm=0.0, progress=None) -> IceSheetResult:  # fmt: skip
+    """Seed + SIA spin-up to the convergence criteria; mass ledger closed.
+
+    ``progress(f)`` (optional) gets the share of the longest spin-up done, 0..1."""
     t_m = np.asarray(t_m, dtype=np.float64)
     n = z_bed.size
     land = np.asarray(land, bool)
@@ -352,9 +358,13 @@ def spinup(t_m, p_m, z_bed, land, ocean, nbr, spacing_m, mode="analytic_steady_s
     prev_v, prev_h = v0, h.copy()
     win_smb = win_calv = win_margin = 0.0
     next_check = window
+    # the mass balance is needed on land only (elsewhere it is zero): computed there
+    on = np.nonzero(land & ~ocean)[0]
+    t_on, p_on = t_m[:, on], np.asarray(p_m, dtype=np.float64)[:, on]
+    sub_on = sub[on] if sub.ndim else sub
     while t < max_years:
-        smb = np.where(land, surface_mass_balance(t_m, p_m, h, k_melt_mm, sublimation_mm=sub), 0.0)
-        smb = np.where(ocean, 0.0, smb)
+        smb = np.zeros(n)
+        smb[on] = surface_mass_balance(t_on, p_on, h[on], k_melt_mm, sublimation_mm=sub_on)
         dt = min(step_years, next_check - t)
         h, step_ledger = sia.implicit_step(h, smb, dt)
         ledger["smb_m3"] += step_ledger["smb_m3"]
@@ -365,6 +375,8 @@ def spinup(t_m, p_m, z_bed, land, ocean, nbr, spacing_m, mode="analytic_steady_s
         win_margin += step_ledger["margin_m3"]
         t += dt
         if t >= next_check - 1e-9:
+            if progress is not None:
+                progress(min(1.0, t / max(max_years, 1.0)))
             v = float((h * sia.area).sum())
             ref = max(v, prev_v, 1e9)
             dv_rel_100 = abs(v - prev_v) / ref / window * 100.0

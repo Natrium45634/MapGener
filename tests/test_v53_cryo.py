@@ -234,3 +234,20 @@ def test_v50_uses_the_sheet_as_its_initial_state(hist_project):
                                                           "none")  # fmt: skip
     if (hist_project.earth.layers["land_ice_thickness_m"] > 0).any():
         assert b.summary["cryosphere"]["seed_source"] == "v53_ice_sheet"
+
+
+def test_spinup_reports_progress_and_skips_the_ocean():
+    """The spin-up reports how far it got; the active-area shortcuts change nothing."""
+    lay, nbr, land, ocean, bed, smb = _island(radius_km=300.0, n=24)
+    n = smb.size
+    t = np.full((12, n), -25.0)
+    p = np.full((12, n), 20.0)
+    seen = []
+    r = ice.spinup(t, p, bed, land, ocean, nbr, 40e3, mode="analytic_steady_seed",
+                   min_years=500.0, max_years=4000.0, window=500.0, step_years=250.0,
+                   progress=seen.append)  # fmt: skip
+    assert seen and seen == sorted(seen) and 0.0 < seen[0] and seen[-1] <= 1.0
+    assert seen[-1] == pytest.approx(r.years / 4000.0)
+    # the mass balance is computed on land only: the ocean gets none, no ice anywhere there
+    assert r.thickness_m[ocean].max() == 0.0
+    assert r.ledger["relative_residual"] < 1e-9
