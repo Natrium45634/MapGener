@@ -35,11 +35,11 @@ fixed as well (see `performance_report.md`).
 | N01–N10 | PASS | `test_v52_soil.py` (N10 = S04) |
 | N11–N16, N18, N19 | PASS | `test_v52_deposits.py` |
 | N17 | PASS (relation) | scenes: equal CEC, different water supply (`test_s20`, `idx_water`) |
-| N20 | PASS (slow) | `test_n20_r20_same_world_two_resolutions`: object-anchored systems keep ids and world coordinates; tract systems may move between resolutions (declared) |
+| N20 | PARTIAL (slow) | `test_n20_r20_same_world_two_resolutions`: systems present at both hex sizes keep ids and world coordinates exactly, but only 38 % of the volcano-anchored systems are present in both (the qualifying conditions use hex-sampled v5.1 environment and nearby lithology); tract systems may move as well |
 | S01–S24 | PASS | `test_v52_soil.py` (S21 in `test_v52_integration.py::test_s21_*` and I14) |
 | R01–R08, R10–R19, R21–R26 | PASS | `test_v52_deposits.py` |
 | R09 oil / gas | PASS for the permissive rule; the petroleum system itself is **P1, simplified** (no kinetics, no migration graph) | `test_r08_r09_*` |
-| R20 | PASS for object-anchored systems (slow); PARTIAL for tract systems | N20 test |
+| R20 | PARTIAL: common systems identical, 38 % overlap of anchored systems between two resolutions | N20 test |
 | I01–I16 | PASS (I11 on synthetic fragments; I14 offscreen only) | `test_v52_integration.py` |
 
 ## Scenes (TZ sec. 25)
@@ -62,7 +62,9 @@ construction materials) — no dedicated end-to-end scene test.
 - The lithology beyond the six v3 rock classes is *inferred* (noise in the material frame
   plus setting); paleoclimate of old epochs is not simulated (old coal / evaporites are
   `inherited_stratigraphy`).
-- Tract deposit anchors depend on the hex sampling of the input fields (R20 partial).
+- Resolution independence (R20 / N20) is partial: which volcano systems host deposits and
+  where tract anchors fall depend on hex-sampled inputs; measured overlap of anchored
+  systems between 75 km and 50 km hexes of one world: 38 %.
 - Oil and gas: simplified permissive traps only (P1). Geothermal (R35): reported by v5.1,
   no resource objects.
 - Grade–tonnage medians are rounded orders of magnitude (`synthetic_not_calibrated`); no
