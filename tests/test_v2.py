@@ -202,8 +202,11 @@ def test_sea_modes_are_exclusive_and_reported(small_config, small_project):
     target = generate(
         replace(small_config, sea=SeaParams(target_land_fraction=0.45)), reuse=small_project
     )
-    world = target.geo.summary["world"]
-    assert abs(world["land_fraction_simulation"] - 0.45) < 0.01
+    reachable = generate(
+        replace(small_config, sea=SeaParams(target_land_fraction=0.33)), reuse=small_project
+    )
+    assert abs(reachable.geo.summary["world"]["land_fraction_simulation"] - 0.33) < 0.01
+    assert not any("недостижима" in w for w in reachable.geo.warnings)
     assert target.geo.summary["target_land_fraction"] == 0.45
     fixed = generate(
         replace(
@@ -215,8 +218,12 @@ def test_sea_modes_are_exclusive_and_reported(small_config, small_project):
     assert fixed.geo.summary["target_land_fraction"] is None
     # the land share is measured, not forced: at -1500 m even part of the slope is dry
     assert fixed.geo.summary["world"]["land_fraction_simulation"] > 0.36
-    # more land than there is continental crust needs an implausible level: reported
-    assert any("unusual sea level" in w for w in target.geo.warnings)
+    # more land than there is continental crust would drown nothing but the ocean floor:
+    # the sea stops at the shelf edge, the land share stays below the request, reported
+    floor = small_config.relief.shelf_edge_m - 150.0
+    assert target.geo.sea_level_m == pytest.approx(floor, abs=1.0)
+    assert target.geo.summary["world"]["land_fraction_simulation"] < 0.42
+    assert any("недостижима" in w for w in target.geo.warnings)
     with pytest.raises(ValueError):
         derive_landmasses(small_project, sea_level_m=0.0, target_land_fraction=0.3)
 

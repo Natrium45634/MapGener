@@ -154,15 +154,17 @@ def test_click_opens_the_hex_panel(qapp, hist_project):
     assert not w.hex_dock.isHidden()
     panel = w.hex_panel
     assert panel.title.text().startswith(f"Гекс ({c}, {r})")
-    assert panel.tree.topLevelItemCount() >= 8
+    assert len(panel.full_report.sections) >= 8  # everything, incl. technical sections
+    assert 0 < panel.tree.topLevelItemCount() < len(panel.full_report.sections)
     assert "Положение" in panel.text()
+    assert not panel.card.isHidden()
     panel.search.setText("почв")
     shown = [
         panel.tree.topLevelItem(i).text(0)
         for i in range(panel.tree.topLevelItemCount())
         if not panel.tree.topLevelItem(i).isHidden()
     ]
-    assert shown and any("Почвы" in t for t in shown)
+    assert shown and any("почв" in t.lower() for t in shown)
     panel.search.setText("")
     panel.zoom_requested.emit(c, r)
     assert w.view.km_per_px == pytest.approx(hist_project.layout.spacing_km / 40.0)
