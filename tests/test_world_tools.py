@@ -23,7 +23,7 @@ def test_world_code_round_trip():
          "climate": {**Config().to_dict()["climate"], "temperature_offset_c": -4.5}}
     )  # fmt: skip
     code = wt.world_code(c, "v47")
-    assert code.startswith("HW1-") and len(code) < 300
+    assert code.startswith("HW2-") and len(code) < 300
     back, through = wt.parse_world_code(code)
     assert back == c and through == "v47"
     assert wt.parse_world_code(wt.world_code(Config()))[0] == Config()
@@ -112,7 +112,7 @@ def test_library_history_favourites(tmp_path, hist_project, monkeypatch):
 
     lib = wl.WorldLibrary(tmp_path)
     e = lib.add(hist_project)
-    assert lib.thumb_path(e) is not None and e["code"].startswith("HW1-")
+    assert lib.thumb_path(e) is not None and e["code"].startswith("HW2-")
     lib.set_favourite(e["id"])
     lib.rename(e["id"], "Мой первый мир")
     again = wl.WorldLibrary(tmp_path)  # survives a restart
