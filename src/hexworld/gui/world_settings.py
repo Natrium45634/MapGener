@@ -319,6 +319,9 @@ class WorldSettingsDialog(QDialog):
         self.seed_lock = QCheckBox("🔒 сид")
         self.seed_lock.setToolTip("Не менять сид при «Случайные настройки»")
         top.addWidget(self.seed_lock)
+        from .saved_dialogs import font_buttons
+
+        top.addLayout(font_buttons(self, "world_settings"))
         lay.addLayout(top)
 
         # -- presets and files ----------------------------------------------------------------

@@ -23,12 +23,24 @@ from ..config import SeaParams
 from ..geometry import HexLayout
 from .raster import plate_components
 
+#: how far below the shelf edge the target-land-fraction level may go (m)
+SEA_FLOOR_MARGIN_M = 150.0
 
-def resolve_sea_level(world_elevation_sim: np.ndarray, params: SeaParams) -> float:
-    """Sea level (m, model datum) for ``params``; input is world elevation over the sim area."""
+
+def resolve_sea_level(world_elevation_sim: np.ndarray, params: SeaParams,
+                      floor_m: float | None = None) -> float:  # fmt: skip
+    """Sea level (m, model datum) for ``params``; input is world elevation over the sim area.
+
+    ``floor_m``: the lowest level the target-land-fraction mode may choose (the edge of the
+    continental shelves). Without it a land share above the share of continental crust
+    drained the ocean by kilometres: whole continents stood as flat plateaus 3-4 km above
+    the sea and the mid-ocean ridges rose out of it as straight bands of land.
+    """
     if params.sea_mode == "fixed_sea_level_m":
         return float(params.fixed_sea_level_m)
     level = np.quantile(world_elevation_sim.astype(np.float64), 1.0 - params.target_land_fraction)
+    if floor_m is not None:
+        level = max(float(level), float(floor_m))
     return float(np.round(level, 3))
 
 

@@ -205,10 +205,12 @@ def conflicts(values: dict) -> list[str]:
         out.append(f"Суши всего {land:.0%}, а материков {majors}: они будут совсем маленькими.")
     cc = v("crust.continental_fraction")
     if land is not None and cc is not None and v("sea.sea_mode") == "target_land_fraction":
-        if land > cc + 0.25:
+        if land > cc + 0.03:
             out.append(
-                f"Доля суши {land:.0%} много больше доли континентальной коры {cc:.0%}: "
-                "сушей станет и океанское дно (море будет мелким)."
+                f"Доля суши {land:.0%} больше доли континентальной коры {cc:.0%}: столько "
+                "суши не будет — море не опускается ниже края шельфов (иначе материки "
+                f"встали бы плоскими плато, а сушей стало бы океанское дно). Суши будет "
+                f"около {cc:.0%}; поднимите долю континентальной коры."
             )
     t = v("climate.temperature_offset_c")
     p = v("climate.precipitation_scale")

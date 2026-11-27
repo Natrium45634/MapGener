@@ -349,7 +349,12 @@ def run_v2(
     gx, gy = np.meshgrid(xs, ys)
     in_sim = geometry.simulation_bounds.contains(gx, gy)
     world_elev = relief_entry["world_elevation_m"]
-    sea_level = resolve_sea_level(world_elev[in_sim], config.sea)
+    from .stages.sea import SEA_FLOOR_MARGIN_M
+
+    sea_floor = config.relief.shelf_edge_m - SEA_FLOOR_MARGIN_M
+    sea_level = resolve_sea_level(world_elev[in_sim], config.sea, sea_floor)
+    sea_level_limited = (config.sea.sea_mode == "target_land_fraction"
+                         and sea_level <= sea_floor + 1e-6)  # fmt: skip
     elev = raster_entry["macro_elevation_m"]
     fraction = raster_entry["continental_fraction"]
     land, landmass_id, land_sizes, shelf = derive_land(
@@ -396,6 +401,14 @@ def run_v2(
         "requested_major_landmass_count": config.continents.major_landmass_count,
     }
     warnings = list(relief_entry.get("structure_warnings", []))
+    if sea_level_limited:
+        got = float((world_elev[in_sim] > sea_level).mean())
+        warnings.append(
+            f"Доля суши {config.sea.target_land_fraction:.0%} недостижима: для неё море пришлось "
+            f"бы опустить ниже края шельфов, и сушей стало бы океанское дно. Уровень моря "
+            f"остановлен у края шельфа ({sea_level:+.0f} м), суши {got:.0%}. Чтобы суши было "
+            f"больше, увеличьте долю континентальной коры."
+        )
     requested = config.continents.major_landmass_count
     actual = world_stats["major_landmass_count"]
     if requested != "auto" and actual != requested:

@@ -131,12 +131,24 @@ class HexReport:
     sections: list[Section]
     #: Monthly climate for the climograph: {"t": [12], "p": [12], "pet": [12]} or None.
     climate: dict | None = None
+    #: Plain-language card (``hex_description.describe``): biome, its text, conditions,
+    #: key facts; ``None`` when not available.
+    description: dict | None = None
 
     def section(self, key: str) -> Section | None:
         return next((s for s in self.sections if s.key == key), None)
 
     def as_text(self) -> str:
         out = [self.title, self.subtitle, ""]
+        d = self.description or {}
+        if d.get("biome"):
+            out.append(d["biome"][:1].upper() + d["biome"][1:])
+        if d.get("biome_text"):
+            out.append(d["biome_text"])
+        out += list(d.get("conditions", []))
+        out += [f"{a}: {b}" for a, b in d.get("facts", [])]
+        if d:
+            out.append("")
         for s in self.sections:
             out.append(f"— {s.title} —")
             width = max((len(a) for a, _b in s.rows), default=0)
@@ -563,7 +575,13 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
         sections.append(s)
 
     sections = [s for s in sections if s.rows]
-    return HexReport(col, row, title, " · ".join(sub), sections, climate)
+    try:
+        from .hex_description import describe
+
+        desc = describe(project, col, row, info)
+    except Exception:  # noqa: BLE001 - the card is a convenience, never a failure
+        desc = None
+    return HexReport(col, row, title, " · ".join(sub), sections, climate, desc)
 
 
 _REALM = {1: "суша", 2: "внутренние воды", 3: "океан"}

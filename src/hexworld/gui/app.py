@@ -245,6 +245,11 @@ class MainWindow(QMainWindow):
         scale_row.addWidget(self.ui_scale)
         col.addLayout(scale_row)
         self._base_font_pt = max(6.0, QApplication.instance().font().pointSizeF())
+        from .. import saved_worlds as sw
+
+        saved = int(sw.load_prefs().get("ui_scale_percent", 100))
+        if saved != 100:
+            QTimer.singleShot(0, lambda: self.ui_scale.setValue(saved))
 
         box = QGroupBox("Легенда вкладки")
         inner = QVBoxLayout(box)
@@ -364,6 +369,10 @@ class MainWindow(QMainWindow):
         self.names_action = act(view, "Названия на карте", self._toggle_names, "Ctrl+T")
         self.names_action.setCheckable(True)
         self.names_action.setChecked(True)
+        view.addSeparator()
+        act(view, "Шрифт крупнее (весь интерфейс)", lambda: self.zoom_ui(1), "Ctrl+=")
+        act(view, "Шрифт мельче (весь интерфейс)", lambda: self.zoom_ui(-1), "Ctrl+-")
+        act(view, "Обычный размер шрифта", lambda: self.zoom_ui(0), "Ctrl+0")
         help_ = bar.addMenu("&Справка")
         act(help_, "Как пользоваться", self.show_help, "F1")
         act(help_, "О программе", self.show_about)
@@ -589,12 +598,24 @@ class MainWindow(QMainWindow):
         return box
 
     def _apply_ui_scale(self, percent: int):
+        from .. import saved_worlds as sw
+
         font = QApplication.instance().font()
         font.setPointSizeF(self._base_font_pt * percent / 100.0)
         QApplication.instance().setFont(font)
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
         self.note.setStyleSheet("font-weight: bold;")
+        if hasattr(self, "hex_panel"):
+            self.hex_panel._apply_font()  # the panel keeps its own (larger) size
+        prefs = sw.load_prefs()
+        if prefs.get("ui_scale_percent") != percent:
+            prefs["ui_scale_percent"] = int(percent)
+            sw.save_prefs(prefs)
+
+    def zoom_ui(self, step: int):
+        """Whole interface larger / smaller (Ctrl + = / Ctrl + -), 0 = back to 100 %."""
+        self.ui_scale.setValue(100 if step == 0 else self.ui_scale.value() + 10 * step)
 
     def _on_hover(self, text: str):
         self.hover.setText(text)

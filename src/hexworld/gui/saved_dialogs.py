@@ -46,6 +46,39 @@ STAGE_TITLES = {
 }  # fmt: skip
 
 
+def font_buttons(dialog: QWidget, key: str) -> QHBoxLayout:
+    """«A− A+» buttons that scale the font of a whole window; remembered per window."""
+    base = dialog.font().pointSizeF()
+
+    def apply(pt: float):
+        f = dialog.font()
+        f.setPointSizeF(pt)
+        dialog.setFont(f)
+        for w in dialog.findChildren(QWidget):
+            w.setFont(f)
+
+    def step(d: float):
+        prefs = sw.load_prefs()
+        pt = max(7.0, min(28.0, float(prefs.get(f"font_{key}", base)) + d))
+        prefs[f"font_{key}"] = pt
+        sw.save_prefs(prefs)
+        apply(pt)
+
+    row = QHBoxLayout()
+    for title, d in (("A−", -1.0), ("A+", 1.0)):
+        b = QPushButton(title)
+        b.setFixedWidth(40)
+        b.setToolTip("Шрифт этого окна мельче / крупнее")
+        b.clicked.connect(lambda _c=False, dd=d: step(dd))
+        row.addWidget(b)
+    saved = sw.load_prefs().get(f"font_{key}")
+    if saved:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, lambda: apply(float(saved)))
+    return row
+
+
 def open_folder(path: str | Path) -> None:
     """Show a folder in the system file manager."""
     path = str(path)
@@ -106,6 +139,7 @@ class SavedWorldsDialog(QDialog):
         top = QHBoxLayout()
         self.root_label = QLabel()
         top.addWidget(self.root_label, 1)
+        top.addLayout(font_buttons(self, "saved_worlds"))
         change = QPushButton("📁 Другая папка…")
         change.clicked.connect(self.change_root)
         show = QPushButton("Открыть папку миров")
