@@ -1,0 +1,43 @@
+contract,owner,field,units,time,used_for,missing_policy
+C02,hydro,land_mask,bool,static,habitat base fractions,required
+C02,hydro,ocean_mask,bool,static,marine fraction,required
+C02,hydro,inland_water_mask,bool,static,inland water fraction,required
+C02,hydro,water_depth_m,m,static,marine depth / photic gate,required on ocean
+C02,hydro,lake_depth_m,m,static,lake depth,NaN -> unknown depth
+C02,hydro,below_sea_level_land_mask,bool,static,dry depression stays terrestrial (B12),required
+C02,topo,topo_ocean_fraction,1,static,sub-hex marine share on coasts (B13),fallback to mask
+C02,topo,topo_lake_fraction,1,static,sub-hex lake share,fallback to mask
+C02,biomes,glacier_fraction,1,static,grounded ice fraction,required
+C02,earth,sea_ice_concentration_monthly,1,monthly,sea-ice overlay (not area),0 if absent
+C03,env,temperature_monthly_c,degC,monthly,niche temperature,required
+C03,topo,topo_temperature_c,degC,monthly,land temperature with relief,fallback env
+C03,topo,hyps_q05_m..hyps_q95_m,m,static,microsite elevation distribution (B14),fallback single site
+C03,topo,topo_radiation_mj_m2_day,MJ/m2/day,monthly,land shortwave -> PAR,required on land
+C03,earth(planet),ra_mj (Planet),MJ/m2/day,monthly,ocean shortwave (Angstrom-Prescott n/N=0.5),computed
+C03,env,precip_monthly_mm / pet_monthly_mm / aet_monthly_mm,mm/month,monthly,water stress,PET=0 -> ratio undefined (B21)
+C03,env,soil_storage_monthly_mm,mm,monthly,root-zone water,NaN -> unknown
+C03,env,gdd5_proxy_c_day,degC day,annual,niche GDD,required
+C04,env,awc_mm,mm,static,root water relative to capacity,required
+C04,env,soil_depth_m,m,static,rooting gate,required
+C04,resources,soil_ph,pH,static,niche pH,NaN -> unknown
+C04,resources,soil_N_net_mineralisation_kg_m2_yr,kgN/m2/yr,annual,nitrogen limit on NPP,NaN -> unknown
+C04,resources,soil_P_labile_kg_m2,kgP/m2,static,phosphorus limit on NPP,NaN -> unknown
+C04,resources,soil_salinity_ec_ds_m,dS/m,static,salinity gate,NaN -> unknown
+C05,hydro,discharge_m3_s,m3/s,annual,river habitat size,required
+C05,hydro,flow_receiver,index,static,directed river graph (B29),required
+C05,hydro,basin_id,id,static,drainage barriers (B49),required
+C05,hydro,river_mask / river_width_m / river_depth_m,m,static,river area,required
+C06,earth,sst_monthly_c,degC,monthly,marine niche,required on ocean
+C06,earth,sea_surface_salinity_psu,psu,static,salinity gates (B56),required on ocean
+C06,earth,current_u_ms / current_v_ms,m/s,seasonal,directed larval drift,0 if absent
+C06,earth,upwelling_m_day,m/day,seasonal,nutrient supply,0 if absent
+C06,biomes,marine_kd_per_m,1/m,static,light attenuation (B51),required on ocean
+C06,biomes,marine_nutrient_supply_proxy,1,static,nutrient limitation (proxy),labelled proxy
+C06,biomes,marine_benthic_zone / marine_coral_reef_potential,class,static,substrate,required
+C07,volcanism,lava_fraction / volcanic_barren_fraction,1,present,bare substrate / primary succession,0 if absent
+C07,volcanism,lava_youngest_years_bp,yr,present,substrate age,NaN -> old
+C07,volcanism,hydrothermal_kind / geothermal_heat_mw,class / MW,present,vent chemosynthesis subsidy (B55),0 if absent
+C08,hydro,lgm_ice_mask,bool,static,deglaciated ground age,False if absent
+C01,geo,continental_block_id,id,static,lineage pools (B34),required
+C01,hist,crust_age_ma / volcanic_age_ma,Ma,static,island age for colonisation,NaN -> unknown
+C01,hist,checkpoints,material frame,5 Ma epochs,past land bridges,BLOCKED (no land masks per epoch)
