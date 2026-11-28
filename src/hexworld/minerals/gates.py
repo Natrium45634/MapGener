@@ -126,8 +126,9 @@ RULES = {
     "BRINE": R(("closed_basin", "arid"), (("evaporitic", 0.7),), RARE),
     "AQUIFER": R(("porous_host", "land"), (), COMMON, "regional"),
     "GEOTHERMAL": R(("heat_source",), (), MODERATE, "object"),
-    "MARINE_NODULE": R(("deep_ocean", "low_sedimentation", "old_ocean_floor"), (), MODERATE),
-    "MARINE_CRUST": R(("hard_substrate",), (), MODERATE),
+    # nodule fields and crusts are few large patches of the sea floor, not many deposits
+    "MARINE_NODULE": R(("deep_ocean", "low_sedimentation", "old_ocean_floor"), (), 1e-7),
+    "MARINE_CRUST": R(("hard_substrate",), (), RARE),
     "SMS": R(("submarine_hydrothermal",), (), MODERATE, "object"),
     "MARINE_PHOS": R(("shelf",), (("upwelling", 1.0),), RARE),
     "CELESTINE": R(("evaporitic", "sedimentary_basin"), (), VERY_RARE),

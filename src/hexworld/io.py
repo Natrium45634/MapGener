@@ -82,6 +82,7 @@ V51_DATA_FILES = ("volcanism_fields.npz", "volcanism.json")
 V53_DATA_FILES = ("earth_fields.npz", "earth.json")
 V54_DATA_FILES = ("atmosphere_fields.npz", "atmosphere_grid.npz", "atmosphere.json")
 V52_DATA_FILES = ("resources_fields.npz", "resources_index.npz", "resources.json")
+V551_DATA_FILES = ("minerals.json", "minerals_fields.npz")
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -883,6 +884,23 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
     else:
         for name in V52_DATA_FILES:
             (path / name).unlink(missing_ok=True)
+    v551_manifest = None
+    mins = getattr(project, "minerals", None)
+    if mins is not None and res is not None:
+        from .minerals.stage import to_json as minerals_json
+
+        np.savez_compressed(path / "minerals_fields.npz", **mins.layers)
+        _write_json(path / "minerals.json", minerals_json(mins))
+        files += list(V551_DATA_FILES)
+        v551_manifest = {
+            "algorithm_version": mins.provenance["algorithm_version"],
+            "files": list(V551_DATA_FILES),
+            "content_hashes": mins.content_hashes(),
+            "stage_keys": mins.stage_keys,
+        }
+    else:
+        for name in V551_DATA_FILES:
+            (path / name).unlink(missing_ok=True)
     v51_manifest = None
     volc = getattr(project, "volcanism", None)
     if volc is not None and project.hydro is not None:
@@ -1079,6 +1097,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v53": v53_manifest,
         "v54": v54_manifest,
         "v52": v52_manifest,
+        "v551": v551_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -1259,6 +1278,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_volcanism(project, path, manifest, config, verify)
     _load_biomes(project, path, manifest, config, verify)
     _load_resources(project, path, manifest, config, verify)
+    _load_minerals(project, path, manifest, config, verify)
     return project
 
 
@@ -1533,6 +1553,43 @@ def _load_resources(project: Project, path: Path, manifest: dict, config, verify
     project.resources = r
     r.validation = validate_resources(project)
     project.cache["v52_resources"] = r
+
+
+def _load_minerals(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach the stored 5.5.1 plan; old saves without it stay as they were (T02)."""
+    from .minerals import ALGORITHM_VERSION as MIN_VERSION
+    from .minerals.stage import from_json as minerals_from_json
+    from .minerals.stage import stage_keys as minerals_keys
+
+    v551 = manifest.get("v551")
+    if not v551 or project.resources is None:
+        return
+    if not all((path / name).exists() for name in V551_DATA_FILES):
+        project.warnings.append("The manifest lists 5.5.1 data, but its files are missing.")
+        return
+    doc = json.loads((path / "minerals.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != MIN_VERSION:
+        project.warnings.append(
+            f"The stored mineral plan was produced by {doc.get('algorithm_version')}, this "
+            f"build uses {MIN_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    if getattr(config, "minerals", None) is None or not config.minerals.enabled:
+        return
+    if minerals_keys(config, project)["v551_minerals"] != doc["stage_keys"].get("v551_minerals"):
+        project.warnings.append(
+            "The stored mineral plan belongs to another world state: NOT loaded."
+        )
+        return
+    with np.load(path / "minerals_fields.npz") as data:
+        layers = {k: data[k] for k in data.files}
+    m = minerals_from_json(doc, layers)
+    if verify:
+        actual = m.content_hashes()
+        for key, expected in v551["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.minerals = m
 
 
 def _load_volcanism(project: Project, path: Path, manifest: dict, config, verify) -> None:

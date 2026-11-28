@@ -623,6 +623,8 @@ class Project:
     atmosphere: AtmosphereData | None = None
     #: v5.2 soil fertility and geological resources; ``None`` if not generated.
     resources: ResourceData | None = None
+    #: TZ 5.5.1 mineral plan (``hexworld.minerals.stage.MineralData``); ``None`` if absent.
+    minerals: object | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

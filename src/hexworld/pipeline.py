@@ -283,6 +283,8 @@ def _extend_with_v2(config, geometry, keys, base: Project, through, report, t_to
             _add_biomes(config, geometry, project, base, report)
             if config.resources.enabled and project.hist is not None:
                 _add_resources(config, geometry, project, base, report)
+                if config.minerals.enabled and project.resources is not None:
+                    _add_minerals(config, project, base, report)
     project.timings["total"] = round(time.perf_counter() - t_total, 4)
     report("done", 1.0)
     return project
@@ -450,6 +452,26 @@ def _add_resources(config, geometry, project: Project, previous: Project | None,
     project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + reused
     project.timings.update({f"v52_{k}": v for k, v in data.timings.items()})
     data.validation = validate_resources(project)
+    project.warnings.extend(data.warnings)
+
+
+def _add_minerals(config, project: Project, previous: Project | None, report) -> None:
+    """Run the TZ 5.5.1 mineral plan (after v5.2); reused when nothing upstream changed."""
+    from .minerals.stage import run_minerals, stage_keys
+    from .progress import sub_report
+
+    keys = stage_keys(config, project)
+    prev = getattr(previous, "minerals", None) if previous is not None else None
+    if prev is not None and prev.stage_keys == keys:
+        project.minerals = prev
+        project.stats["reused_stages"] = list(project.stats.get("reused_stages", [])) + [
+            "v551_minerals"
+        ]
+        return
+    report("v551_minerals", 0.999)
+    data = run_minerals(config, project, lambda f: report(sub_report("v551_minerals", f), 0.999))
+    project.minerals = data
+    project.timings.update({f"v551_{k}": v for k, v in data.timings.items()})
     project.warnings.extend(data.warnings)
 
 
@@ -722,6 +744,8 @@ def generate(
             _add_biomes(config, geometry, project, reuse, report)
             if config.resources.enabled and project.hist is not None:
                 _add_resources(config, geometry, project, reuse, report)
+                if config.minerals.enabled and project.resources is not None:
+                    _add_minerals(config, project, reuse, report)
     if project.stats["plates_visible"] < 2:
         project.warnings.append(
             "Only one plate is visible: there are no boundaries in this window."

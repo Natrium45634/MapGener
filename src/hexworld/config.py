@@ -515,6 +515,27 @@ class EarthParams:
     morphodynamics: bool = True
 
 
+#: technology profiles of §6: they rate usability, never the ground truth
+TECHNOLOGY_PROFILES = ("none_ground_truth", "stone_age", "bronze_age", "iron_age",
+                       "preindustrial", "industrial", "modern")  # fmt: skip
+
+
+@dataclass(frozen=True)
+class MineralParams:
+    """TZ 5.5.1 mineral resources and the sparse subsurface (stage ``v551``). Every numeric
+    distribution is provisional (no calibration data shipped)."""
+
+    enabled: bool = True
+    #: multiplier of every deposit intensity (1 = the provisional profile; 0 = none)
+    lambda_scale: float = 1.0
+    #: deepest modelled body top, m below the solid surface
+    max_depth_m: float = 10000.0
+    #: P1: fluids, water, heat and the sea floor
+    include_p1: bool = True
+    #: technology profile for the usability estimates (ground truth unchanged)
+    technology_profile: str = "none_ground_truth"
+
+
 @dataclass(frozen=True)
 class ResourceParams:
     """v5.2 soil fertility and geological resources (TZ 5.2). [A] calibration
@@ -613,6 +634,7 @@ class Config:
     earth: EarthParams = field(default_factory=EarthParams)
     atmosphere: AtmosphereParams = field(default_factory=AtmosphereParams)
     resources: ResourceParams = field(default_factory=ResourceParams)
+    minerals: MineralParams = field(default_factory=MineralParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -684,6 +706,13 @@ class Config:
             raise ConfigError("mountains.detail must be within [0, 2]")
         if not 2000.0 <= self.mountains.max_elevation_m <= 12000.0:
             raise ConfigError("mountains.max_elevation_m must be within [2000, 12000] m")
+        mp = self.minerals
+        if not 0.0 <= mp.lambda_scale <= 20.0:
+            raise ConfigError("minerals.lambda_scale must be within [0, 20]")
+        if not 500.0 <= mp.max_depth_m <= 20000.0:
+            raise ConfigError("minerals.max_depth_m must be within [500, 20000] m")
+        if mp.technology_profile not in TECHNOLOGY_PROFILES:
+            raise ConfigError(f"minerals.technology_profile must be one of {TECHNOLOGY_PROFILES}")
         c = self.climate
         if c.profile not in CLIMATE_PROFILES:
             raise ConfigError(f"climate.profile must be one of {CLIMATE_PROFILES}")
@@ -950,6 +979,7 @@ class Config:
             "earth": EarthParams,
             "atmosphere": AtmosphereParams,
             "resources": ResourceParams,
+            "minerals": MineralParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
@@ -980,6 +1010,8 @@ class Config:
             kwargs["atmosphere"] = AtmosphereParams(enabled=False)
         if "resources" not in data:  # saved before v5.2-resources: no new stage
             kwargs["resources"] = ResourceParams(enabled=False)
+        if "minerals" not in data:  # saved before 5.5.1: the old plan stays as it was
+            kwargs["minerals"] = MineralParams(enabled=False)
         return cls(**kwargs)
 
     def to_json(self) -> str:
