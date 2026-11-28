@@ -101,6 +101,11 @@ def export_minerals(project, out_dir) -> list[str]:
     p = out / "minerals_plan.json"
     p.write_text(json.dumps(to_json(m), ensure_ascii=False), encoding="utf-8")
     files.append(str(p))
+    from .secondary551 import discovery_view
+
+    p = out / "minerals_discovery.json"  # what a surveyor sees: estimates, not the truth
+    p.write_text(json.dumps(discovery_view(plan, plan.seed), ensure_ascii=False), encoding="utf-8")
+    files.append(str(p))
     p = out / "minerals_manifest.json"
     p.write_text(json.dumps({
         "schema_version": SCHEMA_VERSION, "algorithm_version": ALGORITHM_VERSION,

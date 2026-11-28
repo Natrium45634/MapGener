@@ -170,12 +170,102 @@ def build_plan(pc: PlanContext, models=None, lambda_scale: float = 1.0) -> Miner
     F["copper_body"] = np.where(np.isfinite(F["weathering_any"]), cu.astype(float), np.nan)
     if "CU_OXID" in mids:
         _plan_model(plan, pc, cat, "CU_OXID", lambda_scale)
-    plan.report["not_implemented"] = {
-        "UNCONVENTIONAL": "shale gas / tight oil / CBM templates gated, no accumulation model"
-    }
+    _post_process(plan, pc)
     plan.report["counts"] = _counts(plan)
     plan.report["ledger"] = plan.ledger.validate()
     return plan
+
+
+#: growth rates of the sea-floor accretions [К] (BOEM sanity ranges: nodules 2–10, crusts
+#: 1–4 mm/Ma) and their thickness caps
+MARINE_GROWTH = {"MARINE_NODULE": (5.0, 0.12), "MARINE_CRUST": (2.5, 0.25)}
+
+
+def _post_process(plan, pc) -> None:
+    """Secondary steps on the planned lots: sea-floor accretions sized by growth × age,
+    supergene enrichment of shallow Cu bodies, sand qualities of sand / gravel units."""
+    from .secondary551 import sand_quality, supergene_enrich
+    from .units import crust_thickness_m, nodule_mass_t
+
+    ctx, F = pc.ctx, pc.F
+    lots_by = {}
+    for lot in plan.lots:
+        lots_by.setdefault(lot["system_id"], []).append(lot)
+    for s in plan.systems:
+        lots = lots_by.get(s["system_id"], [])
+        mid = s["model_id"]
+        if mid in MARINE_GROWTH and lots:
+            rate, cap = MARINE_GROWTH[mid]
+            age = float(np.nan_to_num(ctx.ocean_crust_age_ma[s["hex"]], nan=20.0))
+            thick = min(crust_thickness_m(rate, age), cap)
+            body = plan.bodies[s["body_ids"][0]]
+            lot = lots[0]
+            if mid == "MARINE_NODULE":
+                side = (20.0 + 60.0 * stable_u(ctx.seed, s["system_id"], "patch")) * 1000.0
+                coverage = 0.2 + 0.4 * stable_u(ctx.seed, s["system_id"], "cov")
+                areal = thick * 2000.0  # kg per m² of occupied floor (porosity included)
+                area = side * side
+                new_t = nodule_mass_t(area, coverage, areal)
+                geom = {"length_m": side, "down_dip_m": side, "true_thickness_m": thick,
+                        "coverage": coverage}  # fmt: skip
+            else:
+                side = (2.0 + 8.0 * stable_u(ctx.seed, s["system_id"], "patch")) * 1000.0
+                slope = math.radians(15.0)
+                area = side * side / math.cos(slope)  # true area of the flank, not the map
+                new_t = area * thick * 1900.0 / 1000.0
+                geom = {"length_m": side, "down_dip_m": side / math.cos(slope),
+                        "true_thickness_m": thick}  # fmt: skip
+            scale = new_t / lot["rock_t"] if lot["rock_t"] > 0 else 0.0
+            body.params.update(geom)
+            body.geometry_revision += 1
+            _rescale_lot(plan, lot, scale)
+            lot["growth"] = {"rate_mm_per_ma": rate, "age_ma": age, "thickness_m": thick,
+                             "area_m2": area, "basis": "growth x substrate age"}  # fmt: skip
+            s["rock_t"] = lot["rock_t"]
+        if (
+            "Cu" in s.get("principal", [])
+            and lots
+            and s["depth_top_m"] < 400.0
+            and ctx.land[s["hex"]]
+            and np.nan_to_num(F["weathering_any"][s["hex"]]) == 1
+        ):
+            body = plan.bodies[s["body_ids"][0]]
+            pts, _w = body.quadrature(4)
+            height = float(pts[:, 2].max() - pts[:, 2].min()) if len(pts) else 0.0
+            arid = np.nan_to_num(F["arid"][s["hex"]]) == 1
+            wt = (120.0 if arid else 40.0) * (0.5 + stable_u(ctx.seed, s["system_id"], "wt"))
+            lf = 0.5 + 0.3 * stable_u(ctx.seed, s["system_id"], "lf")
+            supergene_enrich(plan, lots[0], wt, lf, s["depth_top_m"], height)
+        if mid == "SAND_GRAVEL" and lots:
+            energy = "beach" if np.nan_to_num(F["coast"][s["hex"]]) == 1 else "river"
+            if np.nan_to_num(F["arid"][s["hex"]]) == 1 and energy == "river":
+                energy = "dune"
+            km = 50.0 + 450.0 * stable_u(ctx.seed, s["system_id"], "transport")
+            lots[0]["quality"].update(sand_quality(s["host"], km, energy, s["system_id"]))
+
+
+def _rescale_lot(plan, lot, scale: float) -> None:
+    """Resize a lot after its geometry changed; the difference goes back to (or comes from)
+    its province source, never from nowhere."""
+    sid = lot["system_id"]
+    prov = next((s["province_id"] for s in plan.systems if s["system_id"] == sid), None)
+    for com, m in list(lot["contained"].items()):
+        new = m * scale
+        src = f"source:{prov}"
+        if new < m:
+            plan.ledger.transfer(f"resize/{lot['lot_id']}/{com}", lot["lot_id"], src, com, m - new)
+        elif new > m:
+            have = plan.ledger.balance(src, com)
+            add = min(new - m, have)
+            if add > 0:
+                plan.ledger.transfer(f"resize/{lot['lot_id']}/{com}", src, lot["lot_id"], com, add)
+            new = m + add
+        lot["contained"][com] = new
+    for e in plan.estimates:
+        if e["lot_id"] == lot["lot_id"]:
+            e["quantity"] = lot["contained"].get(e["commodity_id"], e["quantity"])
+    lot["rock_t"] *= scale
+    lot["volume_m3"] *= scale
 
 
 def _counts(plan) -> dict:

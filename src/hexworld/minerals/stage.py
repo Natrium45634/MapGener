@@ -96,6 +96,7 @@ def run_minerals(config, project, report=lambda f: None) -> MineralData:
         fluids.brines(plan, pc)
         fluids.geothermal(plan, pc)
         fluids.hydrates(plan, pc)
+        fluids.unconventional(plan, pc)
     plan.report["ledger"] = plan.ledger.validate()
     t3 = time.perf_counter()
     report(0.95)

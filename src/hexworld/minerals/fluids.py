@@ -251,6 +251,8 @@ def brines(plan, pc) -> list:
         lot = {"lot_id": f"{sid}-L0", "system_id": sid, "model_id": "BRINE",
                "brine_volume_m3": vol, "concentration_mg_L": conc, "contained": contained,
                "unit_basis": "dissolved", "note": "dissolved stock; not added to solid salt",
+               "solute_recharge_kg_per_year": {k: v * 1000.0 * 1e-5 for k, v in contained.items()},
+               "recharge_note": "inflow of solutes per year, a flow — never added to the stock",
                "calibration_status": "provisional"}  # fmt: skip
         plan.lots.append(lot)
         out.append(lot)
@@ -305,4 +307,64 @@ def hydrates(plan, pc) -> list:
                "unit_basis": "fluid_phase_mass", "calibration_status": "provisional"}  # fmt: skip
         plan.lots.append(lot)
         out.append(lot)
+    return out
+
+
+# -- unconventional accumulations (P1) -------------------------------------------------------------
+def unconventional(plan, pc) -> list:
+    """Shale gas / tight oil in mature organic-rich basins (no trap needed, the source is the
+    reservoir) and coal-bed methane in bituminous / anthracite seams. Immature sources give
+    nothing. Gas in place = rock mass × gas content (standard m³/t) [К]."""
+    from scipy import ndimage
+
+    ctx, F = pc.ctx, pc.F
+    elig, _u, _S = evaluate(RULES["UNCONVENTIONAL"], F)
+    out = []
+    lab, k = ndimage.label(elig.reshape(ctx.shape), structure=np.ones((3, 3), bool))
+    lab = lab.ravel()
+    for p in range(1, min(k, 12) + 1):
+        idx = np.nonzero(lab == p)[0]
+        burial = float(np.median(ctx.basin_fill_m[idx]))
+        sid = stable_id("D", ctx.seed, "UNCONVENTIONAL", int(idx[0]))
+        dur = min(pc.history_ma, 40.0) + 60.0 * stable_u(ctx.seed, sid, "age")
+        tr = 1.0 - math.exp(-maturity_index(burial, dur))
+        if tr < 0.3:
+            plan.rejected.append({"system_id": sid, "reason": "immature source rock",
+                                  "transformation_ratio": tr})  # fmt: skip
+            continue
+        sub = "tight_oil" if tr < 0.7 else "shale_gas"
+        area = min(idx.size * pc.area_km2, 5e4) * 1e6
+        net = 20.0 + 60.0 * stable_u(ctx.seed, sid, "net")
+        rock_t = area * net * 2.5
+        gc = 1.0 + 3.0 * stable_u(ctx.seed, sid, "gc")  # m³ gas (or oil-equivalent) per t
+        std_m3 = rock_t * gc * (0.25 if sub == "tight_oil" else 1.0)
+        mass_t = std_m3 * (0.85 if sub == "tight_oil" else 0.00072)
+        plan.ledger.open(f"unconv/{sid}", f"{sid}-L0", sub, mass_t, "initial")
+        i = int(idx[len(idx) // 2])
+        _system(plan, ctx, sid, "UNCONVENTIONAL", "нетрадиционные нефть и газ", i, [sub],
+                burial * 0.8, "organic-rich shale")  # fmt: skip
+        lot = {"lot_id": f"{sid}-L0", "system_id": sid, "model_id": "UNCONVENTIONAL",
+               "subtype": sub, "transformation_ratio": tr, "rock_t": rock_t,
+               "gas_content_m3_per_t": gc, "standard_m3": std_m3,
+               "contained": {sub: mass_t}, "unit_basis": "fluid_phase_mass",
+               "note": "source rock is the reservoir; no trap",
+               "calibration_status": "provisional"}  # fmt: skip
+        plan.lots.append(lot)
+        out.append(lot)
+    for lot in list(plan.lots):  # coal-bed methane in mature seams
+        if lot["model_id"] != "COAL" or lot.get("quality", {}).get("commodity") not in (
+            "bituminous_coal",
+            "anthracite",
+        ):
+            continue
+        coal_t = sum(lot["contained"].values())
+        gas_m3 = coal_t * 8.0
+        sid = f"{lot['system_id']}-CBM"
+        plan.ledger.open(f"cbm/{sid}", f"{sid}-L0", "coalbed_methane", gas_m3 * 0.00072, "initial")
+        plan.lots.append({"lot_id": f"{sid}-L0", "system_id": lot["system_id"],
+                          "model_id": "UNCONVENTIONAL", "subtype": "coalbed_methane",
+                          "standard_m3": gas_m3, "contained": {"coalbed_methane": gas_m3 * 0.00072},
+                          "unit_basis": "fluid_phase_mass", "calibration_status": "provisional",
+                          "note": "adsorbed gas of the seam (own basis)"})  # fmt: skip
+    plan.report["unconventional"] = {"accumulations": len(out)}
     return out

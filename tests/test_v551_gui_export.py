@@ -91,7 +91,7 @@ def test_t73_export_typed_units_lot_keys_and_crs(proj, tmp_path):
     files = export_minerals(proj, tmp_path)
     names = {os.path.basename(f) for f in files}
     assert {"minerals_footprints.geojson", "minerals_lots.csv", "minerals_plan.json",
-            "minerals_manifest.json"} <= names  # fmt: skip
+            "minerals_discovery.json", "minerals_manifest.json"} <= names  # fmt: skip
     gj = json.loads((tmp_path / "minerals_footprints.geojson").read_text("utf-8"))
     assert (
         gj["crs"]["properties"]["name"] == "HEXWORLD:PLANAR_KM"
@@ -102,7 +102,7 @@ def test_t73_export_typed_units_lot_keys_and_crs(proj, tmp_path):
     keys = [r["lot_key"] for r in rows]
     assert len(keys) == len(set(keys)) and all(r["unit"] == "t" for r in rows)
     man = json.loads((tmp_path / "minerals_manifest.json").read_text("utf-8"))
-    assert man["algorithm_version"].endswith("5.5.1") and "not WGS84" in man["crs"]
+    assert "5.5.1" in man["algorithm_version"] and "not WGS84" in man["crs"]
 
 
 def test_gui_export_menu_and_section_label(proj, tmp_path, monkeypatch):
@@ -123,5 +123,5 @@ def test_gui_export_menu_and_section_label(proj, tmp_path, monkeypatch):
               for a in m.actions()]  # fmt: skip
     assert any("Экспорт недр" in t for t in titles)
     files = w.export_minerals(str(tmp_path / "exp"))
-    assert len(files) == 4
+    assert len(files) == 5  # footprints, lots, plan, discovery view, manifest
     w.close()
