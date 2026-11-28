@@ -55,8 +55,17 @@ class BioData:
 def upstream_key(project) -> str:
     """Content of every stage the biosphere reads (geology → climate → soils → biomes)."""
     parts = {}
-    for name in ("hist", "hydro", "env", "topo", "earth", "atmosphere", "biomes", "volcanism",
-                 "resources"):
+    for name in (
+        "hist",
+        "hydro",
+        "env",
+        "topo",
+        "earth",
+        "atmosphere",
+        "biomes",
+        "volcanism",
+        "resources",
+    ):
         obj = getattr(project, name, None)
         sk = getattr(obj, "stage_keys", None) if obj is not None else None
         parts[name] = sorted(sk.items()) if isinstance(sk, dict) else None
@@ -83,8 +92,14 @@ def run_biosphere(config, project, report=lambda f: None) -> BioData:
     p = config.biosphere
     t0 = time.perf_counter()
     cap = None if p.capture_mult <= 0 else float(p.capture_mult)
-    st = run(project, mode=p.mode if p.mode != "DYNAMIC" else "REALIZED_BASELINE",
-             detail=p.detail, seed=bio_seed(config), capture_mult=cap, progress=report)
+    st = run(
+        project,
+        mode=p.mode if p.mode != "DYNAMIC" else "REALIZED_BASELINE",
+        detail=p.detail,
+        seed=bio_seed(config),
+        capture_mult=cap,
+        progress=report,
+    )
     warnings = []
     if p.mode == "DYNAMIC" and p.dynamic_years > 0:
         from .dynamics import advance_years

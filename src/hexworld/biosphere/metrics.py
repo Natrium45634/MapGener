@@ -56,8 +56,14 @@ def hill(abundances) -> dict:
         return {"S": 0, "H": 0.0, "q0": 0, "q1": 0.0, "q2": 0.0, "J": float("nan")}
     p = a / a.sum()
     h = float(-(p * np.log(p)).sum())
-    return {"S": int(s), "H": h, "q0": int(s), "q1": float(np.exp(h)),
-            "q2": float(1.0 / (p**2).sum()), "J": h / np.log(s) if s > 1 else float("nan")}
+    return {
+        "S": int(s),
+        "H": h,
+        "q0": int(s),
+        "q1": float(np.exp(h)),
+        "q2": float(1.0 / (p**2).sum()),
+        "J": h / np.log(s) if s > 1 else float("nan"),
+    }
 
 
 def shannon_rows(ab):
@@ -70,8 +76,9 @@ def shannon_rows(ab):
     return h
 
 
-def species_area_prior(c: float, a_eff_km2, a_ref_km2: float, z: float, f: float = 1.0,
-                       cap: float | None = None):
+def species_area_prior(
+    c: float, a_eff_km2, a_ref_km2: float, z: float, f: float = 1.0, cap: float | None = None
+):
     s = c * f * (np.asarray(a_eff_km2, dtype=np.float64) / a_ref_km2) ** z
     return np.minimum(s, cap) if cap is not None else s
 

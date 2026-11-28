@@ -26,10 +26,10 @@ def _land_total(st, gid, mask):
 
 def _two_landmasses(gap=8, h=10, w=40, block_b=1):
     land = np.zeros((h, w), bool)
-    land[1:h - 1, 1:14] = True  # continent A
-    land[1:h - 1, 14 + gap:w - 1] = True  # continent / island B
+    land[1 : h - 1, 1:14] = True  # continent A
+    land[1 : h - 1, 14 + gap : w - 1] = True  # continent / island B
     block = np.where(land, 0, -1)
-    block[:, 14 + gap:] = np.where(land[:, 14 + gap:], block_b, -1)
+    block[:, 14 + gap :] = np.where(land[:, 14 + gap :], block_b, -1)
     return land, block
 
 
@@ -52,7 +52,9 @@ def test_b13_mixed_coastal_hex_counts_only_its_habitat():
     inp.f["coast_land"][4] = True
     inp.f["topo_ocean_fraction"][4] = 0.4
     fr = habitat_fractions(inp)
-    assert fr["land_ground"][4] == pytest.approx(0.6) and fr["marine_water"][4] == pytest.approx(0.4)
+    assert fr["land_ground"][4] == pytest.approx(0.6) and fr["marine_water"][4] == pytest.approx(
+        0.4
+    )
     st = _solve(inp)
     # producer NPP per m² of hex is NPP per m² of ground x the ground share, never x 1
     g = st.groups["grass_c3"]
@@ -79,8 +81,10 @@ def test_b19_b20_water_and_nutrients_limit_npp():
     base = sy.make(land)
     dry = sy.make(land, aet_ratio=0.3)
     poor = sy.make(land, n_min=0.004, p_lab=0.0001)
-    npp = {k: np.nansum(pr.land_production(i, habitat_fractions(i))["npp"])
-           for k, i in (("base", base), ("dry", dry), ("poor", poor))}
+    npp = {
+        k: np.nansum(pr.land_production(i, habitat_fractions(i))["npp"])
+        for k, i in (("base", base), ("dry", dry), ("poor", poor))
+    }
     assert npp["dry"] < 0.8 * npp["base"] and npp["poor"] < 0.8 * npp["base"]
     # same light, temperature and water: only nutrients changed
     assert base["par_m"].sum() == poor["par_m"].sum()
@@ -231,6 +235,7 @@ def test_b55_s16_export_leaves_the_surface_and_vents_are_explicit():
     inp = _sea(nutr=0.5, depth_m=4000.0)
     mp = pr.marine_production(inp, habitat_fractions(inp))
     pools = pr.marine_pools(mp)
+
     def npp(k):
         return mp["npp"][mp["groups"].index(k)]
 
@@ -346,5 +351,6 @@ def test_b61_range_touching_the_window_edge_is_unknown():
     st = _solve(inp)
     rng = st.layers["_ranges"]
     assert any(t for _a, t, _id, _k in rng.values())  # the fixture touches the edges
-    assert st.summary["taxa_endemic"] == sum(1 for a, t, _i, _k in rng.values()
-                                             if a <= md.ENDEMIC_RANGE_KM2 and not t)
+    assert st.summary["taxa_endemic"] == sum(
+        1 for a, t, _i, _k in rng.values() if a <= md.ENDEMIC_RANGE_KM2 and not t
+    )

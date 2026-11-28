@@ -93,8 +93,12 @@ def inventory(state, inp_area_km2: float) -> dict:
         "wild_fruit_t_dm_yr": SAFE_SHARE["fruit"],
     }
     for k, s in caps.items():
-        out[k.replace("_yr", "_cap_yr").replace("increment", "harvest").replace(
-            "production", "harvest").replace("surplus", "harvest")] = np.maximum(out[k] * s, 0.0)
+        out[
+            k.replace("_yr", "_cap_yr")
+            .replace("increment", "harvest")
+            .replace("production", "harvest")
+            .replace("surplus", "harvest")
+        ] = np.maximum(out[k] * s, 0.0)
     # wild precursors: trait score × local presence (accessibility is a separate field)
     prec = np.zeros(n)
     for g, (_t, score) in PRECURSORS.items():

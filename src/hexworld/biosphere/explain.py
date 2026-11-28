@@ -30,6 +30,7 @@ VAR_RU = {"tc": "холодный месяц", "tw": "тёплый месяц", 
           "gdd": "сумма тепла", "ph": "кислотность почвы", "sal": "солёность",
           "survival": "переживание неблагоприятного сезона", "breeding": "сезон размножения",
           "gate": "структура местообитания"}  # fmt: skip
+SEASON_OR_GATE = "сезон (переживание зимы или засухи, размножение) или структура местообитания"
 REALM_AREA = {"land": "land_ground", "fresh": "inland_water", "marine": "marine_water"}
 
 
@@ -76,7 +77,8 @@ def group_status(state, gid: str, i: int) -> dict:
     present, s8, o8, tid = best
     tpl = reg.templates[tid]
     out.update({"template": tid, "template_name": tpl.name_ru,
-                "suitability": round(s8 / 255.0, 2), "occupancy": round(o8 / 255.0, 2)})  # fmt: skip
+                "suitability": round(s8 / 255.0, 2),
+                "occupancy": round(o8 / 255.0, 2)})  # fmt: skip
     gd = state.groups[gid]
     if "biomass_kgc" in gd:
         out["biomass_kgc"] = float(gd["biomass_kgc"][i])
@@ -96,8 +98,13 @@ def group_status(state, gid: str, i: int) -> dict:
             s_m = trapezoid(np.asarray(tm[:, i], dtype=np.float64), *g.traits["t_act"])
             act = [m for m in range(12) if s_m[m] >= 0.5]
             if len(act) < 12:
-                tag = ("откочёвка или отлёт" if g.traits["migratory"] else
-                       "покой (спячка, диапауза)" if g.traits["dormant"] else "снижена")
+                tag = (
+                    "откочёвка или отлёт"
+                    if g.traits["migratory"]
+                    else "покой (спячка, диапауза)"
+                    if g.traits["dormant"]
+                    else "снижена"
+                )
                 out["season"] = {"active_months": [m + 1 for m in act], "otherwise": tag}
         return out | {"status": "present"}
     if s8 < int(S_MIN * 255):
@@ -105,7 +112,7 @@ def group_status(state, gid: str, i: int) -> dict:
         vals = {k: float(v[i]) for k, v in env.items()}
         var, sv = _limiting(tpl, vals)
         out["limiting"] = VAR_RU.get(var, "структура местообитания или сезон") if var and sv < 0.5 \
-            else "сезон (переживание зимы или засухи, размножение) или структура местообитания"  # fmt: skip
+            else SEASON_OR_GATE  # fmt: skip
         return out | {"status": "unsuitable"}
     if o8 < int(P_MIN * 255):
         from .graph import KAPPA0, colonisation_rate
@@ -126,7 +133,8 @@ def hex_report(state, i: int, top: int = 6) -> dict:
            "npp_gc_m2_yr": float(L["npp_gc_m2_yr"][i]),
            "plant_biomass_kgc_m2": float(L["plant_biomass_kgc_m2"][i]),
            "animal_biomass_kgc_km2": float(L["animal_biomass_kgc_km2"][i]),
-           "flora_richness": int(L["flora_richness"][i]), "fauna_richness": int(L["fauna_richness"][i]),
+           "flora_richness": int(L["flora_richness"][i]),
+           "fauna_richness": int(L["fauna_richness"][i]),
            "freshwater_richness": int(L["freshwater_richness"][i]),
            "marine_richness": int(L["marine_richness"][i]),
            "functional_richness": int(L["functional_richness"][i]),
@@ -149,7 +157,8 @@ def hex_report(state, i: int, top: int = 6) -> dict:
             elif g.is_fauna:
                 fauna.append(st)
         elif st["status"] in ("not_reached", "no_food", "not_persistent") or (
-                st["status"] == "unsuitable" and st.get("suitability", 0) > 0):
+            st["status"] == "unsuitable" and st.get("suitability", 0) > 0
+        ):
             absent.append(st)
     flora.sort(key=lambda s: -s.get("hex_share", 0.0))
     fauna.sort(key=lambda s: -s.get("biomass_kgc", 0.0))
@@ -184,8 +193,12 @@ def text_ru(rep: dict) -> str:
         return ", ".join(f"{s['analogue']}" + (f" ({s[key]:.0%})" if key == "hex_share" else "")
                          for s in items) or "—"  # fmt: skip
 
-    seas = [f"{s['analogue']}: активность в мес. {_months(s['season']['active_months'])}, в "
-            f"остальное время {s['season']['otherwise']}" for s in rep["fauna"] if s.get("season")]
+    seas = [
+        f"{s['analogue']}: активность в мес. {_months(s['season']['active_months'])}, в "
+        f"остальное время {s['season']['otherwise']}"
+        for s in rep["fauna"]
+        if s.get("season")
+    ]
     lines = [
         f"Флора (доля гекса): {names(rep['flora'], 'hex_share')}",
         f"Фауна: {names(rep['fauna'], 'biomass')}",
@@ -206,6 +219,8 @@ def text_ru(rep: dict) -> str:
         if s["status"] == "not_reached" and s.get("distance_km") is not None:
             why += f", эфф. расстояние {s['distance_km']:.0f} км"
         lines.append(f"Нет: {s['analogue']} — {why}")
-    lines.append("Аналоги — функциональные группы и их варианты, не реальные виды; параметры "
-                 "предварительные.")
+    lines.append(
+        "Аналоги — функциональные группы и их варианты, не реальные виды; параметры "
+        "предварительные."
+    )
     return "\n".join(lines)

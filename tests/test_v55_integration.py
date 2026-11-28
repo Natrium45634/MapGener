@@ -64,7 +64,9 @@ def test_life_disabled_has_no_biota():
 def test_stage_keys_ignore_display_and_follow_seed(world):
     p, _ = world
     k1 = stage_keys(p.config, p)
-    k2 = stage_keys(replace(p.config, biosphere=replace(p.config.biosphere, biology_seed="Other")), p)
+    k2 = stage_keys(
+        replace(p.config, biosphere=replace(p.config.biosphere, biology_seed="Other")), p
+    )
     assert k1 != k2
     from hexworld import views
 
@@ -178,7 +180,10 @@ def test_b71_b84_dynamics_change_state_not_normals(world):
     advance_years(a, p, 6, "D", rain=dry, fire_scale=0.0)
     advance_years(b, p, 6, "D", rain=wet, fire_scale=0.0)
     land = a.frac["land_ground"] > 0.5
-    assert a.layers["dyn_plant_biomass_kgc_m2"][land].sum() < b.layers["dyn_plant_biomass_kgc_m2"][land].sum()
+    assert (
+        a.layers["dyn_plant_biomass_kgc_m2"][land].sum()
+        < b.layers["dyn_plant_biomass_kgc_m2"][land].sum()
+    )
     # one dry run does not turn a forest into a desert: wood stays most of its stock
     w0 = p.biosphere.state.layers["wood_kgc_m2"][land].sum()
     assert a.layers["dyn_wood_kgc_m2"][land].sum() > 0.6 * w0

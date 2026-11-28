@@ -37,6 +37,8 @@ def _mem(T, phase):
     if tracemalloc.is_tracing():
         T[f"mem_mib_{phase}"] = round(tracemalloc.get_traced_memory()[1] / 2**20, 1)
         tracemalloc.reset_peak()
+
+
 P_MIN = 0.5
 S_MIN = 0.2
 MODES = ("POTENTIAL", "REALIZED_BASELINE", "DYNAMIC")
@@ -271,7 +273,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     gm = {g: i for i, g in enumerate(mp["groups"])}
     struct["vent"][mi_] = mp["suit"][gm["chemo_microbes"]] > 0
     poll_rows = [gl[g] for g in lp["groups"] if reg.groups[g].traits["poll"] == "animal"]
-    struct["nectar"][li] = (np.nan_to_num(lp["npp_repro"][poll_rows]).sum(axis=0) > 1.0)
+    struct["nectar"][li] = np.nan_to_num(lp["npp_repro"][poll_rows]).sum(axis=0) > 1.0
     gates = _gates(inp, frac, struct)
     # -- graphs and lineage pools ------------------------------------------------------------
     t = time.perf_counter()
@@ -307,7 +309,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     bcnt = np.bincount(bs[bs >= 0]) if (bs >= 0).any() else np.zeros(1)
     basin_area = np.where(bs >= 0, bcnt[np.maximum(bs, 0)] * inp.area_km2, inp.area_km2)
     realm_idx = {"land": np.nonzero(frac["land_ground"] > 0)[0],
-                 "fresh": np.nonzero((frac["inland_water"] > 0))[0],
+                 "fresh": np.nonzero(frac["inland_water"] > 0)[0],
                  "marine": np.nonzero(frac["marine_water"] > 0)[0]}  # fmt: skip
     realm_idx["water"] = np.union1d(realm_idx["fresh"], realm_idx["marine"])
     env_r = {
@@ -318,8 +320,12 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
         "marine": {"tc": f["tc"], "tw": f["tw"], "sal": f["sss_psu"],
                    "t_m": np.where(np.isfinite(f["sst_m"]), f["sst_m"], f["t_air_m"])},
     }  # fmt: skip
-    env_r["water"] = {k: np.where(frac["marine_water"] > frac["inland_water"], env_r["marine"][k],
-                                  env_r["fresh"][k]) for k in ("tc", "tw", "sal", "t_m")}
+    env_r["water"] = {
+        k: np.where(
+            frac["marine_water"] > frac["inland_water"], env_r["marine"][k], env_r["fresh"][k]
+        )
+        for k in ("tc", "tw", "sal", "t_m")
+    }
     occ_area = {"land": lm_area, "fresh": basin_area, "marine": np.full(n, 1e7),
                 "water": np.full(n, 1e6)}  # fmt: skip
     # producer cover realized by occupancy; per group the potential cover
@@ -362,8 +368,15 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                         best = np.maximum(best, np.nan_to_num(pr.niche_score(tpl.niche, e2)))
                     S = best * gate
                 else:
-                    S = np.nan_to_num(pr.niche_score({k2: v for k2, v in tpl.niche.items()
-                                                      if k2 in ("tc", "tw", "sal")}, env)) * gate
+                    S = (
+                        np.nan_to_num(
+                            pr.niche_score(
+                                {k2: v for k2, v in tpl.niche.items() if k2 in ("tc", "tw", "sal")},
+                                env,
+                            )
+                        )
+                        * gate
+                    )
             else:
                 S = _fauna_suit(tpl, g, env, gates, idx, inp.days)
             tr = g.traits
@@ -404,11 +417,14 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     # realized producers: potential cover x occupancy weight of the group (a remote young
     # island has no trees until their lineage arrives, S09); compact on the realm hexes
     if mode == "POTENTIAL":
+
         def real(g_id):
             return np.ones(home_idx[g_id].size, dtype=np.float32)
     else:
+
         def real(g_id):
             return np.clip(weights[g_id] / np.maximum(wmax[g_id], 1e-9), 0, 1)
+
     groups_out: dict = {}
     land_scale = np.zeros((len(lp["groups"]), li.size), dtype=np.float32)
     for g_id, i in gl.items():
@@ -448,8 +464,14 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     home_area = {g.id: area_c[_home(g)] for g in reg.groups.values()}
     water_ok = (frac["inland_water"] > 0) | f["river"] | (np.nan_to_num(f["mi"]) >= 0.15)
     cons = [g.id for g in reg.groups.values() if not g.is_producer]
-    web = fw.run_foodweb(A, {g: weights[g] for g in cons}, {g: home_area[g] for g in cons}, n,
-                         gates_water=water_ok, home_idx={g: home_idx[g] for g in cons})
+    web = fw.run_foodweb(
+        A,
+        {g: weights[g] for g in cons},
+        {g: home_area[g] for g in cons},
+        n,
+        gates_water=water_ok,
+        home_idx={g: home_idx[g] for g in cons},
+    )
     del A
     T["foodweb"] = time.perf_counter() - t
     _mem(T, "foodweb")
@@ -481,7 +503,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
         groups_out[g.id] = GroupArrays(_home(g), idx, n, arrs)
     web_ledger = web["ledger"]
     del web, npp_c
-    for realm, tab in realms.items():
+    for _realm, tab in realms.items():
         for k, tid in enumerate(tab.templates):
             g_id = reg.templates[tid].group_id
             tab.present[k] = ((tab.occ[k] >= int(P_MIN * 255)) & (tab.suit[k] >= int(S_MIN * 255))
@@ -500,14 +522,18 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     layers["_npp_limit_names"] = ["свет", "тепло (сезон вегетации)", "вода", "питание почвы",
                                   "не суша"]  # fmt: skip
     layers["_env"] = {k: np.asarray(f[k], dtype=np.float32) for k in ("tc", "tw", "mi", "ph")}
-    layers["_env"]["sal"] = np.where(frac["marine_water"] > 0.5, f["sss_psu"],
-                                     f["ec_ds_m"]).astype(np.float32)
+    layers["_env"]["sal"] = np.where(frac["marine_water"] > 0.5, f["sss_psu"], f["ec_ds_m"]).astype(
+        np.float32
+    )
     layers["_env"]["gdd"] = np.asarray(f["gdd5"], dtype=np.float32)
     layers["_index_version"] = mt.INDEX_VERSION
     # monthly temperature of the home realm of land / water life, for the seasonal states of
     # the explanation (float16: display only)
-    t_home = np.where(frac["marine_water"][None, :] > 0.5,
-                      np.where(np.isfinite(f["sst_m"]), f["sst_m"], f["t_air_m"]), f["t_air_m"])
+    t_home = np.where(
+        frac["marine_water"][None, :] > 0.5,
+        np.where(np.isfinite(f["sst_m"]), f["sst_m"], f["t_air_m"]),
+        f["t_air_m"],
+    )
     layers["t_month"] = t_home.astype(np.float16)
     T["metrics"] = time.perf_counter() - t
     _mem(T, "metrics")
@@ -521,9 +547,16 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                "ocean_radiation": "angstrom_prescott (n/N = 0.5), APPROX",
                "marine_nutrients": "proxy (marine_nutrient_supply_proxy)",
                "parameters": "provisional, not calibrated"}  # fmt: skip
-    summary.update({"mode": mode, "algorithm_version": ALGORITHM_VERSION,
-                    "registry": reg.version, "templates": len(reg.templates),
-                    "groups": len(reg.groups), "ledger_ok": bool(web_ledger["ok"])})
+    summary.update(
+        {
+            "mode": mode,
+            "algorithm_version": ALGORITHM_VERSION,
+            "registry": reg.version,
+            "templates": len(reg.templates),
+            "groups": len(reg.groups),
+            "ledger_ok": bool(web_ledger["ok"]),
+        }
+    )
     return BioState(mode, seed, n, inp.shape, inp.area_km2, {k: v.astype(np.float32) for k, v in
                     frac.items()}, groups_out, realms, lineage,
                     {k: v.names for k, v in fam_pools.items()},
@@ -586,7 +619,9 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
                 ranges[taxon_id(seed, tid, key)] = (float(rng_area[j]), bool(touches[j]), tid, key)
             taxa_total += u.size
             w_end[idx] += 1.0 / np.maximum(rng_area[inv] / area, 1.0)
-            endemic_cnt[idx] += ((rng_area[inv] <= ENDEMIC_RANGE_KM2) & ~touches[inv]).astype(np.int32)
+            endemic_cnt[idx] += ((rng_area[inv] <= ENDEMIC_RANGE_KM2) & ~touches[inv]).astype(
+                np.int32
+            )
     for _gid, m in groups_present.items():
         func_r += m
     L["flora_richness"] = flora_r  # land realm; fresh and marine life are separate maps
@@ -617,8 +652,11 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
             np.add.at(an, g.idx, g.compact("biomass_kgc"))
     L["animal_biomass_kgc_km2"] = (an / area).astype(np.float32)
     # Shannon of the flora (by cover) and of the fauna (by biomass): two passes, O(N) memory
-    flora = [g for gid, g in groups_out.items()
-             if "cover" in g and reg.groups[gid].traits["layer"] in TERRESTRIAL_LAYERS]
+    flora = [
+        g
+        for gid, g in groups_out.items()
+        if "cover" in g and reg.groups[gid].traits["layer"] in TERRESTRIAL_LAYERS
+    ]
     fauna = [g for gid, g in groups_out.items() if "biomass_kgc" in g and reg.groups[gid].is_fauna]
     L["flora_shannon_groups"] = _shannon_compact(flora, "cover", n)
     L["fauna_shannon_groups"] = _shannon_compact(fauna, "biomass_kgc", n)
@@ -667,11 +705,13 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
         lo, hi = mt.INDEX_BOUNDS[k]
         L[f"{k}_index"] = mt.index(L[k], lo, hi).astype(np.float32)
     L["total_richness_percentile"] = mt.percentile_area_weighted(
-        L["total_richness"].astype(float), area, life).astype(np.float32)
+        L["total_richness"].astype(float), area, life
+    ).astype(np.float32)
     summary = {
         "taxa_world": len(ranges),
-        "taxa_endemic": int(sum(1 for a, tch, _t, _k in ranges.values()
-                                if a <= ENDEMIC_RANGE_KM2 and not tch)),
+        "taxa_endemic": int(
+            sum(1 for a, tch, _t, _k in ranges.values() if a <= ENDEMIC_RANGE_KM2 and not tch)
+        ),
         "taxa_range_unknown": int(sum(1 for _a, tch, _t, _k in ranges.values() if tch)),
         "lineage_pools": {k: len(v.keys) for k, v in fam_pools.items()},
         "bioregions": int(u.size),

@@ -63,17 +63,25 @@ def _stage(path):
     import numpy as np
 
     area = st.area_km2
-    out = {"wall_s": wall, "timings": b.timings, "peak_traced_mib": peak_py / 2**20,
-           "maxrss_before_mib": rss0 / 1024, "maxrss_after_mib": rss1 / 1024,
-           "hexes": st.n, "ledger_ok": st.summary["ledger_ok"],
-           "npp_land_total_tc_yr": float(np.nansum(st.layers["npp_gc_m2_yr"][land]) * area),
-           "land_area_km2": float(st.frac["land_ground"].sum() * area),
-           "inland_water_km2": float(st.frac["inland_water"].sum() * area),
-           "marine_area_km2": float(st.frac["marine_water"].sum() * area),
-           "richness_median_land": float(np.median(st.layers["total_richness"][land])),
-           "plant_c_total_pgc": float(np.nansum(st.layers["plant_biomass_kgc_m2"]) * area * 1e6
-                                      / 1e12),
-           "taxa_world": st.summary["taxa_world"], "bioregions": st.summary["bioregions"]}
+    out = {
+        "wall_s": wall,
+        "timings": b.timings,
+        "peak_traced_mib": peak_py / 2**20,
+        "maxrss_before_mib": rss0 / 1024,
+        "maxrss_after_mib": rss1 / 1024,
+        "hexes": st.n,
+        "ledger_ok": st.summary["ledger_ok"],
+        "npp_land_total_tc_yr": float(np.nansum(st.layers["npp_gc_m2_yr"][land]) * area),
+        "land_area_km2": float(st.frac["land_ground"].sum() * area),
+        "inland_water_km2": float(st.frac["inland_water"].sum() * area),
+        "marine_area_km2": float(st.frac["marine_water"].sum() * area),
+        "richness_median_land": float(np.median(st.layers["total_richness"][land])),
+        "plant_c_total_pgc": float(
+            np.nansum(st.layers["plant_biomass_kgc_m2"]) * area * 1e6 / 1e12
+        ),
+        "taxa_world": st.summary["taxa_world"],
+        "bioregions": st.summary["bioregions"],
+    }
     print(json.dumps(out))
 
 

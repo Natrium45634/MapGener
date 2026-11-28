@@ -402,7 +402,7 @@ class MainWindow(QMainWindow):
         act(world, "⛏ Экспорт недр 5.5.1 (GeoJSON, CSV)…", self.export_minerals,
             tip="Контуры тел, лоты с единицами и ключами, план и журнал масс")  # fmt: skip
         act(world, "🌿 Экспорт природы 5.5 (JSON, CSV)…", self.export_biosphere,
-            tip="Сводка, гексы, аналоги и ареалы, возобновляемые ресурсы, выбранный гекс")  # fmt: skip
+            tip="Сводка, гексы, аналоги и ареалы, ресурсы, выбранный гекс")  # fmt: skip
         act(world, "PNG этой вкладки…", self.export_png)
         act(world, "PNG всех вкладок…", self.export_all_png)
         world.addSeparator()

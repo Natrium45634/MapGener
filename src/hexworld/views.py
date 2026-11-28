@@ -80,8 +80,21 @@ class ViewSpec:
             return False, "Нет проекта"
         if (
             self.stage
-            in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52", "v551",
-               "v55")
+            in (
+                "v2",
+                "v3",
+                "v46",
+                "v4",
+                "v45",
+                "v47",
+                "v51",
+                "v50",
+                "v53",
+                "v54",
+                "v52",
+                "v551",
+                "v55",
+            )
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -5387,6 +5400,6 @@ register_view(
 
 
 # TZ 5.5.1 views (registered by their module)
-from .minerals import views551 as _views551  # noqa: E402,F401
 from .biosphere import views55 as _views55  # noqa: E402,F401
 from .biosphere import views_resources as _views_res  # noqa: E402,F401
+from .minerals import views551 as _views551  # noqa: E402,F401

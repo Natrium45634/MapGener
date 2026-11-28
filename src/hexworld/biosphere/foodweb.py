@@ -68,7 +68,9 @@ def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_wa
     cons = [g for g in reg.groups.values() if not g.is_producer]
     full = np.arange(n)
     hidx = {g.id: (home_idx[g.id] if home_idx is not None else full) for g in cons}
-    A = {k: np.asarray(v, dtype=np.float64).copy() for k, v in pools.items() if not k.startswith("_")}
+    A = {
+        k: np.asarray(v, dtype=np.float64).copy() for k, v in pools.items() if not k.startswith("_")
+    }
     for p in reg.pools:
         A.setdefault(p, np.zeros(n))
     pool_in = {k: float(v.sum()) for k, v in A.items()}
@@ -166,11 +168,13 @@ def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_wa
             used = intake * scale
             unused = intake - used
             es = energy_split(used, tr["assim"], tr["npe"])
-            res[g.id] = {"intake": used.astype(np.float32),
-                         "production": es["production"].astype(np.float32),
-                         "biomass_kgc": (es["production"] / tr["pb"]).astype(np.float32),
-                         "individuals": np.asarray(k, dtype=np.float32),
-                         "limit": (np.where(n_food <= n_space, 1, 2) * (k > 0)).astype(np.uint8)}
+            res[g.id] = {
+                "intake": used.astype(np.float32),
+                "production": es["production"].astype(np.float32),
+                "biomass_kgc": (es["production"] / tr["pb"]).astype(np.float32),
+                "individuals": np.asarray(k, dtype=np.float32),
+                "limit": (np.where(n_food <= n_space, 1, 2) * (k > 0)).astype(np.uint8),
+            }
             led["intake"] += float(used.sum())
             led["egested"] += float(es["egested"].sum())
             led["respired"] += float(es["respired"].sum())

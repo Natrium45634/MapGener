@@ -172,6 +172,7 @@ def from_project(project, detail: str = "standard") -> BioInputs:
         dz = (_flat(z).astype(np.float64) - zmean) if z is not None else np.zeros(n)
         bins.append((np.nan_to_num(-LAPSE_K_KM * dz / 1000.0), w))
     f["microsites"] = bins
+
     # ocean
     def e(k, fill=0.0):
         a = ea.get(k)
@@ -190,12 +191,18 @@ def from_project(project, detail: str = "standard") -> BioInputs:
     cu, cv = ea.get("current_u_ms"), ea.get("current_v_ms")
     f["current_u_ms"] = _flat(cu).mean(axis=0) if cu is not None else np.zeros(n)
     f["current_v_ms"] = _flat(cv).mean(axis=0) if cv is not None else np.zeros(n)
-    for k in ("marine_kd_per_m", "marine_euphotic_depth_m", "marine_bottom_light_fraction",
-              "marine_nutrient_supply_proxy", "marine_coral_reef_potential"):
+    for k in (
+        "marine_kd_per_m",
+        "marine_euphotic_depth_m",
+        "marine_bottom_light_fraction",
+        "marine_nutrient_supply_proxy",
+        "marine_coral_reef_potential",
+    ):
         f[k] = _flat(B[k]).astype(np.float64) if k in B else np.full(n, np.nan)
     f["marine_benthic_zone"] = _flat(B["marine_benthic_zone"]).astype(np.int64)
     f["ocean_basin_id"] = (_flat(ea["ocean_basin_id"]).astype(np.int64)
                            if "ocean_basin_id" in ea else np.where(ocean, 0, -1))  # fmt: skip
+
     # volcanism, history
     def v(k, fill=0.0):
         a = V.get(k)
@@ -224,10 +231,16 @@ def from_project(project, detail: str = "standard") -> BioInputs:
 def _derived(inp: BioInputs) -> None:
     f = inp.f
     t = f["t_air_m"]
-    f["tc"] = np.where(f["ocean"], np.nanmin(f["sst_m"], axis=0, initial=np.inf,
-                                             where=np.isfinite(f["sst_m"])), t.min(axis=0))
-    f["tw"] = np.where(f["ocean"], np.nanmax(f["sst_m"], axis=0, initial=-np.inf,
-                                             where=np.isfinite(f["sst_m"])), t.max(axis=0))
+    f["tc"] = np.where(
+        f["ocean"],
+        np.nanmin(f["sst_m"], axis=0, initial=np.inf, where=np.isfinite(f["sst_m"])),
+        t.min(axis=0),
+    )
+    f["tw"] = np.where(
+        f["ocean"],
+        np.nanmax(f["sst_m"], axis=0, initial=-np.inf, where=np.isfinite(f["sst_m"])),
+        t.max(axis=0),
+    )
     f["tc"] = np.where(np.isfinite(f["tc"]), f["tc"], np.nan)
     f["tw"] = np.where(np.isfinite(f["tw"]), f["tw"], np.nan)
     nb = inp.nbr

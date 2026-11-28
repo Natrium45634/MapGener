@@ -10,7 +10,16 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..views import LegendItem, Option, ViewSpec, _ramp_rgb, _shade, id_colors, mask_rim, register_view
+from ..views import (
+    LegendItem,
+    Option,
+    ViewSpec,
+    _ramp_rgb,
+    _shade,
+    id_colors,
+    mask_rim,
+    register_view,
+)
 from . import metrics as mt
 from .registry import TERRESTRIAL_LAYERS, load
 
@@ -117,7 +126,9 @@ def _scalar(project, mode, overlays=frozenset()):
     if mode == "res_game":
         return res["game_production_t_wet_yr"] / area
     if mode == "res_fish":
-        return (res["fish_fresh_production_t_wet_yr"] + res["fish_marine_production_t_wet_yr"]) / area
+        return (
+            res["fish_fresh_production_t_wet_yr"] + res["fish_marine_production_t_wet_yr"]
+        ) / area
     if mode == "domestication":
         return res["wild_precursor_score"]
     raise KeyError(mode)
@@ -154,9 +165,18 @@ def _render(project, mode, overlays):
     h, w = st.shape
     # display: a sea hex with a sliver of shore is drawn as sea (it is still computed)
     life = (st.frac["land_ground"] + st.frac["inland_water"]) >= 0.3
-    land_view = mode not in ("marine", "res_fish", "bioregion", "npp", "total_richness",
-                             "fauna_richness", "flora_richness", "connectivity", "limit",
-                             "season") and not mode.startswith("g:")
+    land_view = mode not in (
+        "marine",
+        "res_fish",
+        "bioregion",
+        "npp",
+        "total_richness",
+        "fauna_richness",
+        "flora_richness",
+        "connectivity",
+        "limit",
+        "season",
+    ) and not mode.startswith("g:")
     rgb = np.empty((st.n, 3))
     if mode in ("flora", "fauna"):
         ids, best, has = _dominant(project, mode)
@@ -203,8 +223,12 @@ def _legend(project, mode):
             if counts[j] == 0:
                 break
             g = reg.groups[ids[j]]
-            items.append(LegendItem(f"{g.analogue_ru} — {g.name_ru}", tuple(int(c) for c in cols[j])))
-        items.append(LegendItem("серый — нет такой жизни (лёд, голый камень, не дошла)", (150, 150, 150)))
+            items.append(
+                LegendItem(f"{g.analogue_ru} — {g.name_ru}", tuple(int(c) for c in cols[j]))
+            )
+        items.append(
+            LegendItem("серый — нет такой жизни (лёд, голый камень, не дошла)", (150, 150, 150))
+        )
     elif mode == "bioregion":
         items.append(LegendItem("цвет — сочетание линий наземных, летающих, семенных, речных и "
                                 "морских групп; одинаковый климат на разных материках даёт "
@@ -245,8 +269,10 @@ register_view(
         layers=("npp_gc_m2_yr", "total_richness"),
         modes=tuple(Option(k, t) for k, t in MODES + GROUP_MODES),
         months=True,
-        overlays=(Option("percentile", "Перцентиль мира вместо шкалы"),
-                  Option("coast", "Берег", True)),
+        overlays=(
+            Option("percentile", "Перцентиль мира вместо шкалы"),
+            Option("coast", "Берег", True),
+        ),
         note="Растения, животные, биогеография и возобновляемые ресурсы по ТЗ 5.5; аналоги — "
         "функциональные группы, не виды",
         render=_render,

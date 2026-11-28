@@ -172,8 +172,16 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
                 avail = avail * np.clip(0.002 * (p_ann - 50.0), 0.0, 1.0)
                 avail = avail * (1.0 - 0.6 * layer_cover.get("canopy", 0.0))
             elif layer == "ground":
-                avail = np.clip(veg_share * (1.0 - 0.5 * layer_cover.get("canopy", 0.0)
-                                             - 0.3 * layer_cover.get("shrub", 0.0)), 0.0, 1.0)
+                avail = np.clip(
+                    veg_share
+                    * (
+                        1.0
+                        - 0.5 * layer_cover.get("canopy", 0.0)
+                        - 0.3 * layer_cover.get("shrub", 0.0)
+                    ),
+                    0.0,
+                    1.0,
+                )
                 avail = avail * np.clip(p_ann / 250.0, 0.05, 1.0)  # sparse cover in deserts
             elif layer == "epiphyte":
                 avail = layer_cover.get("canopy", np.zeros(n))
@@ -190,8 +198,11 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
                 cover[vs] = _share(Smin[vs]) * (1.0 - np.prod(1.0 - Smin[vs] * CMAX[layer],
                                                                axis=0)) * avail  # fmt: skip
                 gap = np.clip(avail - cover[vs].sum(axis=0), 0.0, 1.0) + substrate * 0.5
-                cover[cs] = _share(Smin[cs]) * (1.0 - np.prod(1.0 - Smin[cs] * CMAX[layer],
-                                                               axis=0)) * np.clip(gap, 0, 1)
+                cover[cs] = (
+                    _share(Smin[cs])
+                    * (1.0 - np.prod(1.0 - Smin[cs] * CMAX[layer], axis=0))
+                    * np.clip(gap, 0, 1)
+                )
             else:
                 cover[sel] = _share(s) * union * avail
             layer_cover[layer] = cover[sel].sum(axis=0)
@@ -206,13 +217,17 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
         t_act = [g.traits["t_act"] for g in groups]
         w_act = [g.traits["w_act"] for g in groups]
 
-        def ft_of(m):
+        def ft_of(m, t=t, t_act=t_act):
             return np.stack([trapezoid(t[m], *ta) for ta in t_act])
 
-        def fw_of(m):
+        def fw_of(m, t=t, w_act=w_act):
             frozen = t[m] <= 0
-            return np.stack([np.where(np.isnan(wr[m]), np.where(frozen, 1.0, np.nan),
-                                      trapezoid(wr[m], *wa)) for wa in w_act])
+            return np.stack(
+                [
+                    np.where(np.isnan(wr[m]), np.where(frozen, 1.0, np.nan), trapezoid(wr[m], *wa))
+                    for wa in w_act
+                ]
+            )
 
         lue = np.array([g.traits["lue"] for g in groups])[:, None]
         cue = np.array([g.traits["cue"] for g in groups])[:, None]
@@ -385,8 +400,9 @@ def _substrate(inp, idx):
     ct = f["coast_type"]
     nb = inp.nbr[idx]
     rocky_codes = np.array([COAST_TYPES.index(c) for c in ROCKY])
-    sandy_codes = np.array([COAST_TYPES.index(c) for c in SANDY + ("tidal_flat", "delta",
-                                                                   "estuary", "mangrove")])
+    sandy_codes = np.array(
+        [COAST_TYPES.index(c) for c in SANDY + ("tidal_flat", "delta", "estuary", "mangrove")]
+    )
     near = np.where(nb >= 0, ct[np.maximum(nb, 0)], 0)
     rocky = np.isin(near, rocky_codes).any(axis=1) | np.isin(ct[idx], rocky_codes)
     sandy = np.isin(near, sandy_codes).any(axis=1) | np.isin(ct[idx], sandy_codes)
@@ -423,7 +439,6 @@ def marine_production(inp, frac):
     vent_mw = vent_mw + np.where(axis, AXIS_VENT_MW, 0.0)
     out = {"idx": idx, "groups": [], "npp": [], "suit": [], "cover": [], "z_eu": z_eu,
            "lit_share": lit_share, "hard": hard, "soft": soft}  # fmt: skip
-    phyto_total = np.zeros(n)
     for g in reg.groups.values():
         tr = g.traits
         layer = tr.get("layer")
@@ -437,7 +452,6 @@ def marine_production(inp, frac):
                 par_w = par[m] * ((1.0 - ice[m]) + ice[m] * SEA_ICE_TRANSMISSION)
                 f_abs = nutr / (nutr + 0.3)
                 npp += tr["cue"] * tr["lue"] * par_w * f_abs * trapezoid(sst[m], *tr["t_act"])
-            phyto_total = npp * S
         elif layer == "m_ice":
             S = S * (f["sea_ice_months"][idx] >= 1)
             for m in range(12):

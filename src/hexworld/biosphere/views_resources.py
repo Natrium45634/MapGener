@@ -41,7 +41,9 @@ def _scores(project):
         game = res["game_production_t_wet_yr"] / area
         forage = res["forage_surplus_t_dm_yr"] / area / 100.0
         out["pasture"] = (game + forage) / RENEWABLE["pasture"][2]
-        out["fish_fresh"] = res["fish_fresh_production_t_wet_yr"] / area / RENEWABLE["fish_fresh"][2]
+        out["fish_fresh"] = (
+            res["fish_fresh_production_t_wet_yr"] / area / RENEWABLE["fish_fresh"][2]
+        )
         out["fish_marine"] = res["fish_marine_production_t_wet_yr"] / area / \
             RENEWABLE["fish_marine"][2]  # fmt: skip
     r = getattr(project, "resources", None)
@@ -103,15 +105,20 @@ def _vectors(project, mode, overlays):
 
 
 def _legend(project, mode):
-    items = [LegendItem("Общая карта ресурсов: природные (заливка гекса) и минеральные (значки "
-                        "месторождений); всё — потенциал, не добыча; параметры предварительные")]
+    items = [
+        LegendItem(
+            "Общая карта ресурсов: природные (заливка гекса) и минеральные (значки "
+            "месторождений); всё — потенциал, не добыча; параметры предварительные"
+        )
+    ]
     if mode in ("all", "renewable"):
         if getattr(project, "biosphere", None) is None:
             items.append(LegendItem("природные ресурсы 5.5 не рассчитаны (включите «Природу»)"))
         for _k, (title, color, _s) in RENEWABLE.items():
             items.append(LegendItem(f"природные: {title}", color))
         items.append(LegendItem("заливка — природный ресурс, которым гекс выделяется в мире (ранг "
-                                "≥ 60-го перцентиля по площади); насыщеннее — выше ранг"))  # fmt: skip
+                                "≥ 60-го перцентиля по площади); насыщеннее — выше "
+                                "ранг"))  # fmt: skip
     if mode in ("all", "minerals"):
         if getattr(project, "minerals", None) is None:
             items.append(LegendItem("минеральные ресурсы 5.5.1 не рассчитаны (включите «Недра»)"))
@@ -132,9 +139,12 @@ register_view(
         stage="v551",
         layers=("system_count",),
         modes=tuple(Option(k, t) for k, t in MODES),
-        overlays=(Option("d500", "кровля ≤ 500 м"), Option("d1000", "кровля ≤ 1000 м"),
-                  Option("surface_only", "Только с выходом на поверхность"),
-                  Option("coast", "Берег", True)),  # fmt: skip
+        overlays=(
+            Option("d500", "кровля ≤ 500 м"),
+            Option("d1000", "кровля ≤ 1000 м"),
+            Option("surface_only", "Только с выходом на поверхность"),
+            Option("coast", "Берег", True),
+        ),  # fmt: skip
         note="Одна карта с общей легендой: природные ресурсы (5.5) заливкой, месторождения "
         "(5.5.1) значками",
         render=_render,

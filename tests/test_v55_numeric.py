@@ -124,7 +124,7 @@ def test_n16_b59_shannon_hill():
     h = mt.hill([1, 1, 1, 1])
     assert h["H"] == pytest.approx(math.log(4), rel=R8)
     assert h["q1"] == pytest.approx(4.0) and h["q2"] == pytest.approx(4.0)
-    assert mt.hill([]) ["S"] == 0 and math.isnan(mt.hill([5.0])["J"])
+    assert mt.hill([])["S"] == 0 and math.isnan(mt.hill([5.0])["J"])
     assert mt.shannon_rows(np.array([[1.0], [1.0]]))[0] == pytest.approx(math.log(2))
 
 
@@ -225,8 +225,12 @@ def test_b43_b48_edible_partition_and_pollinators():
     reg = rg.load()
     ids = ["tree_broadleaf_deciduous", "grass_c3", "forb"]
     g = len(ids)
-    prod = {"npp_leaf": np.full((g, 1), 100.0), "npp_wood": np.full((g, 1), 50.0),
-            "npp_root": np.full((g, 1), 80.0), "npp_repro": np.full((g, 1), 20.0)}
+    prod = {
+        "npp_leaf": np.full((g, 1), 100.0),
+        "npp_wood": np.full((g, 1), 50.0),
+        "npp_root": np.full((g, 1), 80.0),
+        "npp_repro": np.full((g, 1), 20.0),
+    }
     total = sum(prod[k].sum() for k in prod)
     with_p = pr.land_pools(prod, ids, pollination=np.ones(1))
     without = pr.land_pools(prod, ids, pollination=np.zeros(1))
@@ -268,12 +272,16 @@ def test_b64_b65_resource_units_and_shared_wood():
 
 
 def test_b77_coupler_rolls_back_every_owner():
-    owners = {"soil": {"soc_kg_m2": np.array([5.0, 6.0])},
-              "erosion": {"cover_factor": np.array([1.0, 1.0])}}
+    owners = {
+        "soil": {"soc_kg_m2": np.array([5.0, 6.0])},
+        "erosion": {"cover_factor": np.array([1.0, 1.0])},
+    }
     before = {o: {k: v.copy() for k, v in d.items()} for o, d in owners.items()}
     c = dy.Coupler(owners)
-    props = [dy.EcoFeedback("soil", "soc_kg_m2", np.array([0.1, 0.1]), "kgC/m²", "y1"),
-             dy.EcoFeedback("erosion", "cover_factor", np.array([0.5, 0.6]), "1", "y1")]
+    props = [
+        dy.EcoFeedback("soil", "soc_kg_m2", np.array([0.1, 0.1]), "kgC/m²", "y1"),
+        dy.EcoFeedback("erosion", "cover_factor", np.array([0.5, 0.6]), "1", "y1"),
+    ]
     ok = c.apply(props, fail_on=lambda p: p.owner == "erosion")
     assert not ok and all(p.status == "rolled_back" for p in props)
     for o in before:

@@ -1025,8 +1025,19 @@ def cmd_bio_diagnostics(args) -> int:
     if b is None:
         return 1
     s = b.summary
-    print(json.dumps({"summary": s, "quality": b.state.quality, "ledger": b.state.ledger,
-                      "timings": b.timings}, ensure_ascii=False, indent=1, default=str))
+    print(
+        json.dumps(
+            {
+                "summary": s,
+                "quality": b.state.quality,
+                "ledger": b.state.ledger,
+                "timings": b.timings,
+            },
+            ensure_ascii=False,
+            indent=1,
+            default=str,
+        )
+    )
     return 0
 
 

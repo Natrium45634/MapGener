@@ -95,8 +95,16 @@ def make(land, *, spacing_km=50.0, t_mean=14.0, t_amp=8.0, sst=None, precip_mm=1
     f["p_lab_kg_m2"] = np.where(f["land"], full(p_lab), np.nan)
     f["soc_kg_m2"] = np.where(f["land"], 8.0, np.nan)
     par = full(par_mj_m2_day) if np.ndim(par_mj_m2_day) < 3 else None
-    f["par_m"] = (np.repeat(par[None, :], 12, 0) if par is not None else
-                  np.asarray(par_mj_m2_day, float).reshape(12, n)) * 0.48 / 0.48 * DAYS[:, None]
+    f["par_m"] = (
+        (
+            np.repeat(par[None, :], 12, 0)
+            if par is not None
+            else np.asarray(par_mj_m2_day, float).reshape(12, n)
+        )
+        * 0.48
+        / 0.48
+        * DAYS[:, None]
+    )
     f["microsites"] = [(np.zeros(n), 1.0)]
     f["sea_ice_m"] = (np.asarray(sea_ice, float).reshape(12, n) if sea_ice is not None
                       else np.zeros((12, n)))  # fmt: skip
@@ -121,9 +129,22 @@ def make(land, *, spacing_km=50.0, t_mean=14.0, t_amp=8.0, sst=None, precip_mm=1
     f["volcanic_age_ma"] = np.full(n, np.nan)
     f["spreading_axis_km"] = np.full(n, np.inf)
     for k, v in over.items():
-        f[k] = v if not isinstance(v, np.ndarray) else (v.reshape(12, n) if v.ndim == 3 else v.ravel())
-    inp = BioInputs(n, (h, w), float(lay.hex_area_km2), float(spacing_km), np.full(n, 45.0),
-                    x.ravel().astype(float), y.ravel().astype(float), neighbours(lay), DAYS, f, {})
+        f[k] = (
+            v if not isinstance(v, np.ndarray) else (v.reshape(12, n) if v.ndim == 3 else v.ravel())
+        )
+    inp = BioInputs(
+        n,
+        (h, w),
+        float(lay.hex_area_km2),
+        float(spacing_km),
+        np.full(n, 45.0),
+        x.ravel().astype(float),
+        y.ravel().astype(float),
+        neighbours(lay),
+        DAYS,
+        f,
+        {},
+    )
     _derived(inp)
     return inp
 

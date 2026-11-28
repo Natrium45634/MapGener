@@ -127,7 +127,7 @@ def _drift_factor(inp, src, dst, u=None, v=None):
     dx = inp.x_km[dst] - inp.x_km[src]
     dy = inp.y_km[dst] - inp.y_km[src]
     L = np.maximum(np.hypot(dx, dy), 1e-9)
-    along = (np.nan_to_num(u[src]) * dx / L - np.nan_to_num(v[src]) * dy / L)
+    along = np.nan_to_num(u[src]) * dx / L - np.nan_to_num(v[src]) * dy / L
     return np.clip(np.exp(-along / U0), 0.3, 3.0)
 
 
@@ -178,7 +178,7 @@ def _river_graph(cls, inp, frac, capture_mult):
     nb = inp.nbr
     i = np.repeat(np.arange(n), 6)
     j = nb.ravel()
-    okk = (j >= 0)
+    okk = j >= 0
     i, j = i[okk], j[okk]
     both = fresh[i] & fresh[j]
     same_lake = both & (f["lake_id"][i] >= 0) & (f["lake_id"][i] == f["lake_id"][j])
@@ -227,8 +227,10 @@ def land_pools(inp, frac, landmasses) -> Lineages:
         cont = float(np.mean(f["block_id"][sel] >= 0))
         # a large landmass, or an old continental fragment (its own ancient lineages, the
         # way a micro-continent keeps them), is a pool; an oceanic island is not
-        if not ((area >= SOURCE_LAND_KM2 and cont >= 0.5)
-                or (area >= SOURCE_FRAGMENT_KM2 and cont >= 0.9)):
+        if not (
+            (area >= SOURCE_LAND_KM2 and cont >= 0.5)
+            or (area >= SOURCE_FRAGMENT_KM2 and cont >= 0.9)
+        ):
             continue
         cx, cy = float(inp.x_km[sel].mean()), float(inp.y_km[sel].mean())
         keys.append(_key("land", cx, cy))
@@ -252,7 +254,9 @@ def fresh_pools(inp, frac, land: Lineages) -> Lineages:
     pool = np.full(inp.n, -1, dtype=np.int64)
     keys, names = [], []
     ids, counts = np.unique(basin[basin >= 0], return_counts=True)
-    for i, c in sorted(zip(ids.tolist(), counts.tolist(), strict=True), key=lambda t: (-t[1], t[0])):
+    for i, c in sorted(
+        zip(ids.tolist(), counts.tolist(), strict=True), key=lambda t: (-t[1], t[0])
+    ):
         sel = basin == i
         if c * inp.area_km2 < SOURCE_BASIN_KM2:
             continue

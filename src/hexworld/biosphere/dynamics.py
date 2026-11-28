@@ -216,16 +216,18 @@ def erosion_cover_factor(cover, bare_rock=None):
 
 
 OWNER_RULES = {
-    ("soil", "soc_kg_m2"): lambda cur, p: np.maximum(np.asarray(cur, float)
-                                                     + np.asarray(p.delta, float), 0.0),
+    ("soil", "soc_kg_m2"): lambda cur, p: np.maximum(
+        np.asarray(cur, float) + np.asarray(p.delta, float), 0.0
+    ),
     ("hydrology", "interception_mm"): lambda cur, p: np.asarray(p.delta, float),
     ("erosion", "cover_factor"): lambda cur, p: np.clip(np.asarray(p.delta, float), 0.01, 1.0),
 }
 
 
 # -- the annual loop ----------------------------------------------------------------------------
-def rain_anomaly(seed: str, years: int, shape, cell_km: float, rho: float = 0.4,
-                 sigma: float = 0.25):
+def rain_anomaly(
+    seed: str, years: int, shape, cell_km: float, rho: float = 0.4, sigma: float = 0.25
+):
     """Regional wet / dry years: AR(1) in time, smoothed over ~900 km; P_y / P_b factors."""
     z = np.zeros(shape)
     out = []
@@ -278,7 +280,9 @@ def advance_years(state, project, years: int, seed: str, rain=None, fire_scale: 
     det = np.where(g > 0, npp_b / 1000.0 / k_det, 0.0)
 
     def total_kgc():
-        return sum(float((v * area_m2).sum()) for v in stocks.values()) + float((det * area_m2).sum())
+        return sum(float((v * area_m2).sum()) for v in stocks.values()) + float(
+            (det * area_m2).sum()
+        )
 
     for y in range(1, years + 1):
         pf = np.asarray(rain[y - 1]).ravel()

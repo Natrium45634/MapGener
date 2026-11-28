@@ -43,7 +43,7 @@ def region_report(state, hexes) -> dict:
                                    / 1e6)  # fmt: skip
     taxa = set()
     groups = set()
-    for realm, tab in state.realms.items():
+    for _realm, tab in state.realms.items():
         j = np.searchsorted(tab.idx, idx)
         ok = (j < tab.idx.size) & (tab.idx[np.minimum(j, tab.idx.size - 1)] == idx)
         jj = j[ok]
@@ -86,8 +86,10 @@ def export_biosphere(project, out_dir, hexes=None) -> list[str]:
         life = (st.frac["land_ground"] + st.frac["inland_water"] + st.frac["marine_water"]) > 0
         for i in np.nonzero(life)[0]:
             r, c = divmod(int(i), lay.width)
-            row = [c, r] + [f"{float(st.frac[k][i]):.3f}" for k in
-                            ("land_ground", "inland_water", "marine_water", "grounded_ice")]
+            row = [c, r] + [
+                f"{float(st.frac[k][i]):.3f}"
+                for k in ("land_ground", "inland_water", "marine_water", "grounded_ice")
+            ]
             for k, _u in HEX_COLUMNS:
                 v = st.layers[k][i]
                 row.append("" if not np.isfinite(v) else f"{float(v):.4g}")
