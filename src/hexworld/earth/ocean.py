@@ -326,6 +326,8 @@ def ice_transport_operator(u, v, ocean, idx, dx, dt):
 #: piling it (pack ice rarely exceeds ~5 m on average; without this a coast where the drift
 #: converges stacked 20+ m of «sea ice") [S: Thorndike et al. 1975, order of magnitude]
 H_RIDGE = 5.0
+#: mean thickness kept at most in a cell after ridging (the rest leaves the cell) [К]
+H_PILE = 10.0
 
 
 def ridge_neighbours(ocean, idx):
@@ -562,6 +564,16 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
                 for _ in range(nsub):
                     hi = m_op @ hi
                 hi = ridge(np.maximum(hi, 0.0), ridge_nbrs)
+                # a convergence zone without room around it would pile ice for ever (no ice
+                # rheology here): what stays above H_PILE is exported mechanically (as through
+                # a strait), with its latent heat in the boundary ledger (energy closes)
+                over = np.maximum(hi - H_PILE, 0.0)
+                if over.any():
+                    hi = hi - over
+                    if year == years - 1:
+                        ledger["boundary_j"] += float((over * RHO_ICE * L_F * area).sum())
+                        ledger["ice_exported_m3"] = ledger.get("ice_exported_m3", 0.0) + \
+                            float((over * area).sum())  # fmt: skip
             if not params.sea_ice:
                 hi = np.zeros(n)
             sst[m] = t
