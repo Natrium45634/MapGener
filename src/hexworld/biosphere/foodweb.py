@@ -56,30 +56,34 @@ def energy_split(intake_kgc, assim, npe):
             "assimilated_mj": a * MJ_PER_KGC}  # fmt: skip
 
 
-def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_water=None):
+def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_water=None,
+                home_idx: dict | None = None):  # fmt: skip
     """Joint allocation over the hexes.
 
-    ``pools``: primary pool -> kgC/yr per hex (N); ``weights``: consumer group -> w (N) in
-    [0, 1]; ``home_area_m2``: group -> habitat area per hex. Returns per group intake,
-    production, biomass (kgC), individuals and the ledger."""
+    ``pools``: primary pool -> kgC/yr per hex (N). ``weights`` and ``home_area_m2``: consumer
+    group -> w in [0, 1] and habitat area per hex, either full (N) or compact on
+    ``home_idx[group]`` (the hexes of its realm). Results are compact on the same hexes
+    (float32): memory grows with the realm, not with every hex of the world (§16)."""
     reg = load()
     cons = [g for g in reg.groups.values() if not g.is_producer]
+    full = np.arange(n)
+    hidx = {g.id: (home_idx[g.id] if home_idx is not None else full) for g in cons}
     A = {k: np.asarray(v, dtype=np.float64).copy() for k, v in pools.items() if not k.startswith("_")}
     for p in reg.pools:
         A.setdefault(p, np.zeros(n))
-    start = {k: v.copy() for k, v in A.items()}
-    alloc: dict = {g.id: {} for g in cons}
-    leftover = {}
-    lam_out = {}
+    pool_in = {k: float(v.sum()) for k, v in A.items()}
+    eaten_share: dict = {}  # pool -> share of it allocated (for the carrion of the uneaten)
+    intake_acc: dict = {}  # allocations summed per consumer, compact on its hexes
     res = {g.id: {} for g in cons}
     led = {"pool_in": 0.0, "allocated": 0.0, "left_over": 0.0, "intake": 0.0, "egested": 0.0,
            "respired": 0.0, "production": 0.0, "returned_unused": 0.0,
            "carrion_from_uneaten": 0.0}  # fmt: skip
-    demand = {}
-    for g in cons:
-        tr = g.traits
-        w = np.clip(np.nan_to_num(weights.get(g.id, np.zeros(n))), 0.0, 1.0)
-        demand[g.id] = w * tr["d0"] * home_area_m2[g.id] / 1000.0  # kgC/yr
+
+    def demand(c):
+        tr = reg.groups[c].traits
+        w = np.clip(np.nan_to_num(np.asarray(weights.get(c, 0.0), dtype=np.float64)), 0.0, 1.0)
+        return w * tr["d0"] * np.asarray(home_area_m2[c], dtype=np.float64) / 1000.0  # kgC/yr
+
     levels = sorted({g.level for g in cons})
     done_pools: set = set()
 
@@ -96,16 +100,29 @@ def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_wa
                 continue
             if p == "carrion":
                 _carrion()
+            avail = A[p]
+            tot = np.zeros(n)
             reqs = []
             for c in consumers:
                 tr = reg.groups[c].traits
-                reqs.append(np.minimum(demand[c] * tr["diet"][p], tr["phi"] * A[p]))
-            got, lam = allocate(A[p], reqs)
-            for c, a in zip(consumers, got, strict=True):
-                alloc[c][p] = a
-            used = np.sum(got, axis=0)
-            leftover[p] = A[p] - used
-            lam_out[p] = lam
+                ix = hidx[c]
+                r = np.minimum(demand(c) * tr["diet"][p], tr["phi"] * avail[ix])
+                reqs.append(r)
+                np.add.at(tot, ix, r) if ix is not full else np.add(tot, r, out=tot)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                lam = np.where(tot > avail, avail / np.where(tot > 0, tot, 1.0), 1.0)
+            lam = np.clip(np.nan_to_num(lam, nan=0.0), 0.0, 1.0)
+            used = np.zeros(n)
+            for c, r in zip(consumers, reqs, strict=True):
+                ix = hidx[c]
+                a = lam[ix] * r
+                intake_acc[c] = intake_acc[c] + a if c in intake_acc else a
+                np.add.at(used, ix, a) if ix is not full else np.add(used, a, out=used)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                eaten_share[p] = np.where(avail > 0, used / np.where(avail > 0, avail, 1.0),
+                                          0.0).astype(np.float32)  # fmt: skip
+            led["allocated"] += float(used.sum())
+            led["left_over"] += float((avail - used).sum())
             done_pools.add(p)
 
     def _carrion():
@@ -118,65 +135,60 @@ def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_wa
             if prod is None:
                 continue
             p = tr.get("provides")
-            eaten_share = 0.0 if not p or p not in start or p not in leftover else \
-                1.0 - np.divide(leftover[p], np.maximum(start[p] + 1e-30, 1e-30))  # fmt: skip
-            uneaten = prod * (1.0 - np.clip(eaten_share, 0.0, 1.0))
-            tot += CARRION_SHARE * uneaten
+            ix = hidx[g.id]
+            share = eaten_share[p][ix] if p in eaten_share else 0.0
+            uneaten = prod.astype(np.float64) * (1.0 - np.clip(share, 0.0, 1.0))
+            np.add.at(tot, ix, CARRION_SHARE * uneaten)
         A["carrion"] = A["carrion"] + tot
-        start["carrion"] = A["carrion"].copy()
+        pool_in["carrion"] = float(A["carrion"].sum())
         led["carrion_from_uneaten"] += float(tot.sum())
 
     for level in levels:
         allocate_ready(level)
         for g in [c for c in cons if c.level == level]:
             tr = g.traits
-            intake = np.zeros(n)
-            for p in tr["diet"]:
-                if p in alloc[g.id]:
-                    intake = intake + alloc[g.id][p]
+            ix = hidx[g.id]
+            intake = intake_acc.pop(g.id, np.zeros(ix.size))
             es = energy_split(intake, tr["assim"], tr["npe"])
             biomass = es["production"] / tr["pb"]  # kgC
             m = tr["mass_kg"]
-            area_km2 = home_area_m2[g.id] / 1e6
+            area_km2 = np.asarray(home_area_m2[g.id], dtype=np.float64) / 1e6
             n_food = biomass / max(m * C_PER_WET, 1e-30)
-            # space cap (Damuth-like) only for vertebrates; invertebrates, plankton and
-            # microbes are food-limited here
-            n_space = DMAX * max(m, 1e-9) ** -0.75 * area_km2 if m >= VERTEBRATE_KG and g.realm not in WATER_REALMS else \
-                np.full(n, np.inf)  # fmt: skip
+            # space cap (Damuth-like) only for land vertebrates; invertebrates, plankton,
+            # microbes and aquatic animals are food-limited here
+            n_space = DMAX * max(m, 1e-9) ** -0.75 * area_km2 \
+                if m >= VERTEBRATE_KG and g.realm not in WATER_REALMS else \
+                np.full(ix.size, np.inf)  # fmt: skip
             k = np.minimum(n_food, n_space)
             if tr.get("needs_water") and gates_water is not None:
-                k = np.where(gates_water, k, 0.0)  # no drinking water: K_water = 0
+                k = np.where(gates_water[ix], k, 0.0)  # no drinking water: K_water = 0
             scale = np.where(n_food > 0, k / np.maximum(n_food, 1e-30), 0.0)
             used = intake * scale
             unused = intake - used
             es = energy_split(used, tr["assim"], tr["npe"])
-            res[g.id] = {"intake": used, "production": es["production"],
-                         "respired": es["respired"], "egested": es["egested"],
-                         "biomass_kgc": es["production"] / tr["pb"],
-                         "individuals": k, "limit": np.where(n_food <= n_space, 1, 2)
-                         .astype(np.uint8) * (k > 0)}  # fmt: skip
+            res[g.id] = {"intake": used.astype(np.float32),
+                         "production": es["production"].astype(np.float32),
+                         "biomass_kgc": (es["production"] / tr["pb"]).astype(np.float32),
+                         "individuals": np.asarray(k, dtype=np.float32),
+                         "limit": (np.where(n_food <= n_space, 1, 2) * (k > 0)).astype(np.uint8)}
             led["intake"] += float(used.sum())
             led["egested"] += float(es["egested"].sum())
             led["respired"] += float(es["respired"].sum())
             led["production"] += float(es["production"].sum())
             led["returned_unused"] += float(unused.sum())
             if tr.get("provides"):
-                A[tr["provides"]] = A[tr["provides"]] + es["production"]
-                start[tr["provides"]] = A[tr["provides"]].copy()
+                pv = tr["provides"]
+                np.add.at(A[pv], ix, es["production"])
+                pool_in[pv] = float(A[pv].sum())
     allocate_ready(max(levels) + 1)
-    for p in sorted(start):
-        tot_in = float(start[p].sum())
-        led["pool_in"] += tot_in
-        if p in leftover:
-            led["left_over"] += float(leftover[p].sum())
-            led["allocated"] += tot_in - float(leftover[p].sum())
-        else:
-            led["left_over"] += tot_in
+    led["pool_in"] = float(sum(pool_in.values()))
+    for p, v in pool_in.items():
+        if p not in eaten_share:  # nobody eats it: all of it stays (detritus, export)
+            led["left_over"] += v
     # closure: allocated = intake + returned unused; intake = egested + respired + production
     led["residual_allocation"] = led["allocated"] - led["intake"] - led["returned_unused"]
     led["residual_energy"] = led["intake"] - led["egested"] - led["respired"] - led["production"]
     scale = max(led["pool_in"], 1.0)
     led["ok"] = (abs(led["residual_allocation"]) / scale < 1e-8
                  and abs(led["residual_energy"]) / scale < 1e-8)  # fmt: skip
-    return {"groups": res, "lambda": lam_out, "leftover": leftover, "pools_start": start,
-            "ledger": led}  # fmt: skip
+    return {"groups": res, "eaten_share": eaten_share, "ledger": led, "home_idx": hidx}

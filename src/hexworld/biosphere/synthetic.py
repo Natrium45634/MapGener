@@ -81,8 +81,6 @@ def make(land, *, spacing_km=50.0, t_mean=14.0, t_amp=8.0, sst=None, precip_mm=1
     f["precip_m"] = np.repeat(p[None, :], 12, 0)
     f["pet_m"] = np.repeat(pet[None, :], 12, 0)
     f["aet_m"] = f["pet_m"] * np.asarray(aet_ratio, dtype=np.float64)
-    f["soil_m"] = np.full((12, n), 100.0)
-    f["snow_m"] = np.zeros((12, n))
     f["awc_mm"] = np.full(n, 150.0)
     f["soil_depth_m"] = np.where(f["land"], 1.0, 0.0)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -99,7 +97,6 @@ def make(land, *, spacing_km=50.0, t_mean=14.0, t_amp=8.0, sst=None, precip_mm=1
     par = full(par_mj_m2_day) if np.ndim(par_mj_m2_day) < 3 else None
     f["par_m"] = (np.repeat(par[None, :], 12, 0) if par is not None else
                   np.asarray(par_mj_m2_day, float).reshape(12, n)) * 0.48 / 0.48 * DAYS[:, None]
-    f["daylight_h_m"] = np.full((12, n), 12.0)
     f["microsites"] = [(np.zeros(n), 1.0)]
     f["sea_ice_m"] = (np.asarray(sea_ice, float).reshape(12, n) if sea_ice is not None
                       else np.zeros((12, n)))  # fmt: skip

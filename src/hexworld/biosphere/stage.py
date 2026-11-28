@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
-from .model import ALGORITHM_VERSION, BioState, RealmTable
+from .model import ALGORITHM_VERSION, BioState, GroupArrays, RealmTable
 from .registry import load
 
 SCHEMA_VERSION = "hexworld-biosphere-1"
@@ -130,10 +130,13 @@ def to_arrays(data: BioData) -> dict:
         arrays[f"layer__{k}"] = np.asarray(v)
     for k, v in st.layers.get("_env", {}).items():
         arrays[f"env__{k}"] = v
+    realm_idx = {}
     for gid, d in st.groups.items():
-        for k, v in d.items():
-            if isinstance(v, np.ndarray):
-                arrays[f"group__{gid}__{k}"] = v
+        realm_idx.setdefault(d.realm, d.idx)
+        for k, v in d.arrays().items():
+            arrays[f"group__{gid}__{k}"] = v  # compact on the hexes of its realm
+    for r, idx in realm_idx.items():
+        arrays[f"gidx__{r}"] = idx
     for r, tab in st.realms.items():
         arrays[f"realm__{r}__idx"] = tab.idx
         arrays[f"realm__{r}__occ"] = tab.occ
@@ -152,7 +155,7 @@ def to_json(data: BioData) -> dict:
         "mode": st.mode, "seed": st.seed, "n": st.n, "shape": list(st.shape),
         "area_km2": st.area_km2,
         "realm_templates": {r: tab.templates for r, tab in st.realms.items()},
-        "group_realms": {g: d["realm"] for g, d in st.groups.items()},
+        "group_realms": {g: d.realm for g, d in st.groups.items()},
         "lineage_names": st.lineage_names, "lineage_keys": st.lineage_keys,
         "ledger": st.ledger, "summary": st.summary, "quality": st.quality,
         "npp_limit_names": st.layers.get("_npp_limit_names"),
@@ -170,11 +173,14 @@ def from_saved(doc: dict, arrays: dict) -> BioData:
     layers["_npp_limit_names"] = doc.get("npp_limit_names")
     layers["_index_version"] = doc.get("index_version")
     layers["_ranges"] = {r[0]: tuple(r[1:]) for r in doc.get("ranges", [])}
-    groups: dict = {g: {"realm": realm} for g, realm in doc["group_realms"].items()}
+    gidx = {k[6:]: v for k, v in arrays.items() if k.startswith("gidx__")}
+    n = int(doc["n"])
+    groups: dict = {g: GroupArrays(realm, gidx[realm], n) for g, realm in
+                    doc["group_realms"].items()}  # fmt: skip
     for k, v in arrays.items():
         if k.startswith("group__"):
             _p, gid, name = k.split("__", 2)
-            groups[gid][name] = v
+            groups[gid].arrays()[name] = v
     realms = {}
     for r, tids in doc["realm_templates"].items():
         idx = arrays[f"realm__{r}__idx"]

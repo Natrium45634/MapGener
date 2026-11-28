@@ -135,9 +135,10 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
     veg_share = np.clip(1.0 - substrate - young_lava, 0.0, 1.0)  # rooted plants
     out = {
         "idx": idx, "groups": [g.id for g in groups],
-        "npp": np.zeros((G, n)), "gpp": np.zeros((G, n)), "apar": np.zeros((G, n)),
-        "cover": np.zeros((G, n)), "lai": np.zeros((G, n)), "suit": np.zeros((G, n)),
-        "npp_month": np.zeros((12, n)), "limit": np.zeros((4, n)),
+        "npp": np.zeros((G, n), np.float32), "gpp": np.zeros((G, n), np.float32),
+        "apar": np.zeros((G, n), np.float32), "cover": np.zeros((G, n), np.float32),
+        "lai": np.zeros((G, n), np.float32), "suit": np.zeros((G, n), np.float32),
+        "npp_month": np.zeros((12, n), np.float32), "limit": np.zeros((4, n), np.float32),
     }  # fmt: skip
     t0 = f["t_air_m"][:, idx]
     for off, wbin in f["microsites"]:
@@ -286,8 +287,8 @@ def _stocks(out, groups) -> None:
     for p in ("leaf", "wood", "root", "repro"):
         a = np.array([g.traits["alloc"][p] for g in groups])[:, None]
         lam = np.array([max(g.traits["turn"][p], 1e-9) for g in groups])[:, None]
-        pools[f"npp_{p}"] = npp * a
-        pools[f"stock_{p}"] = np.where(a > 0, npp * a / lam / 1000.0, 0.0)  # kgC/m²
+        pools[f"npp_{p}"] = (npp * a).astype(np.float32)
+        pools[f"stock_{p}"] = np.where(a > 0, npp * a / lam / 1000.0, 0.0).astype(np.float32)
     out.update(pools)
     out["biomass_kgc_m2"] = sum(pools[f"stock_{p}"] for p in ("leaf", "wood", "root", "repro"))
 

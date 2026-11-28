@@ -28,9 +28,59 @@ from .niche import breeding_ok, combine, survival, trapezoid
 from .registry import TERRESTRIAL_LAYERS, load, taxon_id
 
 ALGORITHM_VERSION = "hexworld-biosphere-5.5.0"
+
+
+def _mem(T, phase):
+    """Peak traced memory of a phase (MiB) when the caller runs tracemalloc (benchmarks)."""
+    import tracemalloc
+
+    if tracemalloc.is_tracing():
+        T[f"mem_mib_{phase}"] = round(tracemalloc.get_traced_memory()[1] / 2**20, 1)
+        tracemalloc.reset_peak()
 P_MIN = 0.5
 S_MIN = 0.2
 MODES = ("POTENTIAL", "REALIZED_BASELINE", "DYNAMIC")
+
+
+class GroupArrays:
+    """Arrays of one group stored only on the hexes of its realm (compact, float32); reading
+    a key gives the full per-hex array (zeros elsewhere). ``compact(key)`` avoids the copy."""
+
+    def __init__(self, realm: str, idx: np.ndarray, n: int, arrays: dict | None = None):
+        self.realm = realm
+        self.idx = idx
+        self.n = n
+        self._a = dict(arrays or {})
+
+    def __contains__(self, k):
+        return k == "realm" or k in self._a
+
+    def __getitem__(self, k):
+        if k == "realm":
+            return self.realm
+        a = self._a[k]
+        out = np.zeros(self.n, dtype=a.dtype)
+        out[self.idx] = a
+        return out
+
+    def get(self, k, default=None):
+        return self[k] if k in self else default
+
+    def compact(self, k):
+        return self._a[k]
+
+    def __setitem__(self, k, v):
+        v = np.asarray(v)
+        self._a[k] = v[self.idx] if v.shape == (self.n,) and self.idx.size != self.n else v
+
+    def keys(self):
+        return ["realm", *self._a]
+
+    def items(self):
+        return [("realm", self.realm)] + [(k, self[k]) for k in self._a]
+
+    def arrays(self) -> dict:
+        return self._a
 
 
 @dataclass
@@ -194,6 +244,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     fp = pr.fresh_production(inp, frac)
     mp = pr.marine_production(inp, frac)
     T["production"] = time.perf_counter() - t
+    _mem(T, "production")
     rep(0.35)
     # structure seen by the animals (shares of the land ground)
     li = lp["idx"]
@@ -245,6 +296,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                         np.inf).astype(np.float32)}  # fmt: skip
     age, age_unknown = gr.substrate_age_yr(inp, frac, land_l)
     T["graphs"] = time.perf_counter() - t
+    _mem(T, "graphs")
     rep(0.55)
     # -- template suitability and occupancy per home realm -------------------------------------
     t = time.perf_counter()
@@ -271,24 +323,29 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
     occ_area = {"land": lm_area, "fresh": basin_area, "marine": np.full(n, 1e7),
                 "water": np.full(n, 1e6)}  # fmt: skip
     # producer cover realized by occupancy; per group the potential cover
+    # potential producer cover, compact on the realm hexes (lp / fp / mp are on those hexes)
     prod_cover = {}
-    for g_id, i in gl.items():
-        c = np.zeros(n)
-        c[li] = lp["cover"][i]
-        prod_cover[g_id] = c
-    for src, tab in ((fp, None), (mp, None)):
+    for src in (lp, fp, mp):
         for i, g_id in enumerate(src["groups"]):
-            c = np.zeros(n)
-            c[src["idx"]] = src["cover"][i]
-            prod_cover[g_id] = c
+            prod_cover[g_id] = np.asarray(src["cover"][i], dtype=np.float32)
     realms: dict = {}
-    tmpl_occ: dict = {}
-    tmpl_suit: dict = {}
+    # per group: Π(1 − occ·S) and Π(1 − S) over its templates, accumulated on the fly (the
+    # per-template float arrays are never all kept: memory, §16)
+    q_occ: dict = {}
+    q_suit: dict = {}
     by_realm: dict = {}
     for tpl in reg.templates.values():
         by_realm.setdefault(_home(reg.groups[tpl.group_id]), []).append(tpl)
-    # microsite environment for land producers (the best microsite keeps the template, B14)
-    bins = f["microsites"]
+    # microsite environment of the land producers, once per bin (the best microsite keeps a
+    # template, B14)
+    li_land = realm_idx["land"]
+    bin_env = []
+    for off, _w in f["microsites"]:
+        tb = f["t_air_m"][:, li_land] + off[li_land][None, :]
+        bin_env.append({"tc": tb.min(axis=0), "tw": tb.max(axis=0), "mi": f["mi"][li_land],
+                        "gdd": pr._growing_degree_days(tb, inp.days), "ph": f["ph"][li_land],
+                        "sal": f["ec_ds_m"][li_land]})  # fmt: skip
+        del tb
     for realm, tpls in by_realm.items():
         idx = realm_idx[realm]
         env = {k: (v[..., idx] if v is not None else None) for k, v in env_r[realm].items()}
@@ -298,14 +355,10 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
         for k, tpl in enumerate(tpls):
             g = reg.groups[tpl.group_id]
             if g.is_producer:
-                gate = prod_cover[g.id][idx] > 1e-4
+                gate = prod_cover[g.id] > 1e-4
                 if realm == "land":
-                    best = np.zeros(idx.size)
-                    for off, _w in bins:
-                        tb = f["t_air_m"][:, idx] + off[idx][None, :]
-                        e2 = {"tc": tb.min(axis=0), "tw": tb.max(axis=0), "mi": env["mi"],
-                              "gdd": pr._growing_degree_days(tb, inp.days),
-                              "ph": f["ph"][idx], "sal": f["ec_ds_m"][idx]}  # fmt: skip
+                    best = np.zeros(idx.size, dtype=np.float32)
+                    for e2 in bin_env:
                         best = np.maximum(best, np.nan_to_num(pr.niche_score(tpl.niche, e2)))
                     S = best * gate
                 else:
@@ -325,42 +378,50 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                 occ = gr.occupancy(c, e, age[idx]) * (S > 0)
             occ_a[k] = np.round(occ * 255).astype(np.uint8)
             suit_a[k] = np.round(np.clip(S, 0, 1) * 255).astype(np.uint8)
-            tmpl_occ[tpl.id] = occ
-            tmpl_suit[tpl.id] = S
+            if g.id not in q_occ:
+                q_occ[g.id] = np.ones(idx.size, dtype=np.float32)
+                q_suit[g.id] = np.ones(idx.size, dtype=np.float32)
+            q_occ[g.id] *= (1.0 - occ * S).astype(np.float32)
+            q_suit[g.id] *= (1.0 - np.clip(S, 0, 1)).astype(np.float32)
         realms[realm] = RealmTable(realm, idx, [t_.id for t_ in tpls], occ_a, suit_a,
                                    np.zeros((T_n, idx.size), dtype=bool))  # fmt: skip
+    del bin_env
     T["suitability"] = time.perf_counter() - t
+    _mem(T, "suitability")
     rep(0.75)
     # -- group weights (occupancy-weighted presence) -----------------------------------------
     t = time.perf_counter()
-    weights = {}
+    weights = {}  # compact on the realm hexes
+    wmax = {}
+    home_idx = {}
     for g in reg.groups.values():
-        realm = _home(g)
-        idx = realm_idx[realm]
-        q = np.ones(idx.size)
-        for tpl in reg.templates_of(g.id):
-            q = q * (1.0 - tmpl_occ[tpl.id] * tmpl_suit[tpl.id])
-        w = np.zeros(n)
-        w[idx] = 1.0 - q
-        weights[g.id] = w
+        idx = realm_idx[_home(g)]
+        home_idx[g.id] = idx
+        weights[g.id] = 1.0 - q_occ.pop(g.id, np.ones(idx.size, np.float32))
+        if g.is_producer:
+            wmax[g.id] = 1.0 - q_suit.pop(g.id, np.ones(idx.size, np.float32))
+    q_suit.clear()
     # realized producers: potential cover x occupancy weight of the group (a remote young
-    # island has no trees until their lineage arrives, S09)
-    real = (lambda g_id: np.ones(n)) if mode == "POTENTIAL" else \
-        (lambda g_id: np.clip(weights[g_id] / np.maximum(_wmax(reg, g_id, tmpl_suit, realm_idx, n),
-                                                         1e-9), 0, 1))  # fmt: skip
+    # island has no trees until their lineage arrives, S09); compact on the realm hexes
+    if mode == "POTENTIAL":
+        def real(g_id):
+            return np.ones(home_idx[g_id].size, dtype=np.float32)
+    else:
+        def real(g_id):
+            return np.clip(weights[g_id] / np.maximum(wmax[g_id], 1e-9), 0, 1)
     groups_out: dict = {}
-    land_scale = np.zeros((len(lp["groups"]), li.size))
+    land_scale = np.zeros((len(lp["groups"]), li.size), dtype=np.float32)
     for g_id, i in gl.items():
-        land_scale[i] = real(g_id)[li]
+        land_scale[i] = real(g_id)
     npp_land = np.nan_to_num(lp["npp"]) * land_scale
     prod_r = {k: lp[k] * land_scale for k in ("npp_leaf", "npp_wood", "npp_root", "npp_repro",
                                               "stock_leaf", "stock_wood", "stock_root",
                                               "stock_repro")}  # fmt: skip
     prod_r["npp"] = npp_land
-    poll = weights["insect_pollinator"][li]
+    poll = weights["insect_pollinator"]  # land realm, the same hexes as li
     lpools = pr.land_pools(prod_r, lp["groups"], pollination=poll)
-    fscale = np.stack([real(g)[fp["idx"]] for g in fp["groups"]]) if fp["groups"] else 0
-    mscale = np.stack([real(g)[mp["idx"]] for g in mp["groups"]])
+    fscale = np.stack([real(g) for g in fp["groups"]]) if fp["groups"] else 0
+    mscale = np.stack([real(g) for g in mp["groups"]])
     fp_r = dict(fp, npp=fp["npp"] * fscale)
     mp_r = dict(mp, npp=mp["npp"] * mscale)
     fpools = pr.fresh_pools(fp_r)
@@ -379,59 +440,59 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
             a = np.zeros(n)
             a[src["idx"]] = v * ar[src["idx"]] * area_m2 / 1000.0
             A[k] = A.get(k, 0) + a
-    home_area = {}
-    for g in reg.groups.values():
-        realm = _home(g)
-        ar = {"land": frac["land_ground"], "fresh": frac["inland_water"],
-              "marine": frac["marine_water"],
-              "water": frac["inland_water"] + frac["marine_water"]}[realm]  # fmt: skip
-        home_area[g.id] = ar * area_m2
+    del lpools, fpools, mpools
+    realm_area = {"land": frac["land_ground"], "fresh": frac["inland_water"],
+                  "marine": frac["marine_water"],
+                  "water": frac["inland_water"] + frac["marine_water"]}  # fmt: skip
+    area_c = {r: (realm_area[r][realm_idx[r]] * area_m2) for r in realm_area}
+    home_area = {g.id: area_c[_home(g)] for g in reg.groups.values()}
     water_ok = (frac["inland_water"] > 0) | f["river"] | (np.nan_to_num(f["mi"]) >= 0.15)
-    web = fw.run_foodweb(A, {g: weights[g] for g in weights if not reg.groups[g].is_producer},
-                         home_area, n, gates_water=water_ok)  # fmt: skip
+    cons = [g.id for g in reg.groups.values() if not g.is_producer]
+    web = fw.run_foodweb(A, {g: weights[g] for g in cons}, {g: home_area[g] for g in cons}, n,
+                         gates_water=water_ok, home_idx={g: home_idx[g] for g in cons})
+    del A
     T["foodweb"] = time.perf_counter() - t
+    _mem(T, "foodweb")
     rep(0.85)
-    # -- realized presence of templates, group outputs ---------------------------------------
+    # -- realized presence of templates, group outputs (compact) ------------------------------
     t = time.perf_counter()
-    realized_group = {}
-    for g in reg.groups.values():
-        if g.is_producer:
-            c = prod_cover[g.id] * real(g.id)
-            realized_group[g.id] = c > 1e-3
-            groups_out[g.id] = {"realm": _home(g), "cover": c.astype(np.float32),
-                                "potential_cover": prod_cover[g.id].astype(np.float32)}
-        else:
-            r = web["groups"][g.id]
-            b = r.get("biomass_kgc", np.zeros(n))
-            realized_group[g.id] = b > 1e-6 * np.maximum(home_area[g.id] / 1e6, 1e-9)
-            groups_out[g.id] = {"realm": _home(g), "biomass_kgc": b.astype(np.float32),
-                                "individuals": r.get("individuals", np.zeros(n)).astype(np.float32),
-                                "production_kgc_yr": r.get("production", np.zeros(n)).astype(np.float32),
-                                "intake_kgc_yr": r.get("intake", np.zeros(n)).astype(np.float32),
-                                "limit": r.get("limit", np.zeros(n, np.uint8))}  # fmt: skip
-        groups_out[g.id]["weight"] = weights[g.id].astype(np.float32)
-    # NPP per group (gC/m² of the hex) for the producers
+    realized_group = {}  # compact bool on the realm hexes
+    npp_c = {}
     for i, g_id in enumerate(lp["groups"]):
-        a = np.zeros(n, np.float32)
-        a[li] = npp_land[i] * frac["land_ground"][li]
-        groups_out[g_id]["npp_gc_m2_hex"] = a
+        npp_c[g_id] = (npp_land[i] * frac["land_ground"][li]).astype(np.float32)
     for src, ar in ((fp_r, frac["inland_water"]), (mp_r, frac["marine_water"])):
         for i, g_id in enumerate(src["groups"]):
-            a = np.zeros(n, np.float32)
-            a[src["idx"]] = src["npp"][i] * ar[src["idx"]]
-            groups_out[g_id]["npp_gc_m2_hex"] = a
+            npp_c[g_id] = (src["npp"][i] * ar[src["idx"]]).astype(np.float32)
+    for g in reg.groups.values():
+        idx = home_idx[g.id]
+        if g.is_producer:
+            c = (prod_cover[g.id] * real(g.id)).astype(np.float32)
+            realized_group[g.id] = c > 1e-3
+            arrs = {"cover": c, "potential_cover": prod_cover[g.id].astype(np.float32),
+                    "npp_gc_m2_hex": npp_c[g.id]}  # fmt: skip
+        else:
+            r = web["groups"][g.id]
+            b = r["biomass_kgc"]
+            realized_group[g.id] = b > 1e-6 * np.maximum(home_area[g.id] / 1e6, 1e-9)
+            arrs = {"biomass_kgc": b, "individuals": r["individuals"],
+                    "production_kgc_yr": r["production"], "intake_kgc_yr": r["intake"],
+                    "limit": r["limit"]}  # fmt: skip
+        arrs["weight"] = weights[g.id].astype(np.float32)
+        groups_out[g.id] = GroupArrays(_home(g), idx, n, arrs)
+    web_ledger = web["ledger"]
+    del web, npp_c
     for realm, tab in realms.items():
         for k, tid in enumerate(tab.templates):
             g_id = reg.templates[tid].group_id
             tab.present[k] = ((tab.occ[k] >= int(P_MIN * 255)) & (tab.suit[k] >= int(S_MIN * 255))
-                              & realized_group[g_id][tab.idx])  # fmt: skip
+                              & realized_group[g_id])  # fmt: skip
     layers, summary = _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp,
                             npp_land, prod_r, li, seed, age_unknown)  # fmt: skip
     layers["substrate_age_yr"] = age.astype(np.float32)
     mig = np.zeros(n, np.int32)
     for g in reg.groups.values():
         if g.is_fauna and g.traits.get("migratory"):
-            mig += realized_group[g.id].astype(np.int32)
+            mig[home_idx[g.id]] += realized_group[g.id].astype(np.int32)
     layers["migratory_groups"] = mig
     lim = np.full(n, 4, dtype=np.uint8)
     lim[li] = np.argmin(lp["limit"], axis=0).astype(np.uint8)
@@ -449,9 +510,10 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                       np.where(np.isfinite(f["sst_m"]), f["sst_m"], f["t_air_m"]), f["t_air_m"])
     layers["t_month"] = t_home.astype(np.float16)
     T["metrics"] = time.perf_counter() - t
+    _mem(T, "metrics")
     rep(1.0)
-    ledger = {"foodweb": web["ledger"], "npp_total_kgc_yr": float(
-        sum(np.nansum(groups_out[g]["npp_gc_m2_hex"]) for g in groups_out
+    ledger = {"foodweb": web_ledger, "npp_total_kgc_yr": float(
+        sum(np.nansum(groups_out[g].compact("npp_gc_m2_hex")) for g in groups_out
             if "npp_gc_m2_hex" in groups_out[g]) * area_m2 / 1000.0)}  # fmt: skip
     quality = {"history": "present_only", "inputs": dict(inp.quality),
                "age_unknown_hexes": int(age_unknown.sum()),
@@ -461,24 +523,12 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                "parameters": "provisional, not calibrated"}  # fmt: skip
     summary.update({"mode": mode, "algorithm_version": ALGORITHM_VERSION,
                     "registry": reg.version, "templates": len(reg.templates),
-                    "groups": len(reg.groups), "ledger_ok": bool(web["ledger"]["ok"])})
+                    "groups": len(reg.groups), "ledger_ok": bool(web_ledger["ok"])})
     return BioState(mode, seed, n, inp.shape, inp.area_km2, {k: v.astype(np.float32) for k, v in
                     frac.items()}, groups_out, realms, lineage,
                     {k: v.names for k, v in fam_pools.items()},
                     {k: v.keys for k, v in fam_pools.items()}, layers, ledger, summary, quality,
                     T)  # fmt: skip
-
-
-def _wmax(reg, g_id, tmpl_suit, realm_idx, n):
-    """The weight the group would have with full occupancy (for the realized share)."""
-    g = reg.groups[g_id]
-    idx = realm_idx[_home(g)]
-    q = np.ones(idx.size)
-    for tpl in reg.templates_of(g_id):
-        q = q * (1.0 - tmpl_suit[tpl.id])
-    out = np.zeros(n)
-    out[idx] = 1.0 - q
-    return out
 
 
 def _nearest_pool_euclid(inp, pools):
@@ -549,7 +599,7 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
     npp = np.zeros(n)
     for g in groups_out.values():
         if "npp_gc_m2_hex" in g:
-            npp += np.nan_to_num(g["npp_gc_m2_hex"])
+            np.add.at(npp, g.idx, np.nan_to_num(g.compact("npp_gc_m2_hex")))
     L["npp_gc_m2_yr"] = npp.astype(np.float32)
     bm = np.zeros(n)
     bm[li] = (prod_r["stock_leaf"] + prod_r["stock_wood"] + prod_r["stock_root"]
@@ -562,17 +612,16 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
     wood_inc[li] = prod_r["npp_wood"].sum(axis=0) * frac["land_ground"][li] / 1000.0
     L["wood_increment_kgc_m2_yr"] = wood_inc.astype(np.float32)
     an = np.zeros(n)
-    for g_id, g in groups_out.items():
+    for g in groups_out.values():
         if "biomass_kgc" in g:
-            an += g["biomass_kgc"]
+            np.add.at(an, g.idx, g.compact("biomass_kgc"))
     L["animal_biomass_kgc_km2"] = (an / area).astype(np.float32)
-    # Shannon of the flora (by cover) and of the fauna (by biomass) per hex
-    covers = np.stack([np.nan_to_num(g["cover"]) for gid, g in groups_out.items()
-                       if "cover" in g and reg.groups[gid].traits["layer"] in TERRESTRIAL_LAYERS])
-    L["flora_shannon_groups"] = mt.shannon_rows(covers).astype(np.float32)
-    fb = np.stack([g["biomass_kgc"] for gid, g in groups_out.items()
-                   if "biomass_kgc" in g and reg.groups[gid].is_fauna])  # fmt: skip
-    L["fauna_shannon_groups"] = mt.shannon_rows(fb).astype(np.float32)
+    # Shannon of the flora (by cover) and of the fauna (by biomass): two passes, O(N) memory
+    flora = [g for gid, g in groups_out.items()
+             if "cover" in g and reg.groups[gid].traits["layer"] in TERRESTRIAL_LAYERS]
+    fauna = [g for gid, g in groups_out.items() if "biomass_kgc" in g and reg.groups[gid].is_fauna]
+    L["flora_shannon_groups"] = _shannon_compact(flora, "cover", n)
+    L["fauna_shannon_groups"] = _shannon_compact(fauna, "biomass_kgc", n)
     for k in ("flora_richness", "fauna_richness", "npp_gc_m2_yr", "weighted_endemism"):
         lo, hi = mt.INDEX_BOUNDS[k if k != "plant_biomass_kgc_m2" else "biomass_kgc_m2"]
         L[f"{k}_index"] = mt.index(L[k], lo, hi).astype(np.float32)
@@ -637,6 +686,20 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
 
 
 ENDEMIC_RANGE_KM2 = 1.0e5
+
+
+def _shannon_compact(groups, key, n):
+    tot = np.zeros(n)
+    for g in groups:
+        np.add.at(tot, g.idx, np.nan_to_num(g.compact(key)).astype(np.float64))
+    h = np.zeros(n)
+    for g in groups:
+        x = np.nan_to_num(g.compact(key)).astype(np.float64)
+        t = tot[g.idx]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            pr_ = np.where((t > 0) & (x > 0), x / np.where(t > 0, t, 1.0), 0.0)
+            np.add.at(h, g.idx, np.where(pr_ > 0, -pr_ * np.log(np.where(pr_ > 0, pr_, 1.0)), 0.0))
+    return h.astype(np.float32)
 
 
 def _edge_mask(inp):

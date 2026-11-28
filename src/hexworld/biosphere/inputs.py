@@ -130,14 +130,14 @@ def from_project(project, detail: str = "standard") -> BioInputs:
     if sst is None:
         q["sst_monthly_c"] = "missing"
         sst = np.where(ocean[None, :], t_env, np.nan)
-    f["t_air_m"] = t_land
-    f["sst_m"] = np.where(ocean[None, :], sst, np.nan)
+    f["t_air_m"] = t_land.astype(np.float32)
+    f["sst_m"] = np.where(ocean[None, :], sst, np.nan).astype(np.float32)
     # water temperature of lakes and rivers: air temperature above freezing (APPROX)
-    f["t_fresh_m"] = np.maximum(t_land, 0.0)
+    f["t_fresh_m"] = np.maximum(f["t_air_m"], 0.0)
+    del t_env, t_topo, t_land, sst
     for k, src in (("precip_m", "precip_monthly_mm"), ("pet_m", "pet_monthly_mm"),
-                   ("aet_m", "aet_monthly_mm"), ("soil_m", "soil_storage_monthly_mm"),
-                   ("snow_m", "snowpack_monthly_swe_mm")):  # fmt: skip
-        f[k] = _flat(EM[src]).astype(np.float64)
+                   ("aet_m", "aet_monthly_mm")):  # fmt: skip
+        f[k] = _flat(EM[src]).astype(np.float32)
     f["awc_mm"] = h("awc_mm", E)
     f["soil_depth_m"] = h("soil_depth_m", E)
     f["mi"] = h("aridity_p_over_pet", E)
@@ -162,11 +162,8 @@ def from_project(project, detail: str = "standard") -> BioInputs:
     rs_ocean = (0.25 + 0.5 * OCEAN_SUNSHINE) * ra
     rs_land = _flat(T.monthly["topo_radiation_mj_m2_day"]).astype(np.float64) if T else None
     rs = np.where(np.isfinite(rs_land), rs_land, rs_ocean) if rs_land is not None else rs_ocean
-    f["par_m"] = PAR_SHARE * rs * days[:, None]  # MJ/m²/month
-    f["rs_source"] = np.where(np.isfinite(rs_land[0]) if rs_land is not None else False,
-                              "surface_4.7", "angstrom_prescott")  # fmt: skip
-    f["daylight_h_m"] = np.stack([planet.daylight_hours(lat, MONTH_FRACTION[m])
-                                  for m in range(12)])  # fmt: skip
+    f["par_m"] = (PAR_SHARE * rs * days[:, None]).astype(np.float32)  # MJ/m²/month
+    del ra, rs_ocean, rs_land, rs
     # microsite elevation offsets (K) from the hex hypsometry
     zmean = np.nan_to_num(h("hyps_z_mean_m", T.layers) if T is not None else np.zeros(n))
     bins = []
@@ -184,8 +181,8 @@ def from_project(project, detail: str = "standard") -> BioInputs:
         return _flat(np.asarray(a, dtype=np.float64))
 
     ice = ea.get("sea_ice_concentration_monthly")
-    f["sea_ice_m"] = np.nan_to_num(_flat(ice).astype(np.float64)) if ice is not None else \
-        np.zeros((12, n))  # fmt: skip
+    f["sea_ice_m"] = np.nan_to_num(_flat(ice).astype(np.float32)) if ice is not None else \
+        np.zeros((12, n), np.float32)  # fmt: skip
     f["sss_psu"] = np.where(ocean, e("sea_surface_salinity_psu", 35.0), np.nan)
     up = ea.get("upwelling_m_day")
     f["upwelling_m_day"] = (np.maximum(_flat(up).astype(np.float64), 0).mean(axis=0)

@@ -307,9 +307,9 @@ def test_b17_mirrored_hemispheres_shift_the_season():
     south = sy.make(land, hemisphere=-1)
     a = pr.land_production(north, habitat_fractions(north))
     b = pr.land_production(south, habitat_fractions(south))
-    assert np.nansum(a["npp"]) == pytest.approx(np.nansum(b["npp"]), rel=1e-9)
+    assert np.nansum(a["npp"]) == pytest.approx(np.nansum(b["npp"]), rel=1e-5)  # float32
     ma, mb = a["npp_month"][:, 0], b["npp_month"][:, 0]
-    assert np.allclose(np.roll(ma, 6), mb, rtol=1e-9, atol=1e-9)
+    assert np.allclose(np.roll(ma, 6), mb, rtol=1e-5, atol=1e-4)
 
 
 def test_b25_layer_covers_within_available_area():
