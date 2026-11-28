@@ -1,0 +1,25 @@
+{
+  "schema_version": "5.5.1-proposed",
+  "mode": "prototype",
+  "data_status": "provisional; production calibration required",
+  "geometry": "sparse_parametric",
+  "max_model_depth_m": 10000,
+  "depth_bins_m": [
+    0,
+    25,
+    100,
+    500,
+    1000,
+    3000,
+    10000
+  ],
+  "ore_plan_rng": "stable_event_and_model_id_substreams",
+  "units": "SI internal; typed grade conversion",
+  "integration_relative_tolerance_simple": 0.005,
+  "clip_mass_relative_tolerance": 0.01,
+  "external_boundary_mode": "inherit_global_or_explicit_regional",
+  "technology_profile": "none_ground_truth",
+  "render_quality": "editor_ground_truth",
+  "biological_resource_source": "v5.5",
+  "production_requires_explicit_calibration_manifest": true
+}

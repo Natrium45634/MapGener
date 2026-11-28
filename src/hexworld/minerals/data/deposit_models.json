@@ -1,0 +1,2368 @@
+{
+  "schema_version": "5.5.1-draft",
+  "calibration": "These are semantic templates, not ready-to-run calibrated distributions. See main and R01–R11.",
+  "models": [
+    {
+      "id": "BIF",
+      "label_ru": "Полосчатые железистые формации",
+      "morphologies": [
+        "tabular",
+        "stratabound"
+      ],
+      "hard_gate_descriptions": [
+        "древняя железистая химогенная толща",
+        "сохранённая стратиграфия"
+      ],
+      "principal": [
+        "Fe"
+      ],
+      "conditional_associated": [
+        "Mn"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "FE_OOLITE",
+      "label_ru": "Осадочные железняки",
+      "morphologies": [
+        "tabular",
+        "stratabound"
+      ],
+      "hard_gate_descriptions": [
+        "железистая осадочная фация",
+        "источник Fe",
+        "условия осаждения"
+      ],
+      "principal": [
+        "Fe"
+      ],
+      "conditional_associated": [
+        "P"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BOG_IRON",
+      "label_ru": "Болотные железные руды",
+      "morphologies": [
+        "laterite",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "Fe в подземной воде",
+        "переход окислительных условий",
+        "осаждение"
+      ],
+      "principal": [
+        "Fe"
+      ],
+      "conditional_associated": [],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "FE_TI_V",
+      "label_ru": "Магматические оксидные слои",
+      "morphologies": [
+        "tabular",
+        "lens",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "мафитовая расслоенная интрузия",
+        "накопление оксидов"
+      ],
+      "principal": [
+        "Fe",
+        "Ti",
+        "V"
+      ],
+      "conditional_associated": [
+        "Sc"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MN_SED",
+      "label_ru": "Осадочное марганцевое",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "Mn-содержащий бассейн",
+        "redox",
+        "химогенная толща"
+      ],
+      "principal": [
+        "Mn"
+      ],
+      "conditional_associated": [
+        "Fe"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CHROM_LAYER",
+      "label_ru": "Расслоенные хромититы",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "ультрамафитовая расслоенная интрузия",
+        "хромитовая фаза"
+      ],
+      "principal": [
+        "Cr"
+      ],
+      "conditional_associated": [
+        "PGE"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CHROM_POD",
+      "label_ru": "Подиформный хромит",
+      "morphologies": [
+        "pod",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "офиолит/ультрамафит",
+        "магматическое накопление хромита"
+      ],
+      "principal": [
+        "Cr"
+      ],
+      "conditional_associated": [
+        "PGE"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "NI_SULFIDE",
+      "label_ru": "Магматическое Ni-Cu",
+      "morphologies": [
+        "lens",
+        "disseminated",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "мафит-ультрамафит",
+        "сульфидная сегрегация",
+        "источник Ni"
+      ],
+      "principal": [
+        "Ni",
+        "Cu"
+      ],
+      "conditional_associated": [
+        "Co",
+        "PGE"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PGE_REEF",
+      "label_ru": "Магматические PGE горизонты",
+      "morphologies": [
+        "tabular",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "расслоенный мафит-ультрамафит",
+        "PGE источник",
+        "магматическая концентрация"
+      ],
+      "principal": [
+        "PGE"
+      ],
+      "conditional_associated": [
+        "Cr",
+        "Ni",
+        "Cu"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "NI_LATERITE",
+      "label_ru": "Никель-кобальтовый латерит",
+      "morphologies": [
+        "laterite"
+      ],
+      "hard_gate_descriptions": [
+        "ультрамафитовый протолит",
+        "длительное выветривание",
+        "сохранение профиля"
+      ],
+      "principal": [
+        "Ni",
+        "Co"
+      ],
+      "conditional_associated": [
+        "Sc"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BAUXITE",
+      "label_ru": "Латеритовый боксит",
+      "morphologies": [
+        "laterite"
+      ],
+      "hard_gate_descriptions": [
+        "Al-rich протолит",
+        "длительное выщелачивание",
+        "сохранённая кора выветривания"
+      ],
+      "principal": [
+        "Al"
+      ],
+      "conditional_associated": [
+        "Ga"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BAUXITE_KARST",
+      "label_ru": "Карстовый боксит",
+      "morphologies": [
+        "cavity_fill",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "карбонатная карстовая поверхность",
+        "алюминиевый остаточный материал"
+      ],
+      "principal": [
+        "Al"
+      ],
+      "conditional_associated": [
+        "Ga"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PORPHYRY",
+      "label_ru": "Порфировое Cu-Mo-Au",
+      "morphologies": [
+        "stockwork",
+        "disseminated",
+        "breccia"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая интрузия",
+        "гидротермальная система",
+        "металлоносный флюид"
+      ],
+      "principal": [
+        "Cu",
+        "Mo"
+      ],
+      "conditional_associated": [
+        "Au",
+        "Ag",
+        "Re",
+        "Se",
+        "Te"
+      ],
+      "research_family": "R04",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "EPITHERMAL",
+      "label_ru": "Эпитермальное Au-Ag",
+      "morphologies": [
+        "vein",
+        "breccia",
+        "vein_network"
+      ],
+      "hard_gate_descriptions": [
+        "мелкоглубинная гидротермальная система",
+        "флюид",
+        "пути и осаждение"
+      ],
+      "principal": [
+        "Au",
+        "Ag"
+      ],
+      "conditional_associated": [
+        "Sb",
+        "Hg",
+        "As",
+        "Te"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "OROGENIC_AU",
+      "label_ru": "Орогенное золото",
+      "morphologies": [
+        "vein",
+        "vein_network",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "деформационная зона",
+        "метаморфическая/гидротермальная история",
+        "Au источник"
+      ],
+      "principal": [
+        "Au"
+      ],
+      "conditional_associated": [
+        "Ag",
+        "As",
+        "Sb"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CARLIN",
+      "label_ru": "Осадочно-вмещённое дисперсное золото",
+      "morphologies": [
+        "replacement",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "реакционно пригодная осадочная толща",
+        "Au флюид",
+        "структурный путь"
+      ],
+      "principal": [
+        "Au"
+      ],
+      "conditional_associated": [
+        "As",
+        "Sb",
+        "Hg",
+        "Tl"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "IOCG",
+      "label_ru": "Железооксидное Cu-Au",
+      "morphologies": [
+        "breccia",
+        "replacement",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "гидротермальная система",
+        "Fe-oxide alter",
+        "Cu/Au source"
+      ],
+      "principal": [
+        "Cu",
+        "Au"
+      ],
+      "conditional_associated": [
+        "Fe",
+        "Co",
+        "U",
+        "REE"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SKARN",
+      "label_ru": "Скарн",
+      "morphologies": [
+        "replacement",
+        "lens",
+        "stratabound"
+      ],
+      "hard_gate_descriptions": [
+        "интрузия/подходящие флюиды",
+        "реакционноспособный контакт",
+        "источник металла"
+      ],
+      "principal": [
+        "Fe",
+        "Cu",
+        "W",
+        "Zn",
+        "Pb"
+      ],
+      "conditional_associated": [
+        "Au",
+        "Mo",
+        "Sn",
+        "Bi"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "VMS",
+      "label_ru": "Вулканогенные массивные сульфиды",
+      "morphologies": [
+        "lens",
+        "tabular",
+        "stockwork"
+      ],
+      "hard_gate_descriptions": [
+        "морская вулканогенно-гидротермальная среда на момент образования",
+        "осаждение"
+      ],
+      "principal": [
+        "Cu",
+        "Zn",
+        "Pb"
+      ],
+      "conditional_associated": [
+        "Au",
+        "Ag",
+        "Cd",
+        "In",
+        "Ge",
+        "Se"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SEDEX",
+      "label_ru": "Осадочно-эксгаляционные сульфиды",
+      "morphologies": [
+        "stratabound",
+        "lens",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "осадочный бассейн",
+        "металлоносный флюид",
+        "стратиграфическая ловушка"
+      ],
+      "principal": [
+        "Pb",
+        "Zn"
+      ],
+      "conditional_associated": [
+        "Ag",
+        "Cd",
+        "Ge"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MVT",
+      "label_ru": "Карбонатные Pb-Zn замещения",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "карбонатный коллектор",
+        "бассейновые флюиды",
+        "химическая ловушка"
+      ],
+      "principal": [
+        "Pb",
+        "Zn"
+      ],
+      "conditional_associated": [
+        "Ag",
+        "Cd",
+        "Ge",
+        "In",
+        "barite",
+        "fluorite"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SED_CU",
+      "label_ru": "Осадочно-вмещённая медь",
+      "morphologies": [
+        "stratabound",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "проницаемые пласты с источником Cu",
+        "восстановительный фронт"
+      ],
+      "principal": [
+        "Cu"
+      ],
+      "conditional_associated": [
+        "Co",
+        "Ag"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "POLY_VEIN",
+      "label_ru": "Полиметаллические жилы",
+      "morphologies": [
+        "vein",
+        "vein_network"
+      ],
+      "hard_gate_descriptions": [
+        "трещинная зона",
+        "гидротермальный источник",
+        "осаждение"
+      ],
+      "principal": [
+        "Pb",
+        "Zn",
+        "Ag",
+        "Cu"
+      ],
+      "conditional_associated": [
+        "Au",
+        "Bi",
+        "Sb",
+        "Cd",
+        "In",
+        "As",
+        "barite",
+        "fluorite"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GREISEN",
+      "label_ru": "Гранитный грейзен Sn-W-Mo",
+      "morphologies": [
+        "vein",
+        "stockwork",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "дифференцированная гранитная система",
+        "подходящая химия флюида"
+      ],
+      "principal": [
+        "Sn",
+        "W",
+        "Mo"
+      ],
+      "conditional_associated": [
+        "Bi",
+        "Be",
+        "Li",
+        "fluorite",
+        "topaz"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "LCT_PEG",
+      "label_ru": "Литий-цезий-танталовые пегматиты",
+      "morphologies": [
+        "vein",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "дифференцированный пегматит",
+        "LCT обогащение"
+      ],
+      "principal": [
+        "Li",
+        "Cs",
+        "Ta"
+      ],
+      "conditional_associated": [
+        "Be",
+        "Rb",
+        "Sn",
+        "feldspar",
+        "mica",
+        "quartz",
+        "beryl",
+        "tourmaline",
+        "spodumene_gem"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "NYF_PEG",
+      "label_ru": "Редкометалльные NYF пегматиты",
+      "morphologies": [
+        "vein",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "дифференцированная гранитная система",
+        "Nb-Y-F химия"
+      ],
+      "principal": [
+        "Nb",
+        "REE"
+      ],
+      "conditional_associated": [
+        "Y",
+        "Ta",
+        "Zr",
+        "Hf",
+        "Be",
+        "topaz",
+        "beryl",
+        "feldspar",
+        "mica"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CARBONATITE",
+      "label_ru": "Карбонатитовый комплекс",
+      "morphologies": [
+        "mantle_pipe",
+        "disseminated",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "карбонатитовая интрузия",
+        "обогащение несовместимыми элементами"
+      ],
+      "principal": [
+        "REE",
+        "Nb",
+        "P"
+      ],
+      "conditional_associated": [
+        "fluorite",
+        "barite",
+        "Th",
+        "Sr",
+        "Sc"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "ALKALINE",
+      "label_ru": "Щелочной редкометалльный комплекс",
+      "morphologies": [
+        "disseminated",
+        "vein",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "щелочной магматизм",
+        "подходящая минералогия"
+      ],
+      "principal": [
+        "REE",
+        "Zr",
+        "Nb"
+      ],
+      "conditional_associated": [
+        "Hf",
+        "Y",
+        "Ta",
+        "Sc",
+        "Be"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "REE_CLAY",
+      "label_ru": "Ионно-адсорбционные REE глины",
+      "morphologies": [
+        "laterite"
+      ],
+      "hard_gate_descriptions": [
+        "REE-bearing protolith",
+        "длительное выветривание",
+        "sorption clay"
+      ],
+      "principal": [
+        "REE"
+      ],
+      "conditional_associated": [
+        "Y",
+        "Sc"
+      ],
+      "research_family": "R02",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "U_ROLL",
+      "label_ru": "Песчаниковый уран",
+      "morphologies": [
+        "stratabound",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "U доступный источник",
+        "проницаемый песчаник",
+        "redox фронт"
+      ],
+      "principal": [
+        "U"
+      ],
+      "conditional_associated": [
+        "V",
+        "Se"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "U_UNCONF",
+      "label_ru": "Уран несогласий",
+      "morphologies": [
+        "vein",
+        "replacement",
+        "breccia"
+      ],
+      "hard_gate_descriptions": [
+        "древнее несогласие",
+        "U-bearing fluid",
+        "структурная ловушка"
+      ],
+      "principal": [
+        "U"
+      ],
+      "conditional_associated": [
+        "Ni",
+        "Co"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "U_VEIN",
+      "label_ru": "Гидротермальный уран",
+      "morphologies": [
+        "vein",
+        "breccia"
+      ],
+      "hard_gate_descriptions": [
+        "U-rich source",
+        "гидротермальный путь",
+        "осаждение"
+      ],
+      "principal": [
+        "U"
+      ],
+      "conditional_associated": [
+        "Th",
+        "Mo"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SB_HG",
+      "label_ru": "Сурьмяные/ртутные гидротермальные поля",
+      "morphologies": [
+        "vein",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "специфический Sb/Hg источник",
+        "гидротермальный путь",
+        "раздельные фазовые условия"
+      ],
+      "principal": [
+        "Sb",
+        "Hg"
+      ],
+      "conditional_associated": [
+        "Au",
+        "As"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PLACER_RIVER",
+      "label_ru": "Аллювиальные и склоновые россыпи",
+      "morphologies": [
+        "placer"
+      ],
+      "hard_gate_descriptions": [
+        "источник устойчивого тяжёлого минерала",
+        "транспорт",
+        "сортировка и ловушка"
+      ],
+      "principal": [
+        "Au",
+        "Sn",
+        "diamond",
+        "PGE",
+        "corundum",
+        "Zr",
+        "garnet",
+        "Ti"
+      ],
+      "conditional_associated": [
+        "REE",
+        "W",
+        "Cr",
+        "Fe",
+        "Th",
+        "spinel",
+        "peridot"
+      ],
+      "research_family": "R05",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PLACER_COAST",
+      "label_ru": "Береговые тяжёлые пески",
+      "morphologies": [
+        "placer"
+      ],
+      "hard_gate_descriptions": [
+        "тяжёлые минералы из источника",
+        "древний/современный берег",
+        "сортировка волнами"
+      ],
+      "principal": [
+        "Ti",
+        "Zr",
+        "REE",
+        "Fe"
+      ],
+      "conditional_associated": [
+        "Au",
+        "diamond",
+        "Sn",
+        "PGE",
+        "Hf",
+        "Th",
+        "garnet"
+      ],
+      "research_family": "R05",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PALEOPLACER",
+      "label_ru": "Палеороссыпи",
+      "morphologies": [
+        "paleoplacer"
+      ],
+      "hard_gate_descriptions": [
+        "древняя россыпь",
+        "погребение/литификация",
+        "сохранение"
+      ],
+      "principal": [
+        "Au",
+        "Sn",
+        "diamond",
+        "Ti",
+        "Zr"
+      ],
+      "conditional_associated": [
+        "U",
+        "PGE",
+        "REE",
+        "Th"
+      ],
+      "research_family": "R05",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "KIMBERLITE",
+      "label_ru": "Кимберлит/лампроит",
+      "morphologies": [
+        "mantle_pipe"
+      ],
+      "hard_gate_descriptions": [
+        "мантийный транспорт",
+        "diamond-bearing source и сохранение для алмазоносной ветви"
+      ],
+      "principal": [
+        "diamond"
+      ],
+      "conditional_associated": [],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CORUNDUM_META",
+      "label_ru": "Метаморфический корунд",
+      "morphologies": [
+        "lens",
+        "pod",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "Al-rich подходящий протолит",
+        "подходящие P-T и chemistry"
+      ],
+      "principal": [
+        "corundum"
+      ],
+      "conditional_associated": [
+        "ruby",
+        "sapphire",
+        "spinel"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CORUNDUM_MAG",
+      "label_ru": "Магматический корунд",
+      "morphologies": [
+        "disseminated",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая щелочная магматическая среда",
+        "корундовая фаза"
+      ],
+      "principal": [
+        "corundum"
+      ],
+      "conditional_associated": [
+        "sapphire"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "EMERALD_META",
+      "label_ru": "Изумруд метасоматический",
+      "morphologies": [
+        "vein",
+        "pod",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "Be-bearing fluid",
+        "Cr/V-bearing host",
+        "реакция"
+      ],
+      "principal": [
+        "emerald"
+      ],
+      "conditional_associated": [
+        "beryl"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "EMERALD_SED",
+      "label_ru": "Изумруд в осадочных породах",
+      "morphologies": [
+        "vein",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая осадочная толща",
+        "Be и Cr/V",
+        "бассейновый флюид и трещины"
+      ],
+      "principal": [
+        "emerald"
+      ],
+      "conditional_associated": [],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GEM_PEG",
+      "label_ru": "Ювелирные пегматитовые карманы",
+      "morphologies": [
+        "pod",
+        "cavity_fill",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "дифференцированная интрузия",
+        "кристаллизация в пригодных условиях",
+        "chemistry каждого минерала"
+      ],
+      "principal": [
+        "beryl",
+        "aquamarine",
+        "morganite",
+        "heliodor",
+        "tourmaline",
+        "topaz",
+        "spodumene_gem",
+        "quartz"
+      ],
+      "conditional_associated": [
+        "feldspar",
+        "mica",
+        "amethyst",
+        "smoky_quartz",
+        "rock_crystal"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GEM_META",
+      "label_ru": "Метаморфические ювелирные минералы",
+      "morphologies": [
+        "lens",
+        "pod",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "допустимые mineral-specific P-T и протолит"
+      ],
+      "principal": [
+        "garnet",
+        "spinel",
+        "chrysoberyl",
+        "alexandrite",
+        "kyanite",
+        "tanzanite",
+        "iolite"
+      ],
+      "conditional_associated": [
+        "rhodonite"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GEM_MAFIC",
+      "label_ru": "Ювелирные минералы основных пород",
+      "morphologies": [
+        "disseminated",
+        "pod"
+      ],
+      "hard_gate_descriptions": [
+        "подходящие Mg-rich/мафитовые фазы",
+        "сохранение кристаллов"
+      ],
+      "principal": [
+        "peridot",
+        "zircon_gem"
+      ],
+      "conditional_associated": [
+        "garnet",
+        "labradorite"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "JADEITE",
+      "label_ru": "Жадеитит",
+      "morphologies": [
+        "lens",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "высокобарическая низкотемпературная метасоматическая среда зоны субдукции"
+      ],
+      "principal": [
+        "jadeite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "NEPHRITE",
+      "label_ru": "Нефритовые тела",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "Ca-Mg метасоматизм",
+        "подходящий host",
+        "амфиболовая текстура"
+      ],
+      "principal": [
+        "nephrite"
+      ],
+      "conditional_associated": [
+        "serpentine"
+      ],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SILICA_GEODE",
+      "label_ru": "Кремнезёмные жеоды и жилы",
+      "morphologies": [
+        "cavity_fill",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "полости/трещины",
+        "silica-bearing fluid",
+        "осаждение"
+      ],
+      "principal": [
+        "agate",
+        "chalcedony",
+        "amethyst",
+        "citrine",
+        "rock_crystal",
+        "smoky_quartz",
+        "onyx",
+        "jasper"
+      ],
+      "conditional_associated": [
+        "quartz"
+      ],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "OPAL",
+      "label_ru": "Опаловые зоны",
+      "morphologies": [
+        "cavity_fill",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "кремнезёмный флюид/выветривание",
+        "осаждение гидратированного silica"
+      ],
+      "principal": [
+        "opal"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CU_OXID",
+      "label_ru": "Медная зона окисления",
+      "morphologies": [
+        "laterite",
+        "replacement",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "исходное Cu тело",
+        "окисление",
+        "условия каждого вторичного минерала"
+      ],
+      "principal": [
+        "malachite",
+        "azurite",
+        "turquoise"
+      ],
+      "conditional_associated": [
+        "Cu"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "LAPIS",
+      "label_ru": "Лазуритовые породы",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "специфический контактный метаморфизм/метасоматизм",
+        "подходящая карбонатная порода"
+      ],
+      "principal": [
+        "lapis"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CHAROITE",
+      "label_ru": "Чароитовый метасоматит",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "редкая щелочная интрузия",
+        "соответствующий метасоматизм"
+      ],
+      "principal": [
+        "charoite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "AMBER",
+      "label_ru": "Янтареносные отложения",
+      "morphologies": [
+        "stratabound",
+        "placer"
+      ],
+      "hard_gate_descriptions": [
+        "древний источник смолы",
+        "сохранение в осадках",
+        "переотложение при наличии"
+      ],
+      "principal": [
+        "amber"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "FOSSIL_ORG",
+      "label_ru": "Ископаемая органика и минерализованная древесина",
+      "morphologies": [
+        "stratabound",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "сохранение/минерализация органического материала"
+      ],
+      "principal": [
+        "jet",
+        "petrified_wood"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "VOLCANIC_GLASS",
+      "label_ru": "Стекловатые вулканиты",
+      "morphologies": [
+        "quarry_unit",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "подходящий вулканизм",
+        "быстрое охлаждение/стекловатая порода"
+      ],
+      "principal": [
+        "obsidian",
+        "perlite",
+        "pumice",
+        "tuff"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "QUARRY_IGNEOUS",
+      "label_ru": "Магматические строительные породы",
+      "morphologies": [
+        "quarry_unit"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующая литология",
+        "пригодная текстура/прочность"
+      ],
+      "principal": [
+        "granite",
+        "granodiorite",
+        "basalt",
+        "gabbro",
+        "dolerite",
+        "porphyry"
+      ],
+      "conditional_associated": [
+        "aggregate",
+        "labradorite"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "QUARRY_SED",
+      "label_ru": "Осадочные строительные породы",
+      "morphologies": [
+        "quarry_unit",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующая седиментация/фация",
+        "пригодное качество"
+      ],
+      "principal": [
+        "limestone",
+        "dolomite",
+        "chalk",
+        "sandstone",
+        "marl",
+        "travertine"
+      ],
+      "conditional_associated": [
+        "aggregate",
+        "calcite"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "QUARRY_META",
+      "label_ru": "Метаморфические строительные породы",
+      "morphologies": [
+        "quarry_unit",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующий метаморфизм и литология"
+      ],
+      "principal": [
+        "marble",
+        "slate",
+        "quartzite",
+        "gneiss",
+        "serpentine"
+      ],
+      "conditional_associated": [
+        "aggregate",
+        "soapstone"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SAND_GRAVEL",
+      "label_ru": "Песок, гравий и россыпное строительное сырьё",
+      "morphologies": [
+        "placer",
+        "tabular",
+        "quarry_unit"
+      ],
+      "hard_gate_descriptions": [
+        "источник обломков",
+        "подходящая осадочная фация",
+        "сортировка"
+      ],
+      "principal": [
+        "sand",
+        "gravel",
+        "boulders",
+        "silica_sand"
+      ],
+      "conditional_associated": [
+        "aggregate"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CLAY",
+      "label_ru": "Глинистые осадочные толщи",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "тонкодисперсный источник",
+        "низкоэнергетическая фация"
+      ],
+      "principal": [
+        "clay",
+        "brick_clay",
+        "ball_clay",
+        "fireclay",
+        "shale"
+      ],
+      "conditional_associated": [],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "KAOLIN",
+      "label_ru": "Каолиновые коры/изменения",
+      "morphologies": [
+        "laterite",
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "алюмосиликатный источник",
+        "kaolinization"
+      ],
+      "principal": [
+        "kaolin"
+      ],
+      "conditional_associated": [],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BENTONITE",
+      "label_ru": "Бентонитовые горизонты",
+      "morphologies": [
+        "tabular",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "вулканический пепел",
+        "соответствующее изменение"
+      ],
+      "principal": [
+        "bentonite",
+        "fullers_earth"
+      ],
+      "conditional_associated": [
+        "zeolite"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "ZEOLITE",
+      "label_ru": "Природные цеолиты",
+      "morphologies": [
+        "tabular",
+        "replacement",
+        "cavity_fill"
+      ],
+      "hard_gate_descriptions": [
+        "подходящий вулканический материал",
+        "цеолитизация"
+      ],
+      "principal": [
+        "zeolite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "DIATOMITE",
+      "label_ru": "Диатомовые отложения",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "биогенная silica",
+        "древний водный бассейн",
+        "сохранение осадка"
+      ],
+      "principal": [
+        "diatomite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GRAPHITE",
+      "label_ru": "Природный графит",
+      "morphologies": [
+        "tabular",
+        "vein",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "графитизированный C источник",
+        "метаморфизм/флюид"
+      ],
+      "principal": [
+        "graphite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "TALC",
+      "label_ru": "Тальк/стеатит",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "Mg-rich порода",
+        "метасоматизм"
+      ],
+      "principal": [
+        "talc",
+        "soapstone"
+      ],
+      "conditional_associated": [
+        "magnesite",
+        "asbestos_hazard"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "REFRACTORY",
+      "label_ru": "Огнеупорные/абразивные минералы",
+      "morphologies": [
+        "lens",
+        "tabular",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующие Al-silicate/mineral фазы и P-T"
+      ],
+      "principal": [
+        "kyanite",
+        "andalusite",
+        "sillimanite",
+        "garnet",
+        "corundum"
+      ],
+      "conditional_associated": [
+        "spinel"
+      ],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "WOLLAST",
+      "label_ru": "Волластонитовые тела",
+      "morphologies": [
+        "replacement",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "карбонат и Si",
+        "контактный метаморфизм"
+      ],
+      "principal": [
+        "wollastonite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MICA_FELDSPAR",
+      "label_ru": "Промышленные пегматиты",
+      "morphologies": [
+        "vein",
+        "pod",
+        "quarry_unit"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая гранитная/пегматитовая система"
+      ],
+      "principal": [
+        "mica",
+        "feldspar",
+        "quartz"
+      ],
+      "conditional_associated": [
+        "topaz",
+        "beryl",
+        "moonstone"
+      ],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BARITE_FLUOR",
+      "label_ru": "Баритовые и флюоритовые жилы",
+      "morphologies": [
+        "vein",
+        "replacement",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующий Ba/F источник",
+        "флюиды/осаждение"
+      ],
+      "principal": [
+        "barite",
+        "fluorite"
+      ],
+      "conditional_associated": [
+        "Pb",
+        "Zn"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "VERMICULITE",
+      "label_ru": "Вермикулит",
+      "morphologies": [
+        "laterite",
+        "replacement"
+      ],
+      "hard_gate_descriptions": [
+        "слюдистый протолит",
+        "изменение"
+      ],
+      "principal": [
+        "vermiculite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PHOSPHORITE",
+      "label_ru": "Осадочные фосфориты",
+      "morphologies": [
+        "tabular",
+        "nodules"
+      ],
+      "hard_gate_descriptions": [
+        "P источник",
+        "биогеохимическая/осадочная фация",
+        "концентрация"
+      ],
+      "principal": [
+        "P"
+      ],
+      "conditional_associated": [
+        "REE",
+        "U"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "APATITE",
+      "label_ru": "Магматический апатит",
+      "morphologies": [
+        "disseminated",
+        "lens",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "апатитовая фаза в подходящей интрузии"
+      ],
+      "principal": [
+        "P"
+      ],
+      "conditional_associated": [
+        "REE"
+      ],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "EVAPORITE",
+      "label_ru": "Соли и гипс",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "соленосный водоём",
+        "приток растворённых компонентов",
+        "испарительное осаждение"
+      ],
+      "principal": [
+        "salt",
+        "potash",
+        "gypsum",
+        "anhydrite",
+        "Mg_salts"
+      ],
+      "conditional_associated": [
+        "Sr"
+      ],
+      "research_family": "R06",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BORATE_SODA",
+      "label_ru": "Бораты и природная сода",
+      "morphologies": [
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "химически подходящий замкнутый древний бассейн",
+        "источник B/Na",
+        "испарение"
+      ],
+      "principal": [
+        "borates",
+        "trona"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SULFUR",
+      "label_ru": "Самородная сера",
+      "morphologies": [
+        "replacement",
+        "vein",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "S источник",
+        "соответствующий redox/вулканогенный/осадочный процесс"
+      ],
+      "principal": [
+        "sulfur"
+      ],
+      "conditional_associated": [],
+      "research_family": "R01",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PIGMENTS",
+      "label_ru": "Минеральные пигменты",
+      "morphologies": [
+        "laterite",
+        "lens",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "соответствующий железистый/марганцевый/глинистый host",
+        "цвет"
+      ],
+      "principal": [
+        "ochre",
+        "umber"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "COAL",
+      "label_ru": "Угольные пласты",
+      "morphologies": [
+        "seam",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "древнее органическое накопление",
+        "захоронение и термическая история"
+      ],
+      "principal": [
+        "lignite",
+        "bituminous_coal",
+        "anthracite"
+      ],
+      "conditional_associated": [
+        "Ge",
+        "coalbed_methane"
+      ],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PEAT",
+      "label_ru": "Торф",
+      "morphologies": [
+        "seam"
+      ],
+      "hard_gate_descriptions": [
+        "заболоченность",
+        "положительный органический баланс",
+        "сохранение"
+      ],
+      "principal": [
+        "peat"
+      ],
+      "conditional_associated": [],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "OIL_SHALE",
+      "label_ru": "Горючие сланцы",
+      "morphologies": [
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "керогенсодержащая осадочная фация",
+        "сохранение"
+      ],
+      "principal": [
+        "oil_shale"
+      ],
+      "conditional_associated": [],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "PETROLEUM",
+      "label_ru": "Нефтегазовая ловушка",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "source rock",
+        "зрелость",
+        "миграция",
+        "коллектор",
+        "покрышка",
+        "ловушка до накопления"
+      ],
+      "principal": [
+        "oil",
+        "natural_gas",
+        "condensate",
+        "bitumen"
+      ],
+      "conditional_associated": [
+        "He",
+        "I"
+      ],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "UNCONVENTIONAL",
+      "label_ru": "Нетрадиционные углеводороды",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "органическая толща/коллектор",
+        "maturity",
+        "удержание",
+        "subtype-specific gates"
+      ],
+      "principal": [
+        "shale_gas",
+        "tight_oil",
+        "coalbed_methane"
+      ],
+      "conditional_associated": [],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "HYDRATE",
+      "label_ru": "Газогидраты",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "источник газа",
+        "вода",
+        "подходящие P-T",
+        "сохранённый осадок"
+      ],
+      "principal": [
+        "gas_hydrate"
+      ],
+      "conditional_associated": [],
+      "research_family": "R09",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "BRINE",
+      "label_ru": "Рассолы и растворённые компоненты",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "reservoir",
+        "солевой приток",
+        "источник каждого элемента",
+        "концентрация"
+      ],
+      "principal": [
+        "Li_brine",
+        "K_brine",
+        "Mg_brine",
+        "Br",
+        "I",
+        "B_brine"
+      ],
+      "conditional_associated": [],
+      "research_family": "R06",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "AQUIFER",
+      "label_ru": "Водоносный горизонт",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "пористая/трещинная/карстовая толща",
+        "насыщение",
+        "гидравлические границы"
+      ],
+      "principal": [
+        "freshwater",
+        "mineral_water",
+        "brackish_water"
+      ],
+      "conditional_associated": [],
+      "research_family": "R11",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "GEOTHERMAL",
+      "label_ru": "Геотермальная система",
+      "morphologies": [
+        "reservoir"
+      ],
+      "hard_gate_descriptions": [
+        "heat source",
+        "температура",
+        "для гидротермальной ветви permeability и вода"
+      ],
+      "principal": [
+        "geothermal_heat",
+        "thermal_water"
+      ],
+      "conditional_associated": [],
+      "research_family": "R11",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MARINE_NODULE",
+      "label_ru": "Полиметаллические конкреции",
+      "morphologies": [
+        "nodules"
+      ],
+      "hard_gate_descriptions": [
+        "древнее дно",
+        "малое осадконакопление",
+        "доступ металлов",
+        "длительность"
+      ],
+      "principal": [
+        "Mn",
+        "Ni",
+        "Co",
+        "Cu"
+      ],
+      "conditional_associated": [
+        "REE",
+        "Te",
+        "Li"
+      ],
+      "research_family": "R10",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MARINE_CRUST",
+      "label_ru": "Железомарганцевые корки",
+      "morphologies": [
+        "crust"
+      ],
+      "hard_gate_descriptions": [
+        "твёрдое морское дно",
+        "длительное обрастание",
+        "источник металлов"
+      ],
+      "principal": [
+        "Co",
+        "Mn",
+        "Ni"
+      ],
+      "conditional_associated": [
+        "Cu",
+        "REE",
+        "Te",
+        "Sc",
+        "PGE"
+      ],
+      "research_family": "R10",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "SMS",
+      "label_ru": "Современные донные сульфиды",
+      "morphologies": [
+        "lens",
+        "stockwork"
+      ],
+      "hard_gate_descriptions": [
+        "подводный гидротермальный источник",
+        "осаждение"
+      ],
+      "principal": [
+        "Cu",
+        "Zn"
+      ],
+      "conditional_associated": [
+        "Au",
+        "Ag",
+        "In",
+        "Ga",
+        "Ge",
+        "Sb",
+        "Bi",
+        "Te"
+      ],
+      "research_family": "R10",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MARINE_PHOS",
+      "label_ru": "Морские фосфориты",
+      "morphologies": [
+        "nodules",
+        "tabular"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая морская фация",
+        "P источник и концентрация"
+      ],
+      "principal": [
+        "P"
+      ],
+      "conditional_associated": [
+        "REE",
+        "U"
+      ],
+      "research_family": "R10",
+      "priority": "P1",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "CELESTINE",
+      "label_ru": "Целестиновые горизонты",
+      "morphologies": [
+        "tabular",
+        "replacement",
+        "vein"
+      ],
+      "hard_gate_descriptions": [
+        "Sr-bearing fluid",
+        "подходящая осадочная/гидротермальная среда"
+      ],
+      "principal": [
+        "Sr"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "MAGNESITE",
+      "label_ru": "Магнезитовые тела",
+      "morphologies": [
+        "replacement",
+        "tabular",
+        "lens"
+      ],
+      "hard_gate_descriptions": [
+        "магниевый источник",
+        "carbonate precipitation/metasomatism"
+      ],
+      "principal": [
+        "magnesite"
+      ],
+      "conditional_associated": [],
+      "research_family": "R03",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    },
+    {
+      "id": "FELDSPAR_GEM",
+      "label_ru": "Ювелирные полевые шпаты",
+      "morphologies": [
+        "pod",
+        "quarry_unit",
+        "disseminated"
+      ],
+      "hard_gate_descriptions": [
+        "подходящая feldspar composition",
+        "optical microstructure"
+      ],
+      "principal": [
+        "moonstone",
+        "labradorite",
+        "sunstone"
+      ],
+      "conditional_associated": [],
+      "research_family": "R08",
+      "priority": "P0",
+      "calibration_status": "provisional_requires_type_specific_data",
+      "grade_tonnage_distribution": null,
+      "notes": "Список ассоциаций не означает обязательное присутствие. Для каждого компонента отдельный carrier/phase/source gate. Неисполненный gate запрещает объект или компонент; неразрешённый gate маркируется."
+    }
+  ]
+}

@@ -14,13 +14,18 @@ PMGE = [
     if os.path.isfile(p)
 ]
 
+# TZ 5.5.1 catalogues (commodities, deposit models, reference profile) are required data
+DATAS = [(os.path.join(ROOT, "src", "hexworld", "minerals", "data"),
+          os.path.join("hexworld", "minerals", "data"))]
+if os.path.isdir(os.path.join(ROOT, "docs", "biomes", "presets")):
+    DATAS.append((os.path.join(ROOT, "docs", "biomes", "presets"),
+                  os.path.join("docs", "biomes", "presets")))
+
 a = Analysis(
     [os.path.join(ROOT, "packaging", "windows", "hexworld_app.py")],
     pathex=[os.path.join(ROOT, "src")],
     binaries=[(PMGE[0], ".")] if PMGE else [],
-    datas=[(os.path.join(ROOT, "docs", "biomes", "presets"), os.path.join("docs", "biomes", "presets"))]
-    if os.path.isdir(os.path.join(ROOT, "docs", "biomes", "presets"))
-    else [],
+    datas=DATAS,
     hiddenimports=[
         "hexworld.gui.app",
         "hexworld.gui.world_settings",

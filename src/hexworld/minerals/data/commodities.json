@@ -1,0 +1,2980 @@
+{
+  "schema_version": "5.5.1-draft",
+  "inventory_rule": "Groups and varieties are derived views, never additive to their parent physical lot. The model_ids are conditional alternatives, not guarantees.",
+  "commodities": [
+    {
+      "id": "Fe",
+      "label_ru": "Железо",
+      "category": "ferrous",
+      "model_ids": [
+        "BIF",
+        "BOG_IRON",
+        "FE_OOLITE",
+        "FE_TI_V",
+        "IOCG",
+        "MN_SED",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "SKARN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Fe",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Mn",
+      "label_ru": "Марганец",
+      "category": "ferrous",
+      "model_ids": [
+        "BIF",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MN_SED"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Mn",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Cr",
+      "label_ru": "Хром",
+      "category": "ferrous",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "PGE_REEF",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Cr",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "V",
+      "label_ru": "Ванадий",
+      "category": "ferrous",
+      "model_ids": [
+        "FE_TI_V",
+        "U_ROLL"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "V",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Cu",
+      "label_ru": "Медь",
+      "category": "nonferrous",
+      "model_ids": [
+        "CU_OXID",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "NI_SULFIDE",
+        "PGE_REEF",
+        "POLY_VEIN",
+        "PORPHYRY",
+        "SED_CU",
+        "SKARN",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Cu",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ni",
+      "label_ru": "Никель",
+      "category": "nonferrous",
+      "model_ids": [
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "NI_LATERITE",
+        "NI_SULFIDE",
+        "PGE_REEF",
+        "U_UNCONF"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Ni",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Co",
+      "label_ru": "Кобальт",
+      "category": "nonferrous",
+      "model_ids": [
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "NI_LATERITE",
+        "NI_SULFIDE",
+        "SED_CU",
+        "U_UNCONF"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Co",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Al",
+      "label_ru": "Алюминий (боксит)",
+      "category": "nonferrous",
+      "model_ids": [
+        "BAUXITE",
+        "BAUXITE_KARST"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Al",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Pb",
+      "label_ru": "Свинец",
+      "category": "nonferrous",
+      "model_ids": [
+        "BARITE_FLUOR",
+        "MVT",
+        "POLY_VEIN",
+        "SEDEX",
+        "SKARN",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Pb",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Zn",
+      "label_ru": "Цинк",
+      "category": "nonferrous",
+      "model_ids": [
+        "BARITE_FLUOR",
+        "MVT",
+        "POLY_VEIN",
+        "SEDEX",
+        "SKARN",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Zn",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Sn",
+      "label_ru": "Олово",
+      "category": "nonferrous",
+      "model_ids": [
+        "GREISEN",
+        "LCT_PEG",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "SKARN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Sn",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ti",
+      "label_ru": "Титан",
+      "category": "nonferrous",
+      "model_ids": [
+        "FE_TI_V",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Ti",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "W",
+      "label_ru": "Вольфрам",
+      "category": "nonferrous",
+      "model_ids": [
+        "GREISEN",
+        "PLACER_RIVER",
+        "SKARN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "W",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Mo",
+      "label_ru": "Молибден",
+      "category": "nonferrous",
+      "model_ids": [
+        "GREISEN",
+        "PORPHYRY",
+        "SKARN",
+        "U_VEIN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Mo",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Mg_salts",
+      "label_ru": "Магниевые соли",
+      "category": "nonferrous",
+      "model_ids": [
+        "EVAPORITE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Mg_salts",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Mg_brine",
+      "label_ru": "Магний в рассоле",
+      "category": "nonferrous",
+      "model_ids": [
+        "BRINE"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "Mg_salts",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "magnesite",
+      "label_ru": "Магнезит",
+      "category": "nonferrous",
+      "model_ids": [
+        "MAGNESITE",
+        "TALC"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "magnesite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Au",
+      "label_ru": "Золото",
+      "category": "precious",
+      "model_ids": [
+        "CARLIN",
+        "EPITHERMAL",
+        "IOCG",
+        "OROGENIC_AU",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "POLY_VEIN",
+        "PORPHYRY",
+        "SB_HG",
+        "SKARN",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "Au",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ag",
+      "label_ru": "Серебро",
+      "category": "precious",
+      "model_ids": [
+        "EPITHERMAL",
+        "MVT",
+        "OROGENIC_AU",
+        "POLY_VEIN",
+        "PORPHYRY",
+        "SEDEX",
+        "SED_CU",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "Ag",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "PGE",
+      "label_ru": "Платиновые металлы (агрегат)",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Pt",
+      "label_ru": "Платина",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Pd",
+      "label_ru": "Палладий",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Rh",
+      "label_ru": "Родий",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ru",
+      "label_ru": "Рутений",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ir",
+      "label_ru": "Иридий",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Os",
+      "label_ru": "Осмий",
+      "category": "precious",
+      "model_ids": [
+        "CHROM_LAYER",
+        "CHROM_POD",
+        "MARINE_CRUST",
+        "NI_SULFIDE",
+        "PALEOPLACER",
+        "PGE_REEF",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_g_per_t_and_contained_kg",
+      "shared_inventory_basis": "PGE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Li",
+      "label_ru": "Литий",
+      "category": "rare",
+      "model_ids": [
+        "GREISEN",
+        "LCT_PEG",
+        "MARINE_NODULE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Li",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Li_brine",
+      "label_ru": "Литий в рассоле",
+      "category": "rare",
+      "model_ids": [
+        "BRINE"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "Li",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "Be",
+      "label_ru": "Бериллий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "GREISEN",
+        "LCT_PEG",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Be",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Rb",
+      "label_ru": "Рубидий",
+      "category": "rare",
+      "model_ids": [
+        "LCT_PEG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Rb",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Cs",
+      "label_ru": "Цезий",
+      "category": "rare",
+      "model_ids": [
+        "LCT_PEG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Cs",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Nb",
+      "label_ru": "Ниобий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "CARBONATITE",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Nb",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ta",
+      "label_ru": "Тантал",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "LCT_PEG",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Ta",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Zr",
+      "label_ru": "Цирконий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Zr",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Hf",
+      "label_ru": "Гафний",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "NYF_PEG",
+        "PLACER_COAST"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Hf",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ga",
+      "label_ru": "Галлий",
+      "category": "rare",
+      "model_ids": [
+        "BAUXITE",
+        "BAUXITE_KARST",
+        "SMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Ga",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ge",
+      "label_ru": "Германий",
+      "category": "rare",
+      "model_ids": [
+        "COAL",
+        "MVT",
+        "SEDEX",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Ge",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "In",
+      "label_ru": "Индий",
+      "category": "rare",
+      "model_ids": [
+        "MVT",
+        "POLY_VEIN",
+        "SMS",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "In",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Cd",
+      "label_ru": "Кадмий",
+      "category": "rare",
+      "model_ids": [
+        "MVT",
+        "POLY_VEIN",
+        "SEDEX",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Cd",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Re",
+      "label_ru": "Рений",
+      "category": "rare",
+      "model_ids": [
+        "PORPHYRY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Re",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Se",
+      "label_ru": "Селен",
+      "category": "rare",
+      "model_ids": [
+        "PORPHYRY",
+        "U_ROLL",
+        "VMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Se",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Te",
+      "label_ru": "Теллур",
+      "category": "rare",
+      "model_ids": [
+        "EPITHERMAL",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "PORPHYRY",
+        "SMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Te",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Tl",
+      "label_ru": "Таллий",
+      "category": "rare",
+      "model_ids": [
+        "CARLIN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Tl",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Bi",
+      "label_ru": "Висмут",
+      "category": "rare",
+      "model_ids": [
+        "GREISEN",
+        "POLY_VEIN",
+        "SKARN",
+        "SMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Bi",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Sb",
+      "label_ru": "Сурьма",
+      "category": "rare",
+      "model_ids": [
+        "CARLIN",
+        "EPITHERMAL",
+        "OROGENIC_AU",
+        "POLY_VEIN",
+        "SB_HG",
+        "SMS"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Sb",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Hg",
+      "label_ru": "Ртуть",
+      "category": "rare",
+      "model_ids": [
+        "CARLIN",
+        "EPITHERMAL",
+        "SB_HG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Hg",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "As",
+      "label_ru": "Мышьяк",
+      "category": "rare",
+      "model_ids": [
+        "CARLIN",
+        "EPITHERMAL",
+        "OROGENIC_AU",
+        "POLY_VEIN",
+        "SB_HG"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "As",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Sr",
+      "label_ru": "Стронций",
+      "category": "rare",
+      "model_ids": [
+        "CARBONATITE",
+        "CELESTINE",
+        "EVAPORITE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Sr",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Sc",
+      "label_ru": "Скандий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "CARBONATITE",
+        "FE_TI_V",
+        "MARINE_CRUST",
+        "NI_LATERITE",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Sc",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "REE",
+      "label_ru": "Редкоземельные элементы (агрегат)",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Y",
+      "label_ru": "Иттрий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "La",
+      "label_ru": "Лантан",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ce",
+      "label_ru": "Церий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Pr",
+      "label_ru": "Празеодим",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Nd",
+      "label_ru": "Неодим",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Sm",
+      "label_ru": "Самарий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Eu",
+      "label_ru": "Европий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Gd",
+      "label_ru": "Гадолиний",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Tb",
+      "label_ru": "Тербий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Dy",
+      "label_ru": "Диспрозий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Ho",
+      "label_ru": "Гольмий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Er",
+      "label_ru": "Эрбий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Tm",
+      "label_ru": "Тулий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Yb",
+      "label_ru": "Иттербий",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Lu",
+      "label_ru": "Лютеций",
+      "category": "rare",
+      "model_ids": [
+        "ALKALINE",
+        "APATITE",
+        "CARBONATITE",
+        "IOCG",
+        "MARINE_CRUST",
+        "MARINE_NODULE",
+        "MARINE_PHOS",
+        "NYF_PEG",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REE_CLAY"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "REE",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "U",
+      "label_ru": "Уран",
+      "category": "radioactive",
+      "model_ids": [
+        "IOCG",
+        "MARINE_PHOS",
+        "PALEOPLACER",
+        "PHOSPHORITE",
+        "U_ROLL",
+        "U_UNCONF",
+        "U_VEIN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "U",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "Th",
+      "label_ru": "Торий",
+      "category": "radioactive",
+      "model_ids": [
+        "CARBONATITE",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "U_VEIN"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "Th",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "diamond",
+      "label_ru": "Алмаз",
+      "category": "gem",
+      "model_ids": [
+        "KIMBERLITE",
+        "PALEOPLACER",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "grade_ct_per_t_or_ct_per_m3_and_rough_ct",
+      "shared_inventory_basis": "diamond",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "corundum",
+      "label_ru": "Корунд",
+      "category": "gem",
+      "model_ids": [
+        "CORUNDUM_MAG",
+        "CORUNDUM_META",
+        "PLACER_RIVER",
+        "REFRACTORY"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "corundum",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "ruby",
+      "label_ru": "Рубин",
+      "category": "gem",
+      "model_ids": [
+        "CORUNDUM_META",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "corundum",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sapphire",
+      "label_ru": "Сапфир",
+      "category": "gem",
+      "model_ids": [
+        "CORUNDUM_MAG",
+        "CORUNDUM_META",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "corundum",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "emerald",
+      "label_ru": "Изумруд",
+      "category": "gem",
+      "model_ids": [
+        "EMERALD_META",
+        "EMERALD_SED"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "emerald",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "beryl",
+      "label_ru": "Берилл",
+      "category": "gem",
+      "model_ids": [
+        "EMERALD_META",
+        "GEM_PEG",
+        "LCT_PEG",
+        "MICA_FELDSPAR",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "beryl",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "aquamarine",
+      "label_ru": "Аквамарин",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "beryl",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "morganite",
+      "label_ru": "Морганит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "beryl",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "heliodor",
+      "label_ru": "Гелиодор",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "beryl",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "tourmaline",
+      "label_ru": "Турмалин",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "LCT_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "tourmaline",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "topaz",
+      "label_ru": "Топаз",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "GREISEN",
+        "MICA_FELDSPAR",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "topaz",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "spodumene_gem",
+      "label_ru": "Ювелирный сподумен (кунцит и др.)",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "LCT_PEG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "spodumene_gem",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "garnet",
+      "label_ru": "Гранат",
+      "category": "gem",
+      "model_ids": [
+        "GEM_MAFIC",
+        "GEM_META",
+        "PLACER_COAST",
+        "PLACER_RIVER",
+        "REFRACTORY"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "garnet",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "spinel",
+      "label_ru": "Шпинель",
+      "category": "gem",
+      "model_ids": [
+        "CORUNDUM_META",
+        "GEM_META",
+        "PLACER_RIVER",
+        "REFRACTORY"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "spinel",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "chrysoberyl",
+      "label_ru": "Хризоберилл",
+      "category": "gem",
+      "model_ids": [
+        "GEM_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "chrysoberyl",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "alexandrite",
+      "label_ru": "Александрит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "chrysoberyl",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "kyanite",
+      "label_ru": "Кианит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_META",
+        "REFRACTORY"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "kyanite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "tanzanite",
+      "label_ru": "Танзанит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "tanzanite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "iolite",
+      "label_ru": "Иолит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "iolite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "peridot",
+      "label_ru": "Хризолит",
+      "category": "gem",
+      "model_ids": [
+        "GEM_MAFIC",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "peridot",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "zircon_gem",
+      "label_ru": "Ювелирный циркон",
+      "category": "gem",
+      "model_ids": [
+        "GEM_MAFIC",
+        "PLACER_COAST",
+        "PLACER_RIVER"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "Zr",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "opal",
+      "label_ru": "Опал",
+      "category": "gem",
+      "model_ids": [
+        "OPAL"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "opal",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "moonstone",
+      "label_ru": "Лунный камень",
+      "category": "gem",
+      "model_ids": [
+        "FELDSPAR_GEM",
+        "MICA_FELDSPAR"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "feldspar",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sunstone",
+      "label_ru": "Солнечный камень",
+      "category": "gem",
+      "model_ids": [
+        "FELDSPAR_GEM"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "feldspar",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "labradorite",
+      "label_ru": "Лабрадорит",
+      "category": "gem",
+      "model_ids": [
+        "FELDSPAR_GEM",
+        "GEM_MAFIC",
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "feldspar",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "amethyst",
+      "label_ru": "Аметист",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "quartz",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "citrine",
+      "label_ru": "Цитрин",
+      "category": "gem",
+      "model_ids": [
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "quartz",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "rock_crystal",
+      "label_ru": "Горный хрусталь",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "quartz",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "smoky_quartz",
+      "label_ru": "Дымчатый кварц",
+      "category": "gem",
+      "model_ids": [
+        "GEM_PEG",
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "quartz",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "jadeite",
+      "label_ru": "Жадеит",
+      "category": "ornamental",
+      "model_ids": [
+        "JADEITE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "jadeite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "nephrite",
+      "label_ru": "Нефрит",
+      "category": "ornamental",
+      "model_ids": [
+        "NEPHRITE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "nephrite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "serpentine",
+      "label_ru": "Серпентин",
+      "category": "ornamental",
+      "model_ids": [
+        "NEPHRITE",
+        "QUARRY_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "serpentine",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "rhodonite",
+      "label_ru": "Родонит",
+      "category": "ornamental",
+      "model_ids": [
+        "GEM_META"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "rhodonite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "malachite",
+      "label_ru": "Малахит",
+      "category": "ornamental",
+      "model_ids": [
+        "CU_OXID"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "malachite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "azurite",
+      "label_ru": "Азурит",
+      "category": "ornamental",
+      "model_ids": [
+        "CU_OXID"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "azurite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "turquoise",
+      "label_ru": "Бирюза",
+      "category": "ornamental",
+      "model_ids": [
+        "CU_OXID"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "turquoise",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "lapis",
+      "label_ru": "Лазуритовая порода",
+      "category": "ornamental",
+      "model_ids": [
+        "LAPIS"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "lapis",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "charoite",
+      "label_ru": "Чароит",
+      "category": "ornamental",
+      "model_ids": [
+        "CHAROITE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "charoite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "agate",
+      "label_ru": "Агат",
+      "category": "ornamental",
+      "model_ids": [
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "agate",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "chalcedony",
+      "label_ru": "Халцедон",
+      "category": "ornamental",
+      "model_ids": [
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "chalcedony",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "onyx",
+      "label_ru": "Оникс (халцедоновый)",
+      "category": "ornamental",
+      "model_ids": [
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "onyx",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "jasper",
+      "label_ru": "Яшма",
+      "category": "ornamental",
+      "model_ids": [
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "jasper",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "amber",
+      "label_ru": "Янтарь",
+      "category": "ornamental",
+      "model_ids": [
+        "AMBER"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "amber",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "jet",
+      "label_ru": "Гагат",
+      "category": "ornamental",
+      "model_ids": [
+        "FOSSIL_ORG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "jet",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "petrified_wood",
+      "label_ru": "Окаменелая древесина",
+      "category": "ornamental",
+      "model_ids": [
+        "FOSSIL_ORG"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "petrified_wood",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "obsidian",
+      "label_ru": "Обсидиан",
+      "category": "ornamental",
+      "model_ids": [
+        "VOLCANIC_GLASS"
+      ],
+      "quantity_schema": "rough_kg_and_quality_fraction_and_carat_if_crystal",
+      "shared_inventory_basis": "obsidian",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "granite",
+      "label_ru": "Гранит",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "granite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "granodiorite",
+      "label_ru": "Гранодиорит",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "granodiorite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "basalt",
+      "label_ru": "Базальт",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "basalt",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "gabbro",
+      "label_ru": "Габбро",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "gabbro",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "dolerite",
+      "label_ru": "Долерит",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "dolerite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "porphyry",
+      "label_ru": "Порфировая строительная порода",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "porphyry",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "limestone",
+      "label_ru": "Известняк",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "limestone",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "dolomite",
+      "label_ru": "Доломит",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "dolomite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "chalk",
+      "label_ru": "Мел",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "chalk",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sandstone",
+      "label_ru": "Песчаник",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "sandstone",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "marl",
+      "label_ru": "Мергель",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "marl",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "travertine",
+      "label_ru": "Травертин",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "travertine",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "marble",
+      "label_ru": "Мрамор",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_META"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "marble",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "slate",
+      "label_ru": "Кровельный сланец",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_META"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "slate",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "quartzite",
+      "label_ru": "Кварцит",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_META"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "quartzite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "gneiss",
+      "label_ru": "Гнейс",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_META"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "gneiss",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "aggregate",
+      "label_ru": "Каменное сырьё для щебня",
+      "category": "construction",
+      "model_ids": [
+        "QUARRY_IGNEOUS",
+        "QUARRY_META",
+        "QUARRY_SED",
+        "SAND_GRAVEL"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "lithology_lot",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sand",
+      "label_ru": "Строительный песок",
+      "category": "construction",
+      "model_ids": [
+        "SAND_GRAVEL"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "sand",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "gravel",
+      "label_ru": "Гравий",
+      "category": "construction",
+      "model_ids": [
+        "SAND_GRAVEL"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "gravel",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "boulders",
+      "label_ru": "Валуны",
+      "category": "construction",
+      "model_ids": [
+        "SAND_GRAVEL"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "boulders",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "clay",
+      "label_ru": "Глина",
+      "category": "construction",
+      "model_ids": [
+        "CLAY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "clay",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "brick_clay",
+      "label_ru": "Кирпичная глина",
+      "category": "construction",
+      "model_ids": [
+        "CLAY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "brick_clay",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "shale",
+      "label_ru": "Глинистый сланец",
+      "category": "construction",
+      "model_ids": [
+        "CLAY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "shale",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "tuff",
+      "label_ru": "Туф",
+      "category": "construction",
+      "model_ids": [
+        "VOLCANIC_GLASS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "tuff",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "pumice",
+      "label_ru": "Пемза",
+      "category": "construction",
+      "model_ids": [
+        "VOLCANIC_GLASS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "pumice",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "gypsum",
+      "label_ru": "Гипс",
+      "category": "construction",
+      "model_ids": [
+        "EVAPORITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "gypsum",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "anhydrite",
+      "label_ru": "Ангидрит",
+      "category": "construction",
+      "model_ids": [
+        "EVAPORITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "anhydrite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "silica_sand",
+      "label_ru": "Кварцевый песок",
+      "category": "industrial",
+      "model_ids": [
+        "SAND_GRAVEL"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "silica_sand",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "ball_clay",
+      "label_ru": "Пластичная керамическая глина",
+      "category": "industrial",
+      "model_ids": [
+        "CLAY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "ball_clay",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "fireclay",
+      "label_ru": "Огнеупорная глина",
+      "category": "industrial",
+      "model_ids": [
+        "CLAY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "fireclay",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "kaolin",
+      "label_ru": "Каолин",
+      "category": "industrial",
+      "model_ids": [
+        "KAOLIN"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "kaolin",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "bentonite",
+      "label_ru": "Бентонит",
+      "category": "industrial",
+      "model_ids": [
+        "BENTONITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "bentonite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "fullers_earth",
+      "label_ru": "Фуллерова земля",
+      "category": "industrial",
+      "model_ids": [
+        "BENTONITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "fullers_earth",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "zeolite",
+      "label_ru": "Цеолиты",
+      "category": "industrial",
+      "model_ids": [
+        "BENTONITE",
+        "ZEOLITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "zeolite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "diatomite",
+      "label_ru": "Диатомит",
+      "category": "industrial",
+      "model_ids": [
+        "DIATOMITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "diatomite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "graphite",
+      "label_ru": "Графит",
+      "category": "industrial",
+      "model_ids": [
+        "GRAPHITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "graphite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "talc",
+      "label_ru": "Тальк",
+      "category": "industrial",
+      "model_ids": [
+        "TALC"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "talc",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "soapstone",
+      "label_ru": "Стеатит",
+      "category": "industrial",
+      "model_ids": [
+        "QUARRY_META",
+        "TALC"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "soapstone",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "andalusite",
+      "label_ru": "Андалузит",
+      "category": "industrial",
+      "model_ids": [
+        "REFRACTORY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "andalusite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sillimanite",
+      "label_ru": "Силлиманит",
+      "category": "industrial",
+      "model_ids": [
+        "REFRACTORY"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "sillimanite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "wollastonite",
+      "label_ru": "Волластонит",
+      "category": "industrial",
+      "model_ids": [
+        "WOLLAST"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "wollastonite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "mica",
+      "label_ru": "Слюда",
+      "category": "industrial",
+      "model_ids": [
+        "GEM_PEG",
+        "LCT_PEG",
+        "MICA_FELDSPAR",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "mica",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "feldspar",
+      "label_ru": "Полевой шпат",
+      "category": "industrial",
+      "model_ids": [
+        "GEM_PEG",
+        "LCT_PEG",
+        "MICA_FELDSPAR",
+        "NYF_PEG"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "feldspar",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "quartz",
+      "label_ru": "Кварц",
+      "category": "industrial",
+      "model_ids": [
+        "GEM_PEG",
+        "LCT_PEG",
+        "MICA_FELDSPAR",
+        "SILICA_GEODE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "quartz",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "barite",
+      "label_ru": "Барит",
+      "category": "industrial",
+      "model_ids": [
+        "BARITE_FLUOR",
+        "CARBONATITE",
+        "MVT",
+        "POLY_VEIN"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "barite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "fluorite",
+      "label_ru": "Флюорит",
+      "category": "industrial",
+      "model_ids": [
+        "BARITE_FLUOR",
+        "CARBONATITE",
+        "GREISEN",
+        "MVT",
+        "POLY_VEIN"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "fluorite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "vermiculite",
+      "label_ru": "Вермикулит",
+      "category": "industrial",
+      "model_ids": [
+        "VERMICULITE"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "vermiculite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "perlite",
+      "label_ru": "Перлит",
+      "category": "industrial",
+      "model_ids": [
+        "VOLCANIC_GLASS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "perlite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "ochre",
+      "label_ru": "Охра",
+      "category": "industrial",
+      "model_ids": [
+        "PIGMENTS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "ochre",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "umber",
+      "label_ru": "Умбра",
+      "category": "industrial",
+      "model_ids": [
+        "PIGMENTS"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "umber",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "calcite",
+      "label_ru": "Кальцит",
+      "category": "industrial",
+      "model_ids": [
+        "QUARRY_SED"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "calcite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "asbestos_hazard",
+      "label_ru": "Асбестовые минеральные фазы (опасность)",
+      "category": "industrial",
+      "model_ids": [
+        "TALC"
+      ],
+      "quantity_schema": "usable_volume_m3_dry_mass_t_and_usage_quality",
+      "shared_inventory_basis": "asbestos_hazard",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "P",
+      "label_ru": "Фосфатное сырьё (P с пересчётом P2O5)",
+      "category": "chemical_agro",
+      "model_ids": [
+        "APATITE",
+        "CARBONATITE",
+        "FE_OOLITE",
+        "MARINE_PHOS",
+        "PHOSPHORITE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "P",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "salt",
+      "label_ru": "Каменная соль",
+      "category": "chemical_agro",
+      "model_ids": [
+        "EVAPORITE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "salt",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "potash",
+      "label_ru": "Калийные соли",
+      "category": "chemical_agro",
+      "model_ids": [
+        "EVAPORITE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "potash",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "borates",
+      "label_ru": "Бораты",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BORATE_SODA"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "borates",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "trona",
+      "label_ru": "Трона",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BORATE_SODA"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "trona",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "sulfur",
+      "label_ru": "Самородная сера",
+      "category": "chemical_agro",
+      "model_ids": [
+        "SULFUR"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "sulfur",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P0"
+    },
+    {
+      "id": "K_brine",
+      "label_ru": "Калий в рассоле",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BRINE"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "potash",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "Br",
+      "label_ru": "Бром",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BRINE"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "Br",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "I",
+      "label_ru": "Йод",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BRINE",
+        "PETROLEUM"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "I",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "B_brine",
+      "label_ru": "Бор в рассоле",
+      "category": "chemical_agro",
+      "model_ids": [
+        "BRINE"
+      ],
+      "quantity_schema": "dissolved_mg_per_L_and_contained_kg",
+      "shared_inventory_basis": "borates",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "peat",
+      "label_ru": "Торф",
+      "category": "fuel",
+      "model_ids": [
+        "PEAT"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "peat",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "lignite",
+      "label_ru": "Бурый уголь",
+      "category": "fuel",
+      "model_ids": [
+        "COAL"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "lignite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "bituminous_coal",
+      "label_ru": "Каменный уголь",
+      "category": "fuel",
+      "model_ids": [
+        "COAL"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "bituminous_coal",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "anthracite",
+      "label_ru": "Антрацит",
+      "category": "fuel",
+      "model_ids": [
+        "COAL"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "anthracite",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "oil_shale",
+      "label_ru": "Горючий сланец",
+      "category": "fuel",
+      "model_ids": [
+        "OIL_SHALE"
+      ],
+      "quantity_schema": "mass_fraction_and_contained_t",
+      "shared_inventory_basis": "oil_shale",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "oil",
+      "label_ru": "Нефть",
+      "category": "fuel",
+      "model_ids": [
+        "PETROLEUM"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "oil",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "natural_gas",
+      "label_ru": "Природный газ",
+      "category": "fuel",
+      "model_ids": [
+        "PETROLEUM"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "natural_gas",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "condensate",
+      "label_ru": "Газовый конденсат",
+      "category": "fuel",
+      "model_ids": [
+        "PETROLEUM"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "condensate",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "bitumen",
+      "label_ru": "Природный битум",
+      "category": "fuel",
+      "model_ids": [
+        "PETROLEUM"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "bitumen",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "shale_gas",
+      "label_ru": "Сланцевый газ",
+      "category": "fuel",
+      "model_ids": [
+        "UNCONVENTIONAL"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "shale_gas",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "tight_oil",
+      "label_ru": "Нефть плотных коллекторов",
+      "category": "fuel",
+      "model_ids": [
+        "UNCONVENTIONAL"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "tight_oil",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "coalbed_methane",
+      "label_ru": "Метан угольных пластов",
+      "category": "fuel",
+      "model_ids": [
+        "COAL",
+        "UNCONVENTIONAL"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "coalbed_methane",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "gas_hydrate",
+      "label_ru": "Газогидраты",
+      "category": "fuel",
+      "model_ids": [
+        "HYDRATE"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "gas_hydrate",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "He",
+      "label_ru": "Гелий",
+      "category": "fuel",
+      "model_ids": [
+        "PETROLEUM"
+      ],
+      "quantity_schema": "phase_mass_kg_and_standard_volume_m3_if_defined",
+      "shared_inventory_basis": "He",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "freshwater",
+      "label_ru": "Подземная пресная вода",
+      "category": "water_heat",
+      "model_ids": [
+        "AQUIFER"
+      ],
+      "quantity_schema": "water_m3_and_recharge_m3_per_year",
+      "shared_inventory_basis": "aquifer_water",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "mineral_water",
+      "label_ru": "Минеральная вода",
+      "category": "water_heat",
+      "model_ids": [
+        "AQUIFER"
+      ],
+      "quantity_schema": "water_m3_and_recharge_m3_per_year",
+      "shared_inventory_basis": "aquifer_water",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "brackish_water",
+      "label_ru": "Солоноватая вода",
+      "category": "water_heat",
+      "model_ids": [
+        "AQUIFER"
+      ],
+      "quantity_schema": "water_m3_and_recharge_m3_per_year",
+      "shared_inventory_basis": "aquifer_water",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "thermal_water",
+      "label_ru": "Термальная вода",
+      "category": "water_heat",
+      "model_ids": [
+        "GEOTHERMAL"
+      ],
+      "quantity_schema": "water_m3_and_recharge_m3_per_year",
+      "shared_inventory_basis": "aquifer_water",
+      "not_additive_with_parent": true,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    },
+    {
+      "id": "geothermal_heat",
+      "label_ru": "Геотермальное тепло",
+      "category": "water_heat",
+      "model_ids": [
+        "GEOTHERMAL"
+      ],
+      "quantity_schema": "heat_in_place_J_and_recharge_W",
+      "shared_inventory_basis": "geothermal_heat",
+      "not_additive_with_parent": false,
+      "status": "catalog_requirement",
+      "priority": "P1"
+    }
+  ]
+}

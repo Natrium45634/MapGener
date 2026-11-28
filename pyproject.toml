@@ -20,6 +20,9 @@ hexworld = "hexworld.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"hexworld.minerals" = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["slow: large-map load tests (run with: pytest -m slow)"]

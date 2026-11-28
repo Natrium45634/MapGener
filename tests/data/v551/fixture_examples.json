@@ -1,0 +1,282 @@
+{
+  "status": "synthetic_test_vectors_not_nature_data",
+  "fixtures": [
+    {
+      "id": "N01",
+      "label": "Плоская прямоугольная жила",
+      "inputs": {
+        "strike_m": 500,
+        "down_dip_m": 200,
+        "true_thickness_m": 2
+      },
+      "expected": 200000,
+      "unit": "m3"
+    },
+    {
+      "id": "N02",
+      "label": "Масса этой жилы",
+      "inputs": {
+        "volume_m3": 200000,
+        "dry_density_kgm3": 2700
+      },
+      "expected": 540000,
+      "unit": "t"
+    },
+    {
+      "id": "N03",
+      "label": "Содержание золота в жиле",
+      "inputs": {
+        "rock_t": 540000,
+        "grade_g_per_t": 5
+      },
+      "expected": 2700,
+      "unit": "kg Au"
+    },
+    {
+      "id": "N04",
+      "label": "Вертикальная мощность при наклоне 60°",
+      "inputs": {
+        "true_thickness_m": 2,
+        "dip_deg": 60,
+        "assume_both_faces_hit": true
+      },
+      "expected": 4,
+      "unit": "m"
+    },
+    {
+      "id": "N05",
+      "label": "Объем эллипсоида",
+      "inputs": {
+        "semi_axes_m": [
+          50,
+          20,
+          10
+        ]
+      },
+      "expected": 41887.90204786391,
+      "unit": "m3"
+    },
+    {
+      "id": "N06",
+      "label": "Cu в низкосортной руде",
+      "inputs": {
+        "rock_t": 1000000,
+        "grade_percent": 0.6
+      },
+      "expected": 6000,
+      "unit": "t Cu"
+    },
+    {
+      "id": "N07",
+      "label": "Средневзвешенное содержание",
+      "inputs": {
+        "rock_t": [
+          100,
+          900
+        ],
+        "grade_g_per_t": [
+          10,
+          1
+        ]
+      },
+      "expected": 1.9,
+      "unit": "g/t"
+    },
+    {
+      "id": "N08",
+      "label": "Масса руды dry bulk",
+      "inputs": {
+        "solid_density_kgm3": 3000,
+        "porosity": 0.2,
+        "volume_m3": 1000
+      },
+      "expected": 2400,
+      "unit": "t"
+    },
+    {
+      "id": "N09",
+      "label": "Россыпь Au",
+      "inputs": {
+        "length_m": 500,
+        "width_m": 20,
+        "pay_thickness_m": 1.5,
+        "grade_g_m3": 0.8
+      },
+      "expected": 12,
+      "unit": "kg Au"
+    },
+    {
+      "id": "N10",
+      "label": "Перенос Au из источника",
+      "inputs": {
+        "initial_kg": 10,
+        "eroded_kg": 3,
+        "trapped_kg": 2,
+        "outflow_kg": 1
+      },
+      "expected": {
+        "parent_kg": 7,
+        "placer_kg": 2,
+        "export_kg": 1
+      },
+      "unit": "kg"
+    },
+    {
+      "id": "N11",
+      "label": "Ювелирная доля алмаза",
+      "inputs": {
+        "raw_diamond_kg": 2,
+        "gem_fraction": 0.15
+      },
+      "expected": 1500,
+      "unit": "ct gem rough"
+    },
+    {
+      "id": "N12",
+      "label": "Промышленная примесь",
+      "inputs": {
+        "lot_t": 1000,
+        "impurity_ppm": 100
+      },
+      "expected": 100,
+      "unit": "kg"
+    },
+    {
+      "id": "N13",
+      "label": "Площадь и доля конкреций",
+      "inputs": {
+        "area_m2": 1000000,
+        "coverage": 0.4,
+        "occupied_area_kg_m2": 10
+      },
+      "expected": 4000,
+      "unit": "t"
+    },
+    {
+      "id": "N14",
+      "label": "Толщина корки за 10 Ma",
+      "inputs": {
+        "growth_mm_Ma": 2,
+        "age_Ma": 10
+      },
+      "expected": 0.02,
+      "unit": "m"
+    },
+    {
+      "id": "N15",
+      "label": "Рассол Li",
+      "inputs": {
+        "volume_m3": 100000,
+        "concentration_mg_L": 200
+      },
+      "expected": 20000,
+      "unit": "kg Li"
+    },
+    {
+      "id": "N16",
+      "label": "Простая насыщенная соль",
+      "inputs": {
+        "initial_dissolved_kg": 2000,
+        "solution_volume_m3": 4,
+        "saturation_kg_m3": 300
+      },
+      "expected": 800,
+      "unit": "kg precipitated"
+    },
+    {
+      "id": "N17",
+      "label": "Нефтяной pore capacity",
+      "inputs": {
+        "gross_m3": 1000000,
+        "net_to_gross": 0.5,
+        "phi": 0.2,
+        "oil_saturation": 0.6
+      },
+      "expected": 60000,
+      "unit": "m3 reservoir oil"
+    },
+    {
+      "id": "N18",
+      "label": "Переход к стандартному объёму",
+      "inputs": {
+        "reservoir_oil_m3": 60000,
+        "Bo": 1.2
+      },
+      "expected": 50000,
+      "unit": "m3 standard oil"
+    },
+    {
+      "id": "N19",
+      "label": "Водоносный горизонт: дренируемая вода",
+      "inputs": {
+        "area_m2": 1000000,
+        "Sy": 0.15,
+        "drawdown_m": 2
+      },
+      "expected": 300000,
+      "unit": "m3"
+    },
+    {
+      "id": "N20",
+      "label": "Тепло в породе и воде",
+      "inputs": {
+        "V_m3": 1000000,
+        "phi": 0.1,
+        "rho_rock": 2700,
+        "c_rock": 800,
+        "rho_water": 1000,
+        "c_water": 4200,
+        "delta_T_K": 50
+      },
+      "expected": 118200000000000.0,
+      "unit": "J"
+    },
+    {
+      "id": "N21",
+      "label": "Разрез 2 гексов",
+      "inputs": {
+        "body_t": 10000,
+        "clipped_volume_fraction": [
+          0.25,
+          0.75
+        ]
+      },
+      "expected": [
+        2500,
+        7500
+      ],
+      "unit": "t"
+    },
+    {
+      "id": "N22",
+      "label": "Испарение чистой воды",
+      "inputs": {
+        "initial_dissolved_kg": 0,
+        "evaporation_fraction": 0.9
+      },
+      "expected": 0,
+      "unit": "kg salt"
+    },
+    {
+      "id": "N23",
+      "label": "Агрегаты REE",
+      "inputs": {
+        "La_kg": 100,
+        "Ce_kg": 300,
+        "Y_kg": 100
+      },
+      "expected": 500,
+      "unit": "kg contained REE"
+    },
+    {
+      "id": "N24",
+      "label": "Пригодность строительных блоков",
+      "inputs": {
+        "volume_m3": 50000,
+        "usable_fraction": 0.2
+      },
+      "expected": 10000,
+      "unit": "m3"
+    }
+  ]
+}
