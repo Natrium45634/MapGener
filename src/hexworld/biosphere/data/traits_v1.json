@@ -1,0 +1,6913 @@
+{
+ "qualifiers_moisture": {
+  "1": [
+   ""
+  ],
+  "2": [
+   "засухоустойчивый",
+   "влаголюбивый"
+  ],
+  "3": [
+   "засухоустойчивый",
+   "мезофильный",
+   "влаголюбивый"
+  ]
+ },
+ "qualifiers_thermal": {
+  "1": [
+   ""
+  ],
+  "2": [
+   "холодостойкий",
+   "теплолюбивый"
+  ],
+  "3": [
+   "холодостойкий",
+   "умеренный",
+   "теплолюбивый"
+  ],
+  "4": [
+   "холодостойкий",
+   "умеренный",
+   "тёплый",
+   "жаростойкий"
+  ],
+  "5": [
+   "холодостойкий",
+   "прохладный",
+   "умеренный",
+   "тёплый",
+   "жаростойкий"
+  ]
+ },
+ "schema": "hexworld-bio-traits-1",
+ "status": "provisional_engineering_priors",
+ "traits": {
+  "algae_macro_other": {
+   "L_km": 300.0,
+   "alloc": {
+    "leaf": 0.9,
+    "repro": 0.1,
+    "root": 0.0,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.6,
+   "gates": [
+    "marine",
+    "lit_bottom"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "m_benthic",
+   "level": 1,
+   "lue": 0.4,
+   "mob": "marine_propagule_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     10.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -2.0,
+     2.0,
+     30.0,
+     34.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     31.0,
+     35.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    2.0,
+    30.0,
+    35.0
+   ],
+   "turn": {
+    "leaf": 4.0,
+    "repro": 1.0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "amphibian": {
+   "L_km": 10.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.6,
+   "diet": {
+    "fw_invert": 0.3,
+    "invert_land": 0.7
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "any_fresh"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.02,
+   "migratory": false,
+   "mob": "river_ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     0.3,
+     0.6,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -30.0,
+     -10.0,
+     30.0,
+     38.0
+    ],
+    "tw": [
+     10.0,
+     16.0,
+     32.0,
+     38.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.8,
+   "phi": 0.06,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    4.0,
+    12.0,
+    32.0,
+    38.0
+   ]
+  },
+  "aquatic_emergent": {
+   "L_km": 150.0,
+   "alloc": {
+    "leaf": 0.5,
+    "repro": 0.1,
+    "root": 0.3,
+    "wood": 0.1
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.4,
+   "gates": [
+    "inland_water",
+    "shallow_water"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 3.0,
+   "layer": "fw_macro",
+   "level": 1,
+   "lue": 0.9,
+   "mob": "water_seed",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     6.0,
+     12.0,
+     32.0,
+     38.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    38.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.2
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "aquatic_floating": {
+   "L_km": 150.0,
+   "alloc": {
+    "leaf": 0.6,
+    "repro": 0.1,
+    "root": 0.3,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.6,
+   "gates": [
+    "inland_water"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 1.0,
+   "layer": "fw_macro",
+   "level": 1,
+   "lue": 0.6,
+   "mob": "water_seed",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     12.0,
+     18.0,
+     34.0,
+     40.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    5.0,
+    14.0,
+    32.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.5,
+    "repro": 1.0,
+    "root": 1.5,
+    "wood": 0.0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "aquatic_microbes": {
+   "L_km": 5000.0,
+   "assim": 0.5,
+   "breed_months": 1,
+   "d0": 40.0,
+   "diet": {
+    "fw_detritus": 0.5,
+    "m_detritus": 0.5
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "any_water"
+   ],
+   "kind": "microbe",
+   "level": 2,
+   "mass_kg": 1e-12,
+   "migratory": false,
+   "mob": "water_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     60.0,
+     70.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 10.0,
+   "phi": 0.6,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -3.0,
+    2.0,
+    35.0,
+    45.0
+   ]
+  },
+  "aquatic_submerged": {
+   "L_km": 150.0,
+   "alloc": {
+    "leaf": 0.6,
+    "repro": 0.1,
+    "root": 0.3,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.6,
+   "gates": [
+    "inland_water",
+    "shallow_water"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 1.5,
+   "layer": "fw_macro",
+   "level": 1,
+   "lue": 0.6,
+   "mob": "water_seed",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     8.0,
+     14.0,
+     32.0,
+     38.0
+    ]
+   },
+   "poll": "self",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    2.0,
+    10.0,
+    30.0,
+    38.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 1.0,
+    "wood": 0.0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "bat_insectivore": {
+   "L_km": 300.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "invert_land": 1.0
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.02,
+   "migratory": false,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -25.0,
+     -10.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.4,
+   "phi": 0.06,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    6.0,
+    14.0,
+    36.0,
+    42.0
+   ]
+  },
+  "benthic_detritivore": {
+   "L_km": 800.0,
+   "assim": 0.3,
+   "breed_months": 2,
+   "d0": 15.0,
+   "diet": {
+    "m_benthic_flux": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.05,
+   "migratory": false,
+   "mob": "larval_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     10.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.8,
+   "phi": 0.4,
+   "provides": "m_benthos",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -3.0,
+    -1.0,
+    32.0,
+    36.0
+   ]
+  },
+  "benthic_filter": {
+   "L_km": 500.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 20.0,
+   "diet": {
+    "m_detritus": 0.4,
+    "m_phyto": 0.6
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "shelf"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.02,
+   "migratory": false,
+   "mob": "larval_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     10.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 1.0,
+   "phi": 0.15,
+   "provides": "m_benthos",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    2.0,
+    30.0,
+    35.0
+   ]
+  },
+  "bird_forest": {
+   "L_km": 300.0,
+   "assim": 0.75,
+   "breed_months": 2,
+   "d0": 1.0,
+   "diet": {
+    "fruit_seed": 0.3,
+    "invert_land": 0.7
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "woody_cover"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.05,
+   "migratory": true,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.8,
+   "phi": 0.08,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -15.0,
+    0.0,
+    36.0,
+    42.0
+   ]
+  },
+  "bird_granivore": {
+   "L_km": 400.0,
+   "assim": 0.75,
+   "breed_months": 2,
+   "d0": 1.5,
+   "diet": {
+    "fruit_seed": 0.8,
+    "leaf_herb": 0.2
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.03,
+   "migratory": true,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 1.0,
+   "phi": 0.1,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -10.0,
+    5.0,
+    36.0,
+    44.0
+   ]
+  },
+  "bird_raptor": {
+   "L_km": 600.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.1,
+   "diet": {
+    "herb_small": 0.6,
+    "meso_land": 0.4
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 1.0,
+   "migratory": false,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.3,
+   "phi": 0.06,
+   "provides": "pred_top",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -35.0,
+    -10.0,
+    36.0,
+    44.0
+   ]
+  },
+  "bird_scavenger": {
+   "L_km": 1000.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "carrion": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 6,
+   "mass_kg": 8.0,
+   "migratory": false,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.2,
+   "phi": 0.3,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -10.0,
+    5.0,
+    38.0,
+    44.0
+   ]
+  },
+  "bird_sea": {
+   "L_km": 3000.0,
+   "assim": 0.75,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "m_forage": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "nest_coast"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 1.0,
+   "migratory": true,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.2,
+   "phi": 0.05,
+   "provides": null,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "bird_shore": {
+   "L_km": 1500.0,
+   "assim": 0.75,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "fw_invert": 0.2,
+    "invert_land": 0.2,
+    "m_benthos": 0.6
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "coast"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.1,
+   "migratory": true,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.6,
+   "phi": 0.08,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -10.0,
+    2.0,
+    36.0,
+    42.0
+   ]
+  },
+  "bird_waterfowl": {
+   "L_km": 800.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "fw_invert": 0.3,
+    "fw_macro": 0.5,
+    "leaf_herb": 0.2
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "any_fresh"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 1.2,
+   "migratory": true,
+   "mob": "flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.6,
+   "phi": 0.1,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -20.0,
+    0.0,
+    34.0,
+    40.0
+   ]
+  },
+  "browser_arboreal": {
+   "L_km": 20.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 1.5,
+   "diet": {
+    "fruit_seed": 0.2,
+    "leaf_woody": 0.8
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "canopy"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 6.0,
+   "migratory": false,
+   "mob": "arboreal",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -5.0,
+     5.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.03,
+   "pb": 0.5,
+   "phi": 0.08,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    5.0,
+    14.0,
+    34.0,
+    40.0
+   ]
+  },
+  "browser_large": {
+   "L_km": 50.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "leaf_herb": 0.2,
+    "leaf_woody": 0.8
+   },
+   "dormant": false,
+   "e0": 0.001,
+   "gates": [
+    "land_ground",
+    "woody_cover"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 150.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": true,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.3,
+   "phi": 0.15,
+   "provides": "herb_large",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -40.0,
+    -10.0,
+    32.0,
+    42.0
+   ]
+  },
+  "chemo_microbes": {
+   "L_km": 800.0,
+   "alloc": {
+    "leaf": 1,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.9,
+   "gates": [
+    "marine",
+    "vent"
+   ],
+   "k": 0.5,
+   "kind": "microbe",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "chemo",
+   "level": 1,
+   "lue": 0.0,
+   "mob": "current_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     20.0,
+     25.0,
+     45.0,
+     50.0
+    ],
+    "tc": [
+     -3.0,
+     -2.0,
+     40.0,
+     60.0
+    ],
+    "tw": [
+     -3.0,
+     -2.0,
+     40.0,
+     60.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ],
+   "turn": {
+    "leaf": 5,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "climber": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.4,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.3
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "canopy"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 1.0,
+   "layer": "epiphyte",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.6,
+     1.0,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -5.0,
+     5.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     15.0,
+     20.0,
+     34.0,
+     38.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "coral_deep": {
+   "L_km": 800.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "m_benthic_flux": 0.5,
+    "m_zoo": 0.5
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "hard_bottom",
+    "deep_shelf"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.01,
+   "migratory": false,
+   "mob": "larval_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     30.0,
+     33.0,
+     38.0,
+     40.0
+    ],
+    "tc": [
+     2.0,
+     4.0,
+     12.0,
+     16.0
+    ],
+    "tw": [
+     2.0,
+     4.0,
+     14.0,
+     18.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.2,
+   "phi": 0.05,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "coral_symbiotic": {
+   "L_km": 800.0,
+   "assim": 0.7,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "m_zoo": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "lit_bottom",
+    "hard_bottom"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.01,
+   "migratory": false,
+   "mob": "larval_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     28.0,
+     32.0,
+     38.0,
+     42.0
+    ],
+    "tc": [
+     16.0,
+     20.0,
+     29.0,
+     31.0
+    ],
+    "tw": [
+     20.0,
+     24.0,
+     30.0,
+     33.0
+    ]
+   },
+   "npe": 0.4,
+   "pb": 0.5,
+   "phi": 0.1,
+   "photosymbiont_lue": 0.5,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    18.0,
+    22.0,
+    30.0,
+    33.0
+   ]
+  },
+  "crustacean_fresh": {
+   "L_km": 80.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "fw_detritus": 0.4,
+    "fw_invert": 0.3,
+    "fw_macro": 0.3
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.05,
+   "migratory": false,
+   "mob": "river",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     10.0,
+     14.0,
+     34.0,
+     38.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 1.5,
+   "phi": 0.15,
+   "provides": "fw_fish",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    2.0,
+    30.0,
+    36.0
+   ]
+  },
+  "crustacean_marine": {
+   "L_km": 600.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "m_benthos": 0.5,
+    "m_detritus": 0.5
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "shelf"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.3,
+   "migratory": false,
+   "mob": "shelf",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 1.0,
+   "phi": 0.15,
+   "provides": "m_fish_dem",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    0.0,
+    30.0,
+    35.0
+   ]
+  },
+  "deep_benthos": {
+   "L_km": 1500.0,
+   "assim": 0.3,
+   "breed_months": 2,
+   "d0": 1.0,
+   "diet": {
+    "m_benthic_flux": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "deep"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.02,
+   "migratory": false,
+   "mob": "deep",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     20.0,
+     30.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.3,
+   "phi": 0.5,
+   "provides": "m_deep",
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "engineer_semiaquatic": {
+   "L_km": 30.0,
+   "assim": 0.45,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "fw_macro": 0.3,
+    "leaf_woody": 0.7
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "river",
+    "woody_cover"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 20.0,
+   "migratory": false,
+   "mob": "river_ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -45.0,
+     -30.0,
+     10.0,
+     20.0
+    ],
+    "tw": [
+     8.0,
+     12.0,
+     26.0,
+     32.0
+    ]
+   },
+   "npe": 0.03,
+   "pb": 0.4,
+   "phi": 0.05,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -30.0,
+    -10.0,
+    28.0,
+    34.0
+   ]
+  },
+  "epiphyte": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.6,
+    "repro": 0.1,
+    "root": 0.3,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.3,
+   "gates": [
+    "land_ground",
+    "canopy"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.003,
+   "kp": 0.0001,
+   "lai_max": 0.6,
+   "layer": "epiphyte",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     1.0,
+     1.5,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     0.0,
+     8.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     14.0,
+     18.0,
+     32.0,
+     36.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.4,
+    "repro": 1.0,
+    "root": 0.4,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "fern": {
+   "L_km": 200.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.1,
+    "root": 0.45,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.2,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 2.0,
+   "layer": "ground",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "spore",
+   "niche": {
+    "mi": [
+     0.6,
+     1.0,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -30.0,
+     -10.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     8.0,
+     14.0,
+     30.0,
+     36.0
+    ]
+   },
+   "poll": "spore",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "fish_anadromous": {
+   "L_km": 1500.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 2.0,
+   "diet": {
+    "fw_invert": 0.2,
+    "m_forage": 0.6,
+    "m_zoo": 0.2
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "anadromous"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 5.0,
+   "migratory": true,
+   "mob": "river_ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tc": [
+     -2.0,
+     -1.0,
+     12.0,
+     18.0
+    ],
+    "tw": [
+     4.0,
+     8.0,
+     20.0,
+     24.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.5,
+   "phi": 0.1,
+   "provides": "m_nekton",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -1.0,
+    4.0,
+    16.0,
+    22.0
+   ]
+  },
+  "fish_dem_grazer": {
+   "L_km": 300.0,
+   "assim": 0.4,
+   "breed_months": 2,
+   "d0": 8.0,
+   "diet": {
+    "m_macro": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "lit_bottom"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.5,
+   "migratory": false,
+   "mob": "shelf",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     25.0,
+     30.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     14.0,
+     18.0,
+     30.0,
+     33.0
+    ],
+    "tw": [
+     18.0,
+     22.0,
+     31.0,
+     34.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.8,
+   "phi": 0.25,
+   "provides": "m_fish_dem",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    14.0,
+    18.0,
+    31.0,
+    34.0
+   ]
+  },
+  "fish_dem_predator": {
+   "L_km": 800.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 2.0,
+   "diet": {
+    "m_benthos": 0.4,
+    "m_fish_dem": 0.6
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "shelf"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 3.0,
+   "migratory": false,
+   "mob": "shelf",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     28.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -2.0,
+     -1.0,
+     30.0,
+     34.0
+    ],
+    "tw": [
+     -1.0,
+     2.0,
+     31.0,
+     35.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.4,
+   "phi": 0.2,
+   "provides": "m_nekton",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    0.0,
+    30.0,
+    34.0
+   ]
+  },
+  "fish_fresh_grazer": {
+   "L_km": 150.0,
+   "assim": 0.4,
+   "breed_months": 2,
+   "d0": 8.0,
+   "diet": {
+    "fw_macro": 0.4,
+    "fw_periphyton": 0.6
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.5,
+   "migratory": false,
+   "mob": "river",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -2.0,
+     2.0,
+     34.0,
+     38.0
+    ],
+    "tw": [
+     14.0,
+     20.0,
+     34.0,
+     38.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.8,
+   "phi": 0.3,
+   "provides": "fw_fish",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    6.0,
+    14.0,
+    32.0,
+    36.0
+   ]
+  },
+  "fish_fresh_omnivore": {
+   "L_km": 150.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 4.0,
+   "diet": {
+    "fw_invert": 0.3,
+    "fw_macro": 0.3,
+    "fw_zoo": 0.4
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 1.0,
+   "migratory": false,
+   "mob": "river",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -2.0,
+     0.0,
+     34.0,
+     38.0
+    ],
+    "tw": [
+     10.0,
+     16.0,
+     34.0,
+     38.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.6,
+   "phi": 0.2,
+   "provides": "fw_fish",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    2.0,
+    30.0,
+    36.0
+   ]
+  },
+  "fish_fresh_predator": {
+   "L_km": 150.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 1.5,
+   "diet": {
+    "fw_fish": 0.8,
+    "fw_invert": 0.2
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 3.0,
+   "migratory": false,
+   "mob": "river",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -2.0,
+     0.0,
+     32.0,
+     36.0
+    ],
+    "tw": [
+     8.0,
+     12.0,
+     32.0,
+     36.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.4,
+   "phi": 0.2,
+   "provides": "fw_fish_large",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    1.0,
+    12.0,
+    24.0,
+    34.0
+   ]
+  },
+  "forb": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.1,
+    "root": 0.45,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.6,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 2.0,
+   "layer": "ground",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.1,
+     0.25,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -50.0,
+     -30.0,
+     25.0,
+     35.0
+    ],
+    "tw": [
+     3.0,
+     8.0,
+     30.0,
+     38.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "grass_c3": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.1,
+    "root": 0.45,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.7,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 3.0,
+   "layer": "ground",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.15,
+     0.3,
+     4.0,
+     8.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -50.0,
+     -30.0,
+     10.0,
+     20.0
+    ],
+    "tw": [
+     6.0,
+     12.0,
+     24.0,
+     32.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -1.0,
+    5.0,
+    25.0,
+    35.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "grass_c4": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.1,
+    "root": 0.45,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.7,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 3.5,
+   "layer": "ground",
+   "level": 1,
+   "lue": 1.4,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.1,
+     0.25,
+     3.0,
+     6.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -10.0,
+     2.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     20.0,
+     25.0,
+     36.0,
+     42.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    8.0,
+    18.0,
+    36.0,
+    44.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.03,
+    0.5,
+    1.0,
+    1.01
+   ]
+  },
+  "grazer_large": {
+   "L_km": 60.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 6.0,
+   "diet": {
+    "leaf_herb": 1.0
+   },
+   "dormant": false,
+   "e0": 0.001,
+   "gates": [
+    "land_ground",
+    "herb_cover"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 400.0,
+   "migratory": true,
+   "mob": "ground",
+   "needs_water": true,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.25,
+   "phi": 0.25,
+   "provides": "herb_large",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -40.0,
+    -10.0,
+    34.0,
+    44.0
+   ]
+  },
+  "grazer_small": {
+   "L_km": 40.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "fruit_seed": 0.1,
+    "leaf_herb": 0.9
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "herb_cover"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 2.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.03,
+   "pb": 1.5,
+   "phi": 0.15,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -30.0,
+    -5.0,
+    32.0,
+    42.0
+   ]
+  },
+  "ice_algae": {
+   "L_km": 1500.0,
+   "alloc": {
+    "leaf": 1,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.9,
+   "gates": [
+    "marine",
+    "sea_ice"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "m_ice",
+   "level": 1,
+   "lue": 0.15,
+   "mob": "current_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     20.0,
+     28.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -3.0,
+     -2.0,
+     2.0,
+     6.0
+    ],
+    "tw": [
+     -3.0,
+     -2.0,
+     8.0,
+     14.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -4.0,
+    -2.0,
+    4.0,
+    10.0
+   ],
+   "turn": {
+    "leaf": 20,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "insect_aquatic": {
+   "L_km": 100.0,
+   "assim": 0.3,
+   "breed_months": 2,
+   "d0": 25.0,
+   "diet": {
+    "fw_detritus": 0.6,
+    "fw_periphyton": 0.4
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.0001,
+   "migratory": false,
+   "mob": "river_flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.4,
+   "pb": 5.0,
+   "phi": 0.4,
+   "provides": "fw_invert",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    2.0,
+    30.0,
+    36.0
+   ]
+  },
+  "insect_detritivore": {
+   "L_km": 80.0,
+   "assim": 0.2,
+   "breed_months": 2,
+   "d0": 20.0,
+   "diet": {
+    "litter": 1.0
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.0001,
+   "migratory": false,
+   "mob": "ground_flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.35,
+   "pb": 4.0,
+   "phi": 0.4,
+   "provides": "invert_land",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    4.0,
+    12.0,
+    36.0,
+    44.0
+   ]
+  },
+  "insect_plant": {
+   "L_km": 100.0,
+   "assim": 0.3,
+   "breed_months": 2,
+   "d0": 20.0,
+   "diet": {
+    "leaf_herb": 0.5,
+    "leaf_woody": 0.5
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.0001,
+   "migratory": false,
+   "mob": "ground_flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.4,
+   "pb": 6.0,
+   "phi": 0.25,
+   "provides": "invert_land",
+   "split": [
+    "tw",
+    5
+   ],
+   "split2": [
+    "mi",
+    3
+   ],
+   "t_act": [
+    6.0,
+    14.0,
+    36.0,
+    44.0
+   ]
+  },
+  "insect_pollinator": {
+   "L_km": 100.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 2.0,
+   "diet": {
+    "nectar": 1.0
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "flowers"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.0001,
+   "migratory": false,
+   "mob": "ground_flight",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 6.0,
+   "phi": 0.8,
+   "provides": "invert_land",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    8.0,
+    15.0,
+    36.0,
+    44.0
+   ]
+  },
+  "insect_predator": {
+   "L_km": 30.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 4.0,
+   "diet": {
+    "invert_land": 1.0
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.0001,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 3.0,
+   "phi": 0.3,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    4.0,
+    12.0,
+    36.0,
+    44.0
+   ]
+  },
+  "kelp": {
+   "L_km": 200.0,
+   "alloc": {
+    "leaf": 0.8,
+    "repro": 0.1,
+    "root": 0.1,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.4,
+   "gates": [
+    "marine",
+    "lit_bottom",
+    "hard_bottom"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "m_benthic",
+   "level": 1,
+   "lue": 0.7,
+   "mob": "marine_propagule_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     25.0,
+     30.0,
+     38.0,
+     42.0
+    ],
+    "tc": [
+     -2.0,
+     0.0,
+     14.0,
+     18.0
+    ],
+    "tw": [
+     2.0,
+     6.0,
+     18.0,
+     22.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    2.0,
+    16.0,
+    22.0
+   ],
+   "turn": {
+    "leaf": 3.0,
+    "repro": 1.0,
+    "root": 1.0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "lichen": {
+   "L_km": 400.0,
+   "alloc": {
+    "leaf": 0.9,
+    "repro": 0.1,
+    "root": 0.0,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.1,
+   "gates": [
+    "land_ground"
+   ],
+   "k": 0.5,
+   "kind": "symbiosis",
+   "kn": 0.0005,
+   "kp": 1e-05,
+   "lai_max": 0.6,
+   "layer": "ground",
+   "level": 1,
+   "lue": 0.3,
+   "mob": "spore",
+   "niche": {
+    "mi": [
+     0.02,
+     0.08,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -80.0,
+     -60.0,
+     25.0,
+     35.0
+    ],
+    "tw": [
+     -4.0,
+     1.0,
+     30.0,
+     40.0
+    ]
+   },
+   "poll": "spore",
+   "sla": 8,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -8.0,
+    0.0,
+    20.0,
+    35.0
+   ],
+   "turn": {
+    "leaf": 0.1,
+    "repro": 1.0,
+    "root": 0.1,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.0,
+    0.02,
+    1.0,
+    1.01
+   ]
+  },
+  "marine_mammal_filter": {
+   "L_km": 5000.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "m_zoo": 1.0
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 30000.0,
+   "migratory": true,
+   "mob": "ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     25.0,
+     30.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.05,
+   "phi": 0.05,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "marine_mammal_grazer": {
+   "L_km": 500.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 0.5,
+   "diet": {
+    "m_seagrass": 1.0
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "marine",
+    "lit_bottom",
+    "soft_bottom"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 400.0,
+   "migratory": false,
+   "mob": "shelf",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     16.0,
+     20.0,
+     31.0,
+     34.0
+    ],
+    "tw": [
+     20.0,
+     24.0,
+     32.0,
+     35.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.1,
+   "phi": 0.1,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    18.0,
+    22.0,
+    32.0,
+    35.0
+   ]
+  },
+  "marine_mammal_haulout": {
+   "L_km": 1500.0,
+   "assim": 0.85,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "m_fish_dem": 0.1,
+    "m_forage": 0.4,
+    "m_nekton": 0.5
+   },
+   "dormant": false,
+   "e0": 0.001,
+   "gates": [
+    "marine",
+    "haulout"
+   ],
+   "kind": "animal",
+   "level": 5,
+   "mass_kg": 100.0,
+   "migratory": false,
+   "mob": "ocean_coast",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     28.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -3.0,
+     -2.0,
+     18.0,
+     24.0
+    ],
+    "tw": [
+     -2.0,
+     0.0,
+     20.0,
+     26.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.15,
+   "phi": 0.05,
+   "provides": "m_apex_prey",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -3.0,
+    -1.0,
+    20.0,
+    26.0
+   ]
+  },
+  "marine_mammal_predator": {
+   "L_km": 4000.0,
+   "assim": 0.85,
+   "breed_months": 2,
+   "d0": 0.2,
+   "diet": {
+    "m_forage": 0.3,
+    "m_nekton": 0.7
+   },
+   "dormant": false,
+   "e0": 0.001,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 5,
+   "mass_kg": 150.0,
+   "migratory": false,
+   "mob": "ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     28.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.1,
+   "phi": 0.05,
+   "provides": "m_apex_prey",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "megaherbivore": {
+   "L_km": 80.0,
+   "assim": 0.45,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "leaf_herb": 0.4,
+    "leaf_woody": 0.6
+   },
+   "dormant": false,
+   "e0": 0.003,
+   "gates": [
+    "land_ground",
+    "large_land"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 4000.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": true,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -5.0,
+     5.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.01,
+   "pb": 0.06,
+   "phi": 0.15,
+   "provides": "herb_large",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    5.0,
+    15.0,
+    36.0,
+    42.0
+   ]
+  },
+  "mollusc_fresh": {
+   "L_km": 150.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 15.0,
+   "diet": {
+    "fw_detritus": 0.4,
+    "fw_phyto": 0.6
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.01,
+   "migratory": false,
+   "mob": "water_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 1.0,
+   "phi": 0.3,
+   "provides": "fw_invert",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    2.0,
+    30.0,
+    36.0
+   ]
+  },
+  "moss": {
+   "L_km": 300.0,
+   "alloc": {
+    "leaf": 0.8,
+    "repro": 0.1,
+    "root": 0.1,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.05,
+   "gates": [
+    "land_ground"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.002,
+   "kp": 5e-05,
+   "lai_max": 1.5,
+   "layer": "ground",
+   "level": 1,
+   "lue": 0.6,
+   "mob": "spore",
+   "niche": {
+    "mi": [
+     0.4,
+     0.8,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -70.0,
+     -55.0,
+     20.0,
+     30.0
+    ],
+    "tw": [
+     0.0,
+     3.0,
+     24.0,
+     32.0
+    ]
+   },
+   "poll": "spore",
+   "sla": 15,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -3.0,
+    2.0,
+    18.0,
+    30.0
+   ],
+   "turn": {
+    "leaf": 0.3,
+    "repro": 1.0,
+    "root": 0.3,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "mycorrhiza": {
+   "L_km": 300.0,
+   "assim": 0.8,
+   "breed_months": 1,
+   "d0": 20.0,
+   "diet": {
+    "root_exudate": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "host_plants"
+   ],
+   "kind": "fungus",
+   "level": 2,
+   "mass_kg": 1e-09,
+   "migratory": false,
+   "mob": "spore",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     0.03,
+     0.1,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -70.0,
+     -60.0,
+     40.0,
+     50.0
+    ],
+    "tw": [
+     0.0,
+     4.0,
+     40.0,
+     48.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 3.0,
+   "phi": 0.9,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    4.0,
+    32.0,
+    40.0
+   ]
+  },
+  "n_fixers": {
+   "L_km": 2000.0,
+   "assim": 0.8,
+   "breed_months": 1,
+   "d0": 4.0,
+   "diet": {
+    "root_exudate": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "host_plants"
+   ],
+   "kind": "microbe",
+   "level": 2,
+   "mass_kg": 1e-12,
+   "migratory": false,
+   "mob": "passive",
+   "n_fix_kg_m2_yr": 0.003,
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -40.0,
+     -20.0,
+     40.0,
+     50.0
+    ],
+    "tw": [
+     8.0,
+     14.0,
+     40.0,
+     48.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 3.0,
+   "phi": 0.3,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    2.0,
+    10.0,
+    35.0,
+    42.0
+   ]
+  },
+  "nekton_apex": {
+   "L_km": 5000.0,
+   "assim": 0.85,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "m_apex_prey": 0.3,
+    "m_nekton": 0.7
+   },
+   "dormant": false,
+   "e0": 0.001,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 6,
+   "mass_kg": 100.0,
+   "migratory": false,
+   "mob": "ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     25.0,
+     30.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -2.0,
+     0.0,
+     30.0,
+     34.0
+    ],
+    "tw": [
+     4.0,
+     10.0,
+     31.0,
+     35.0
+    ]
+   },
+   "npe": 0.15,
+   "pb": 0.2,
+   "phi": 0.05,
+   "provides": null,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -1.0,
+    4.0,
+    30.0,
+    34.0
+   ]
+  },
+  "nekton_forage": {
+   "L_km": 2000.0,
+   "assim": 0.7,
+   "breed_months": 2,
+   "d0": 10.0,
+   "diet": {
+    "m_zoo": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.1,
+   "migratory": false,
+   "mob": "ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     10.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -2.0,
+     -1.0,
+     30.0,
+     34.0
+    ],
+    "tw": [
+     -1.0,
+     2.0,
+     31.0,
+     35.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 1.5,
+   "phi": 0.3,
+   "provides": "m_forage",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    0.0,
+    30.0,
+    34.0
+   ]
+  },
+  "nekton_medium": {
+   "L_km": 3000.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "m_forage": 0.8,
+    "m_zoo": 0.2
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 2.0,
+   "migratory": false,
+   "mob": "ocean",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     15.0,
+     28.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -2.0,
+     0.0,
+     30.0,
+     34.0
+    ],
+    "tw": [
+     0.0,
+     4.0,
+     31.0,
+     35.0
+    ]
+   },
+   "npe": 0.2,
+   "pb": 0.6,
+   "phi": 0.2,
+   "provides": "m_nekton",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -1.0,
+    2.0,
+    30.0,
+    34.0
+   ]
+  },
+  "omnivore_land": {
+   "L_km": 40.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 0.8,
+   "diet": {
+    "fruit_seed": 0.4,
+    "herb_small": 0.2,
+    "invert_land": 0.2,
+    "leaf_herb": 0.2
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 60.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.4,
+   "phi": 0.06,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -30.0,
+    -5.0,
+    34.0,
+    42.0
+   ]
+  },
+  "parasite_proxy": {
+   "L_km": 1000.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "herb_large": 0.3,
+    "herb_small": 0.3,
+    "invert_land": 0.4
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "hosts"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 1e-06,
+   "migratory": false,
+   "mob": "host_dependent",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 5.0,
+   "phi": 0.03,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    5.0,
+    35.0,
+    42.0
+   ]
+  },
+  "periphyton": {
+   "L_km": 300.0,
+   "alloc": {
+    "leaf": 1,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.9,
+   "gates": [
+    "river"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "fw_benthic",
+   "level": 1,
+   "lue": 0.25,
+   "mob": "water_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -5.0,
+     6.0,
+     32.0,
+     38.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    0.0,
+    6.0,
+    28.0,
+    36.0
+   ],
+   "turn": {
+    "leaf": 15,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "phytoplankton_fresh": {
+   "L_km": 500.0,
+   "alloc": {
+    "leaf": 1,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.9,
+   "gates": [
+    "inland_water"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "fw_plankton",
+   "level": 1,
+   "lue": 0.25,
+   "mob": "water_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -5.0,
+     6.0,
+     32.0,
+     38.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    28.0,
+    36.0
+   ],
+   "turn": {
+    "leaf": 40,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "phytoplankton_marine": {
+   "L_km": 2000.0,
+   "alloc": {
+    "leaf": 1,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.9,
+   "gates": [
+    "marine"
+   ],
+   "k": 0.5,
+   "kind": "alga",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "m_plankton",
+   "level": 1,
+   "lue": 0.3,
+   "mob": "current_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     5.0,
+     20.0,
+     42.0,
+     50.0
+    ],
+    "tc": [
+     -3.0,
+     -2.0,
+     32.0,
+     35.0
+    ],
+    "tw": [
+     -2.0,
+     -1.0,
+     33.0,
+     36.0
+    ]
+   },
+   "poll": "none",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -3.0,
+    0.0,
+    28.0,
+    35.0
+   ],
+   "turn": {
+    "leaf": 60,
+    "repro": 0,
+    "root": 0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "predator_ambush": {
+   "L_km": 100.0,
+   "assim": 0.85,
+   "breed_months": 2,
+   "d0": 0.06,
+   "diet": {
+    "herb_large": 0.6,
+    "herb_small": 0.3,
+    "meso_land": 0.1
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 80.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.3,
+   "phi": 0.1,
+   "provides": "pred_top",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -35.0,
+    -10.0,
+    36.0,
+    44.0
+   ]
+  },
+  "predator_pursuit": {
+   "L_km": 150.0,
+   "assim": 0.85,
+   "breed_months": 2,
+   "d0": 0.08,
+   "diet": {
+    "herb_large": 0.7,
+    "herb_small": 0.3
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "land_ground",
+    "large_land"
+   ],
+   "kind": "animal",
+   "level": 4,
+   "mass_kg": 40.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.3,
+   "phi": 0.12,
+   "provides": "pred_top",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -45.0,
+    -15.0,
+    34.0,
+    42.0
+   ]
+  },
+  "predator_small": {
+   "L_km": 40.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.4,
+   "diet": {
+    "herb_small": 0.7,
+    "invert_land": 0.3
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 1.5,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.6,
+   "phi": 0.15,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -40.0,
+    -10.0,
+    34.0,
+    42.0
+   ]
+  },
+  "reptile_herbivore": {
+   "L_km": 15.0,
+   "assim": 0.5,
+   "breed_months": 2,
+   "d0": 0.8,
+   "diet": {
+    "fruit_seed": 0.3,
+    "leaf_herb": 0.7
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 3.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     0.0,
+     8.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     16.0,
+     22.0,
+     40.0,
+     46.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.4,
+   "phi": 0.06,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    12.0,
+    20.0,
+    38.0,
+    44.0
+   ]
+  },
+  "reptile_predator": {
+   "L_km": 15.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.6,
+   "diet": {
+    "herb_small": 0.3,
+    "invert_land": 0.7
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 3,
+   "mass_kg": 0.2,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -10.0,
+     0.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     16.0,
+     22.0,
+     40.0,
+     46.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.6,
+   "phi": 0.08,
+   "provides": "meso_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    12.0,
+    20.0,
+    38.0,
+    44.0
+   ]
+  },
+  "reptile_semiaquatic": {
+   "L_km": 60.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.15,
+   "diet": {
+    "fw_fish": 0.2,
+    "fw_fish_large": 0.5,
+    "herb_large": 0.3
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "land_ground",
+    "any_fresh"
+   ],
+   "kind": "animal",
+   "level": 5,
+   "mass_kg": 200.0,
+   "migratory": false,
+   "mob": "river_ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     8.0,
+     14.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     22.0,
+     26.0,
+     38.0,
+     44.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.1,
+   "phi": 0.1,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    16.0,
+    22.0,
+    36.0,
+    42.0
+   ]
+  },
+  "scavenger_land": {
+   "L_km": 100.0,
+   "assim": 0.8,
+   "breed_months": 2,
+   "d0": 0.3,
+   "diet": {
+    "carrion": 1.0
+   },
+   "dormant": false,
+   "e0": 0.002,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 6,
+   "mass_kg": 50.0,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.02,
+   "pb": 0.3,
+   "phi": 0.3,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -20.0,
+    0.0,
+    36.0,
+    44.0
+   ]
+  },
+  "seagrass": {
+   "L_km": 300.0,
+   "alloc": {
+    "leaf": 0.5,
+    "repro": 0.1,
+    "root": 0.4,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "marine",
+    "lit_bottom",
+    "soft_bottom"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "m_benthic",
+   "level": 1,
+   "lue": 0.5,
+   "mob": "marine_propagule_drift",
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     15.0,
+     25.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     5.0,
+     10.0,
+     30.0,
+     33.0
+    ],
+    "tw": [
+     10.0,
+     15.0,
+     31.0,
+     34.0
+    ]
+   },
+   "poll": "water",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    4.0,
+    12.0,
+    30.0,
+    34.0
+   ],
+   "turn": {
+    "leaf": 2.0,
+    "repro": 1.0,
+    "root": 1.0,
+    "wood": 0
+   },
+   "w_act": [
+    -1.0,
+    -1.0,
+    9.0,
+    10.0
+   ]
+  },
+  "sedge": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.1,
+    "root": 0.45,
+    "wood": 0.0
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "wet_ground"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 3.0,
+   "layer": "ground",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.5,
+     0.9,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     15.0,
+     25.0
+    ],
+    "tw": [
+     1.0,
+     4.0,
+     24.0,
+     32.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -1.0,
+    4.0,
+    25.0,
+    34.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.8,
+    "wood": 0.0
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "seed_rodent": {
+   "L_km": 20.0,
+   "assim": 0.7,
+   "breed_months": 2,
+   "d0": 3.0,
+   "diet": {
+    "fruit_seed": 0.8,
+    "leaf_herb": 0.2
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.03,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.03,
+   "pb": 3.0,
+   "phi": 0.25,
+   "provides": "herb_small",
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    3
+   ],
+   "t_act": [
+    -20.0,
+    0.0,
+    36.0,
+    44.0
+   ]
+  },
+  "shrub_deciduous": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.35,
+    "repro": 0.05,
+    "root": 0.35,
+    "wood": 0.25
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 2.5,
+   "layer": "shrub",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.3,
+     0.5,
+     6.0,
+     9.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -45.0,
+     -30.0,
+     5.0,
+     15.0
+    ],
+    "tw": [
+     8.0,
+     14.0,
+     28.0,
+     34.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.06
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "shrub_dwarf": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.4,
+    "wood": 0.25
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.006,
+   "kp": 0.0006,
+   "lai_max": 1.2,
+   "layer": "shrub",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     0.0,
+     50.0,
+     800.0,
+     1500.0
+    ],
+    "mi": [
+     0.2,
+     0.4,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -45.0,
+     -5.0,
+     5.0
+    ],
+    "tw": [
+     1.0,
+     4.0,
+     13.0,
+     19.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 12,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    -2.0,
+    3.0,
+    20.0,
+    28.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.4,
+    "wood": 0.05
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "shrub_evergreen": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.35,
+    "wood": 0.3
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 2.5,
+   "layer": "shrub",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.25,
+     0.4,
+     1.5,
+     3.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -12.0,
+     0.0,
+     18.0,
+     25.0
+    ],
+    "tw": [
+     14.0,
+     20.0,
+     32.0,
+     40.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.4,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.06
+   },
+   "w_act": [
+    0.03,
+    0.5,
+    1.0,
+    1.01
+   ]
+  },
+  "shrub_thorn": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.35,
+    "wood": 0.3
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.3,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 1.5,
+   "layer": "shrub",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.05,
+     0.12,
+     0.5,
+     0.9
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -5.0,
+     5.0,
+     28.0,
+     35.0
+    ],
+    "tw": [
+     20.0,
+     26.0,
+     38.0,
+     44.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.8,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.06
+   },
+   "w_act": [
+    0.01,
+    0.3,
+    1.0,
+    1.01
+   ]
+  },
+  "soil_detritivore": {
+   "L_km": 15.0,
+   "assim": 0.2,
+   "breed_months": 2,
+   "d0": 25.0,
+   "diet": {
+    "litter": 1.0
+   },
+   "dormant": true,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground",
+    "soil"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.001,
+   "migratory": false,
+   "mob": "ground",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     0.1,
+     0.3,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -60.0,
+     -40.0,
+     35.0,
+     45.0
+    ],
+    "tw": [
+     0.0,
+     6.0,
+     36.0,
+     44.0
+    ]
+   },
+   "npe": 0.35,
+   "pb": 3.0,
+   "phi": 0.5,
+   "provides": "invert_land",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    6.0,
+    30.0,
+    38.0
+   ]
+  },
+  "soil_fungi": {
+   "L_km": 300.0,
+   "assim": 0.4,
+   "breed_months": 1,
+   "d0": 40.0,
+   "diet": {
+    "litter": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "fungus",
+   "level": 2,
+   "mass_kg": 1e-09,
+   "migratory": false,
+   "mob": "spore",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     0.05,
+     0.2,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -70.0,
+     -60.0,
+     40.0,
+     50.0
+    ],
+    "tw": [
+     -2.0,
+     3.0,
+     40.0,
+     48.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 4.0,
+   "phi": 0.5,
+   "provides": null,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -2.0,
+    4.0,
+    32.0,
+    40.0
+   ]
+  },
+  "soil_microbes": {
+   "L_km": 5000.0,
+   "assim": 0.5,
+   "breed_months": 1,
+   "d0": 60.0,
+   "diet": {
+    "litter": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "land_ground"
+   ],
+   "kind": "microbe",
+   "level": 2,
+   "mass_kg": 1e-12,
+   "migratory": false,
+   "mob": "passive",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 8.0,
+   "phi": 0.6,
+   "provides": null,
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    5.0,
+    40.0,
+    50.0
+   ]
+  },
+  "succulent_leaf": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.45,
+    "repro": 0.05,
+    "root": 0.4,
+    "wood": 0.1
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.2,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 0.8,
+   "layer": "ground",
+   "level": 1,
+   "lue": 0.8,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.02,
+     0.08,
+     0.6,
+     1.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -5.0,
+     0.0,
+     25.0,
+     35.0
+    ],
+    "tw": [
+     14.0,
+     20.0,
+     38.0,
+     46.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.3,
+    "repro": 1.0,
+    "root": 0.3,
+    "wood": 0.05
+   },
+   "w_act": [
+    0.0,
+    0.05,
+    1.0,
+    1.01
+   ]
+  },
+  "succulent_stem": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.4,
+    "repro": 0.05,
+    "root": 0.35,
+    "wood": 0.2
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.15,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 0.5,
+   "layer": "ground",
+   "level": 1,
+   "lue": 0.8,
+   "mob": "seed",
+   "niche": {
+    "mi": [
+     0.0,
+     0.03,
+     0.3,
+     0.6
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -8.0,
+     2.0,
+     20.0,
+     40.0
+    ],
+    "tw": [
+     16.0,
+     22.0,
+     40.0,
+     48.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.2,
+    "repro": 1.0,
+    "root": 0.3,
+    "wood": 0.05
+   },
+   "w_act": [
+    0.0,
+    0.03,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_broadleaf_deciduous": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 5.0,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     700.0,
+     1200.0,
+     4500.0,
+     6000.0
+    ],
+    "mi": [
+     0.45,
+     0.7,
+     4.0,
+     7.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -35.0,
+     -20.0,
+     4.0,
+     12.0
+    ],
+    "tw": [
+     12.0,
+     17.0,
+     28.0,
+     34.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_broadleaf_evergreen": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 6.5,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     1500.0,
+     3000.0,
+     12000.0,
+     14000.0
+    ],
+    "mi": [
+     0.6,
+     1.0,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -2.0,
+     8.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     14.0,
+     20.0,
+     32.0,
+     38.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    4
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_drought": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 2.5,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     2500.0,
+     4000.0,
+     12000.0,
+     14000.0
+    ],
+    "mi": [
+     0.12,
+     0.25,
+     0.8,
+     1.3
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     0.0,
+     8.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     18.0,
+     24.0,
+     36.0,
+     42.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.8,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.02,
+    0.45,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_fern": {
+   "L_km": 200.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 4.0,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "spore",
+   "niche": {
+    "mi": [
+     1.0,
+     1.5,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     0.0,
+     6.0,
+     22.0,
+     28.0
+    ],
+    "tw": [
+     12.0,
+     16.0,
+     26.0,
+     32.0
+    ]
+   },
+   "poll": "spore",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_mangrove": {
+   "L_km": 400.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "tidal_coast"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 4.0,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "floating_seed",
+   "niche": {
+    "mi": [
+     0.1,
+     0.3,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     0.0,
+     40.0,
+     60.0
+    ],
+    "tc": [
+     10.0,
+     16.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     20.0,
+     24.0,
+     34.0,
+     38.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_needle_deciduous": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.01,
+   "kp": 0.0006,
+   "lai_max": 3.0,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     100.0,
+     300.0,
+     1300.0,
+     2500.0
+    ],
+    "mi": [
+     0.25,
+     0.45,
+     3.0,
+     6.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -70.0,
+     -50.0,
+     -20.0,
+     -5.0
+    ],
+    "tw": [
+     6.0,
+     10.0,
+     20.0,
+     26.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 14,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 1.0,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.02
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_needle_evergreen": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.012,
+   "kp": 0.0006,
+   "lai_max": 4.5,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     100.0,
+     500.0,
+     2000.0,
+     4500.0
+    ],
+    "mi": [
+     0.35,
+     0.6,
+     6.0,
+     9.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -55.0,
+     -40.0,
+     5.0,
+     15.0
+    ],
+    "tw": [
+     5.0,
+     12.0,
+     22.0,
+     32.0
+    ]
+   },
+   "poll": "wind",
+   "sla": 10,
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.25,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.02
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "tree_palm": {
+   "L_km": 60.0,
+   "alloc": {
+    "leaf": 0.3,
+    "repro": 0.05,
+    "root": 0.25,
+    "wood": 0.4
+   },
+   "cue": 0.5,
+   "e0": 2e-05,
+   "edible": 0.5,
+   "gates": [
+    "land_ground",
+    "root_zone"
+   ],
+   "k": 0.5,
+   "kind": "plant",
+   "kn": 0.02,
+   "kp": 0.0006,
+   "lai_max": 4.0,
+   "layer": "canopy",
+   "level": 1,
+   "lue": 1.1,
+   "mob": "seed",
+   "niche": {
+    "gdd": [
+     3000.0,
+     4500.0,
+     12000.0,
+     14000.0
+    ],
+    "mi": [
+     0.15,
+     0.5,
+     9.0,
+     10.0
+    ],
+    "ph": [
+     3.5,
+     4.5,
+     8.0,
+     9.5
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     4.0,
+     12.0,
+     30.0,
+     35.0
+    ],
+    "tw": [
+     18.0,
+     24.0,
+     34.0,
+     40.0
+    ]
+   },
+   "poll": "animal",
+   "sla": 20.0,
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    2
+   ],
+   "t_act": [
+    0.0,
+    8.0,
+    30.0,
+    40.0
+   ],
+   "turn": {
+    "leaf": 0.5,
+    "repro": 1.0,
+    "root": 0.5,
+    "wood": 0.03
+   },
+   "w_act": [
+    0.05,
+    0.7,
+    1.0,
+    1.01
+   ]
+  },
+  "vent_consumer": {
+   "L_km": 600.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 50.0,
+   "diet": {
+    "m_chemo": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine",
+    "vent"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 0.1,
+   "migratory": false,
+   "mob": "larval_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     20.0,
+     30.0,
+     40.0,
+     45.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.3,
+   "pb": 0.5,
+   "phi": 0.7,
+   "provides": "m_deep",
+   "split": [
+    "tw",
+    1
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -90.0,
+    -90.0,
+    60.0,
+    70.0
+   ]
+  },
+  "zooplankton_fresh": {
+   "L_km": 300.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 40.0,
+   "diet": {
+    "fw_phyto": 1.0
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "inland_water"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 1e-06,
+   "migratory": false,
+   "mob": "water_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     -1.0,
+     -1.0,
+     4.0,
+     10.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.4,
+   "pb": 15.0,
+   "phi": 0.5,
+   "provides": "fw_zoo",
+   "split": [
+    "tw",
+    2
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -5.0,
+    2.0,
+    30.0,
+    36.0
+   ]
+  },
+  "zooplankton_marine": {
+   "L_km": 2000.0,
+   "assim": 0.6,
+   "breed_months": 2,
+   "d0": 60.0,
+   "diet": {
+    "m_ice_algae": 0.05,
+    "m_phyto": 0.95
+   },
+   "dormant": false,
+   "e0": 0.0005,
+   "gates": [
+    "marine"
+   ],
+   "kind": "animal",
+   "level": 2,
+   "mass_kg": 1e-06,
+   "migratory": false,
+   "mob": "current_drift",
+   "needs_water": false,
+   "niche": {
+    "mi": [
+     -1.0,
+     -1.0,
+     99.0,
+     100.0
+    ],
+    "sal": [
+     5.0,
+     20.0,
+     42.0,
+     50.0
+    ],
+    "tc": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ],
+    "tw": [
+     -90.0,
+     -90.0,
+     60.0,
+     70.0
+    ]
+   },
+   "npe": 0.4,
+   "pb": 12.0,
+   "phi": 0.6,
+   "provides": "m_zoo",
+   "split": [
+    "tw",
+    3
+   ],
+   "split2": [
+    "mi",
+    1
+   ],
+   "t_act": [
+    -3.0,
+    0.0,
+    30.0,
+    36.0
+   ]
+  }
+ },
+ "units": {
+  "L_km": "km",
+  "d0": "gC/m² of habitat/yr",
+  "e0": "1/yr",
+  "gdd": "°C·day above 5 °C",
+  "kn": "kgN/m²/yr",
+  "kp": "kgP/m²",
+  "lue": "gC/MJ APAR",
+  "mass_kg": "kg wet per individual",
+  "mi": "P/PET",
+  "pb": "1/yr",
+  "ph": "pH",
+  "sal": "dS/m on land, psu in water",
+  "sla": "m² leaf / kgC",
+  "tc,tw": "°C (land: air; water: water temperature)",
+  "turn": "1/yr"
+ }
+}

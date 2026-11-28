@@ -1,0 +1,1069 @@
+{
+  "schema_example_version": "5.5.0",
+  "status": "seed_registry_for_implementation_not_calibrated_traits",
+  "notes_ru": "Названия функциональных гильдий и экологических аналогов; не список реальных отдельных видов. habitat_hint — семантическая подсказка, не безусловный предикат, преобразовать в реальные hard/soft rules. Mixed realm taxa require separate stage contracts. Некоторые гильдии перекрываются: для расчёта богатства использовать уникальные leaf taxon IDs, а не количество записей. Все пропущенные количественные параметры заполнить и проверить в G1. Не заменять отсутствующие входы значениями по умолчанию.",
+  "groups": [
+    {
+      "id": "tree_broadleaf_evergreen",
+      "name_ru": "Вечнозелёные широколиственные деревья",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "лавроподобное дерево",
+      "mobility_mode": "seed",
+      "habitat_hint": "forest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_broadleaf_deciduous",
+      "name_ru": "Листопадные широколиственные деревья",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "дубоподобное дерево",
+      "mobility_mode": "seed",
+      "habitat_hint": "forest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_needle_evergreen",
+      "name_ru": "Вечнозелёные хвойные",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "сосноподобное дерево",
+      "mobility_mode": "seed",
+      "habitat_hint": "forest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_needle_deciduous",
+      "name_ru": "Листопадные хвойные",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "лиственницеподобное дерево",
+      "mobility_mode": "seed",
+      "habitat_hint": "forest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_drought",
+      "name_ru": "Засухоустойчивые деревья",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "акациеподобное дерево",
+      "mobility_mode": "seed",
+      "habitat_hint": "woodland",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_palm",
+      "name_ru": "Пальмовидные деревья",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "пальмоподобное растение",
+      "mobility_mode": "seed",
+      "habitat_hint": "warm_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_mangrove",
+      "name_ru": "Мангры",
+      "realm": "coastal",
+      "trophic_role": "producer",
+      "example_analogue_ru": "мангроподобное дерево",
+      "mobility_mode": "floating_seed",
+      "habitat_hint": "tidal_saline_substrate",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "tree_fern",
+      "name_ru": "Древовидные папоротники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "папоротниковидное дерево",
+      "mobility_mode": "spore",
+      "habitat_hint": "humid_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "shrub_evergreen",
+      "name_ru": "Вечнозелёные кустарники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "верескоподобный кустарник",
+      "mobility_mode": "seed",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "shrub_deciduous",
+      "name_ru": "Листопадные кустарники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "ивоподобный кустарник",
+      "mobility_mode": "seed",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "shrub_thorn",
+      "name_ru": "Колючие кустарники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "терновникоподобный кустарник",
+      "mobility_mode": "seed",
+      "habitat_hint": "dry_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "shrub_dwarf",
+      "name_ru": "Стелющиеся карликовые кустарники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "карликовый кустарник",
+      "mobility_mode": "seed",
+      "habitat_hint": "low_canopy",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "grass_c3",
+      "name_ru": "Злаки C3",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "мятликоподобная трава",
+      "mobility_mode": "seed",
+      "habitat_hint": "open_ground",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "grass_c4",
+      "name_ru": "Злаки C4",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "просовидная трава",
+      "mobility_mode": "seed",
+      "habitat_hint": "open_ground",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "forb",
+      "name_ru": "Разнотравье",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "цветущая травянистая форма",
+      "mobility_mode": "seed",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "sedge",
+      "name_ru": "Осоковые аналоги",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "осокоподобная трава",
+      "mobility_mode": "seed",
+      "habitat_hint": "wet_ground",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "succulent_stem",
+      "name_ru": "Стеблевые суккуленты",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "кактусовидное растение",
+      "mobility_mode": "seed",
+      "habitat_hint": "dry_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "succulent_leaf",
+      "name_ru": "Листовые суккуленты",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "алоэвидное растение",
+      "mobility_mode": "seed",
+      "habitat_hint": "dry_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "climber",
+      "name_ru": "Лианы",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "древесная лиана",
+      "mobility_mode": "seed",
+      "habitat_hint": "supporting_vegetation",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "epiphyte",
+      "name_ru": "Эпифиты",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "орхидееподобный эпифит",
+      "mobility_mode": "seed",
+      "habitat_hint": "supporting_vegetation",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fern",
+      "name_ru": "Наземные папоротники",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "папоротникоподобная форма",
+      "mobility_mode": "spore",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "moss",
+      "name_ru": "Мхи",
+      "realm": "land",
+      "trophic_role": "producer",
+      "example_analogue_ru": "мохоподобная форма",
+      "mobility_mode": "spore",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "lichen",
+      "name_ru": "Лишайники",
+      "realm": "land",
+      "trophic_role": "symbiosis_producer",
+      "example_analogue_ru": "лишайниковая форма",
+      "mobility_mode": "spore_and_fragment",
+      "habitat_hint": "exposed_substrate",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "aquatic_submerged",
+      "name_ru": "Погружённые пресноводные растения",
+      "realm": "freshwater",
+      "trophic_role": "producer",
+      "example_analogue_ru": "рдестоподобная форма",
+      "mobility_mode": "water_seed",
+      "habitat_hint": "photic_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "aquatic_floating",
+      "name_ru": "Плавающие растения",
+      "realm": "freshwater",
+      "trophic_role": "producer",
+      "example_analogue_ru": "кувшинкоподобная форма",
+      "mobility_mode": "water_seed",
+      "habitat_hint": "water_surface",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "aquatic_emergent",
+      "name_ru": "Прибрежные водные растения",
+      "realm": "freshwater",
+      "trophic_role": "producer",
+      "example_analogue_ru": "тростниковая форма",
+      "mobility_mode": "water_seed",
+      "habitat_hint": "shallow_water_or_wet_ground",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "seagrass",
+      "name_ru": "Морские травы",
+      "realm": "marine",
+      "trophic_role": "producer",
+      "example_analogue_ru": "зостероподобная форма",
+      "mobility_mode": "marine_propagule_drift",
+      "habitat_hint": "lit_soft_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "kelp",
+      "name_ru": "Крупные бурые водоросли",
+      "realm": "marine",
+      "trophic_role": "producer",
+      "example_analogue_ru": "ламинариеподобная водоросль",
+      "mobility_mode": "marine_propagule_drift",
+      "habitat_hint": "lit_hard_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "algae_macro_other",
+      "name_ru": "Прочие макроводоросли",
+      "realm": "marine",
+      "trophic_role": "producer",
+      "example_analogue_ru": "красная макроводоросль",
+      "mobility_mode": "marine_propagule_drift",
+      "habitat_hint": "lit_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "phytoplankton_marine",
+      "name_ru": "Морской фитопланктон",
+      "realm": "marine",
+      "trophic_role": "producer",
+      "example_analogue_ru": "фитопланктонный комплекс",
+      "mobility_mode": "current_drift",
+      "habitat_hint": "photic_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "phytoplankton_fresh",
+      "name_ru": "Пресноводный фитопланктон",
+      "realm": "freshwater",
+      "trophic_role": "producer",
+      "example_analogue_ru": "фитопланктонный комплекс озера",
+      "mobility_mode": "water_drift",
+      "habitat_hint": "photic_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "ice_algae",
+      "name_ru": "Ледовые водоросли",
+      "realm": "marine",
+      "trophic_role": "producer",
+      "example_analogue_ru": "ледовые микроводоросли",
+      "mobility_mode": "current_drift",
+      "habitat_hint": "lit_sea_ice",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "periphyton",
+      "name_ru": "Перифитон",
+      "realm": "freshwater",
+      "trophic_role": "producer",
+      "example_analogue_ru": "обрастания речного дна",
+      "mobility_mode": "water_drift",
+      "habitat_hint": "lit_substrate",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "chemo_microbes",
+      "name_ru": "Хемосинтетические микробы",
+      "realm": "marine",
+      "trophic_role": "chemo_producer",
+      "example_analogue_ru": "микробный мат источника",
+      "mobility_mode": "current_drift",
+      "habitat_hint": "geochemical_energy_source",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "soil_fungi",
+      "name_ru": "Почвенные грибы-сапротрофы",
+      "realm": "land",
+      "trophic_role": "decomposer",
+      "example_analogue_ru": "сапротрофный гриб",
+      "mobility_mode": "spore",
+      "habitat_hint": "organic_substrate",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "mycorrhiza",
+      "name_ru": "Микоризные грибы",
+      "realm": "land",
+      "trophic_role": "mutualist",
+      "example_analogue_ru": "микоризный гриб",
+      "mobility_mode": "spore",
+      "habitat_hint": "host_roots",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "soil_microbes",
+      "name_ru": "Почвенные микробы",
+      "realm": "land",
+      "trophic_role": "decomposer",
+      "example_analogue_ru": "микробное сообщество почвы",
+      "mobility_mode": "passive",
+      "habitat_hint": "soil",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "aquatic_microbes",
+      "name_ru": "Водные микробы",
+      "realm": "aquatic",
+      "trophic_role": "decomposer",
+      "example_analogue_ru": "водный микробный комплекс",
+      "mobility_mode": "water_drift",
+      "habitat_hint": "water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "n_fixers",
+      "name_ru": "Азотфиксирующие симбионты",
+      "realm": "land",
+      "trophic_role": "mutualist",
+      "example_analogue_ru": "клубенькоподобный симбионт",
+      "mobility_mode": "passive",
+      "habitat_hint": "compatible_host",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "soil_detritivore",
+      "name_ru": "Почвенные детритофаги",
+      "realm": "land",
+      "trophic_role": "detritivore",
+      "example_analogue_ru": "червеподобный детритофаг",
+      "mobility_mode": "ground",
+      "habitat_hint": "soil",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "grazer_small",
+      "name_ru": "Мелкие пасущиеся травоядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "зайцеподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "herbaceous_cover",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "grazer_large",
+      "name_ru": "Крупные пасущиеся травоядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "бизоноподобное животное",
+      "mobility_mode": "ground",
+      "habitat_hint": "open_ground",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "browser_large",
+      "name_ru": "Крупные листоядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "оленеподобное животное",
+      "mobility_mode": "ground",
+      "habitat_hint": "woody_cover",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "browser_arboreal",
+      "name_ru": "Древесные листоядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "древесный листоядный зверь",
+      "mobility_mode": "arboreal",
+      "habitat_hint": "canopy",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "seed_rodent",
+      "name_ru": "Мелкие зерноядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "мышеподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "megaherbivore",
+      "name_ru": "Мегатравоядные",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "слоноподобный браузер",
+      "mobility_mode": "ground",
+      "habitat_hint": "large_connected_habitat",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "omnivore_land",
+      "name_ru": "Наземные всеядные",
+      "realm": "land",
+      "trophic_role": "omnivore",
+      "example_analogue_ru": "кабаноподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "predator_small",
+      "name_ru": "Мелкие наземные хищники",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "куницеподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "predator_pursuit",
+      "name_ru": "Преследующие стайные хищники",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "волкоподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "connected_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "predator_ambush",
+      "name_ru": "Засадные крупные хищники",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "кошкоподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "scavenger_land",
+      "name_ru": "Наземные падальщики",
+      "realm": "land",
+      "trophic_role": "scavenger",
+      "example_analogue_ru": "гиеноподобный зверь",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "engineer_semiaquatic",
+      "name_ru": "Полуводные инженеры",
+      "realm": "freshwater_land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "боброподобное животное",
+      "mobility_mode": "river_ground",
+      "habitat_hint": "riparian",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bat_insectivore",
+      "name_ru": "Летающие насекомоядные",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "летучая мышь-аналог",
+      "mobility_mode": "flight",
+      "habitat_hint": "roost_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_granivore",
+      "name_ru": "Зерноядные птицы",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "вьюркоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "nest_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_forest",
+      "name_ru": "Лесные насекомоядные птицы",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "дятлоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "forest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_raptor",
+      "name_ru": "Хищные птицы",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "ястребоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "nest_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_scavenger",
+      "name_ru": "Летающие падальщики",
+      "realm": "land",
+      "trophic_role": "scavenger",
+      "example_analogue_ru": "грифоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "nest_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_waterfowl",
+      "name_ru": "Водоплавающие птицы",
+      "realm": "freshwater_land",
+      "trophic_role": "omnivore",
+      "example_analogue_ru": "утиная форма",
+      "mobility_mode": "flight",
+      "habitat_hint": "water_and_nest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_shore",
+      "name_ru": "Прибрежные птицы",
+      "realm": "coastal",
+      "trophic_role": "predator",
+      "example_analogue_ru": "куликоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "tidal_flat",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "bird_sea",
+      "name_ru": "Морские птицы",
+      "realm": "marine_land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "чайкоподобная птица",
+      "mobility_mode": "flight",
+      "habitat_hint": "marine_food_and_breeding",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "reptile_herbivore",
+      "name_ru": "Растительноядные рептилии",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "игуаноподобная форма",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "reptile_predator",
+      "name_ru": "Хищные рептилии",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "ящерицеобразный хищник",
+      "mobility_mode": "ground",
+      "habitat_hint": "land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "reptile_semiaquatic",
+      "name_ru": "Полуводные рептилии",
+      "realm": "freshwater_land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "крокодилоподобный хищник",
+      "mobility_mode": "river_ground",
+      "habitat_hint": "warm_wetland",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "amphibian",
+      "name_ru": "Земноводные",
+      "realm": "freshwater_land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "лягушкоподобная форма",
+      "mobility_mode": "river_ground",
+      "habitat_hint": "breeding_water_and_land",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "insect_pollinator",
+      "name_ru": "Насекомые-опылители",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "пчелоподобный опылитель",
+      "mobility_mode": "flight",
+      "habitat_hint": "flowers_and_nest",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "insect_plant",
+      "name_ru": "Насекомые-фитофаги",
+      "realm": "land",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "листогрызущий жук",
+      "mobility_mode": "ground_flight",
+      "habitat_hint": "host_plant",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "insect_predator",
+      "name_ru": "Хищные членистоногие",
+      "realm": "land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "паукоподобный хищник",
+      "mobility_mode": "ground",
+      "habitat_hint": "prey_habitat",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "insect_detritivore",
+      "name_ru": "Наземные детритофаги",
+      "realm": "land",
+      "trophic_role": "detritivore",
+      "example_analogue_ru": "жук-детритофаг",
+      "mobility_mode": "ground",
+      "habitat_hint": "litter",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "parasite_proxy",
+      "name_ru": "Паразитические группы",
+      "realm": "land",
+      "trophic_role": "parasite",
+      "example_analogue_ru": "паразитический морфотип",
+      "mobility_mode": "host_dependent",
+      "habitat_hint": "host_present",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_fresh_grazer",
+      "name_ru": "Пресноводные растительноядные рыбы",
+      "realm": "freshwater",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "рыба-пастбищник",
+      "mobility_mode": "river",
+      "habitat_hint": "connected_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_fresh_predator",
+      "name_ru": "Пресноводные хищные рыбы",
+      "realm": "freshwater",
+      "trophic_role": "predator",
+      "example_analogue_ru": "щукообразная форма",
+      "mobility_mode": "river",
+      "habitat_hint": "connected_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_fresh_omnivore",
+      "name_ru": "Пресноводные всеядные рыбы",
+      "realm": "freshwater",
+      "trophic_role": "omnivore",
+      "example_analogue_ru": "карпообразная форма",
+      "mobility_mode": "river",
+      "habitat_hint": "connected_water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_anadromous",
+      "name_ru": "Проходные рыбы",
+      "realm": "marine_freshwater",
+      "trophic_role": "predator",
+      "example_analogue_ru": "лососеподобная форма",
+      "mobility_mode": "river_ocean",
+      "habitat_hint": "spawning_river_and_ocean",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "mollusc_fresh",
+      "name_ru": "Пресноводные моллюски",
+      "realm": "freshwater",
+      "trophic_role": "filter_feeder",
+      "example_analogue_ru": "двустворчатый моллюск",
+      "mobility_mode": "water_drift",
+      "habitat_hint": "freshwater_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "crustacean_fresh",
+      "name_ru": "Пресноводные ракообразные",
+      "realm": "freshwater",
+      "trophic_role": "omnivore",
+      "example_analogue_ru": "ракообразная форма",
+      "mobility_mode": "river",
+      "habitat_hint": "freshwater_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "insect_aquatic",
+      "name_ru": "Водные насекомые",
+      "realm": "freshwater_land",
+      "trophic_role": "detritivore",
+      "example_analogue_ru": "личинка водного насекомого",
+      "mobility_mode": "river_flight",
+      "habitat_hint": "water_and_emergence",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "zooplankton_fresh",
+      "name_ru": "Пресноводный зоопланктон",
+      "realm": "freshwater",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "дафниеподобная форма",
+      "mobility_mode": "water_drift",
+      "habitat_hint": "water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "zooplankton_marine",
+      "name_ru": "Морской зоопланктон",
+      "realm": "marine",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "копеподоподобная форма",
+      "mobility_mode": "current_drift",
+      "habitat_hint": "water",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "nekton_forage",
+      "name_ru": "Стайные кормовые рыбы",
+      "realm": "marine",
+      "trophic_role": "predator",
+      "example_analogue_ru": "сельдеподобная форма",
+      "mobility_mode": "ocean",
+      "habitat_hint": "pelagic_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "nekton_medium",
+      "name_ru": "Средние нектонные хищники",
+      "realm": "marine",
+      "trophic_role": "predator",
+      "example_analogue_ru": "скумбриеподобная форма",
+      "mobility_mode": "ocean",
+      "habitat_hint": "pelagic_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "nekton_apex",
+      "name_ru": "Крупные морские хищники",
+      "realm": "marine",
+      "trophic_role": "predator",
+      "example_analogue_ru": "акулоподобная форма",
+      "mobility_mode": "ocean",
+      "habitat_hint": "marine_prey",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_dem_grazer",
+      "name_ru": "Донные растительноядные рыбы",
+      "realm": "marine",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "рифовый пастбищник",
+      "mobility_mode": "shelf",
+      "habitat_hint": "lit_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "fish_dem_predator",
+      "name_ru": "Донные хищные рыбы",
+      "realm": "marine",
+      "trophic_role": "predator",
+      "example_analogue_ru": "камбалообразный хищник",
+      "mobility_mode": "shelf",
+      "habitat_hint": "bottom_prey",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "benthic_filter",
+      "name_ru": "Донные фильтраторы",
+      "realm": "marine",
+      "trophic_role": "filter_feeder",
+      "example_analogue_ru": "мидиеподобная форма",
+      "mobility_mode": "larval_drift",
+      "habitat_hint": "substrate_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "benthic_detritivore",
+      "name_ru": "Донные детритофаги",
+      "realm": "marine",
+      "trophic_role": "detritivore",
+      "example_analogue_ru": "голотуриеподобная форма",
+      "mobility_mode": "larval_drift",
+      "habitat_hint": "bottom_detritus",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "crustacean_marine",
+      "name_ru": "Морские ракообразные",
+      "realm": "marine",
+      "trophic_role": "omnivore",
+      "example_analogue_ru": "крабоподобная форма",
+      "mobility_mode": "shelf",
+      "habitat_hint": "bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "coral_symbiotic",
+      "name_ru": "Симбиотические кораллы",
+      "realm": "marine",
+      "trophic_role": "symbiotic_consumer",
+      "example_analogue_ru": "рифообразующий полип",
+      "mobility_mode": "larval_drift",
+      "habitat_hint": "lit_hard_bottom",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "coral_deep",
+      "name_ru": "Глубоководные кораллы",
+      "realm": "marine",
+      "trophic_role": "filter_feeder",
+      "example_analogue_ru": "холодноводный полип",
+      "mobility_mode": "larval_drift",
+      "habitat_hint": "hard_bottom_and_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "marine_mammal_filter",
+      "name_ru": "Морские млекопитающие-фильтраторы",
+      "realm": "marine",
+      "trophic_role": "filter_feeder",
+      "example_analogue_ru": "китообразный фильтратор",
+      "mobility_mode": "ocean",
+      "habitat_hint": "pelagic_food",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "marine_mammal_predator",
+      "name_ru": "Хищные морские млекопитающие",
+      "realm": "marine",
+      "trophic_role": "predator",
+      "example_analogue_ru": "дельфиноподобная форма",
+      "mobility_mode": "ocean",
+      "habitat_hint": "marine_prey",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "marine_mammal_grazer",
+      "name_ru": "Морские травоядные",
+      "realm": "marine",
+      "trophic_role": "herbivore",
+      "example_analogue_ru": "сиреноподобная форма",
+      "mobility_mode": "shelf",
+      "habitat_hint": "seagrass",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "marine_mammal_haulout",
+      "name_ru": "Ластоногие аналоги",
+      "realm": "marine_land",
+      "trophic_role": "predator",
+      "example_analogue_ru": "тюленеподобная форма",
+      "mobility_mode": "ocean_coast",
+      "habitat_hint": "marine_food_and_haulout",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "deep_benthos",
+      "name_ru": "Абиссальная фауна",
+      "realm": "marine",
+      "trophic_role": "detritivore",
+      "example_analogue_ru": "абиссальный донный организм",
+      "mobility_mode": "deep",
+      "habitat_hint": "deep_organic_flux",
+      "parameter_status": "requires_calibration"
+    },
+    {
+      "id": "vent_consumer",
+      "name_ru": "Фауна гидротермальных источников",
+      "realm": "marine",
+      "trophic_role": "symbiotic_consumer",
+      "example_analogue_ru": "трубчатый организм источника",
+      "mobility_mode": "larval_drift",
+      "habitat_hint": "geochemical_energy_source",
+      "parameter_status": "requires_calibration"
+    }
+  ],
+  "niche_examples": [
+    {
+      "template_id": "example_needle_tree",
+      "group_id": "tree_needle_evergreen",
+      "label_ru": "Условный холодоустойчивый хвойный аналог",
+      "hard_gates": [
+        "land_ground",
+        "root_zone_available"
+      ],
+      "curves": {
+        "warmest_month_C": {
+          "type": "trapezoid",
+          "points": [
+            5,
+            12,
+            22,
+            32
+          ]
+        },
+        "annual_GDD5_C_day": {
+          "type": "trapezoid",
+          "points": [
+            100,
+            500,
+            2000,
+            4500
+          ]
+        }
+      },
+      "status": "synthetic_provisional_NOT_general_conifer_limits"
+    },
+    {
+      "template_id": "example_succulent",
+      "group_id": "succulent_stem",
+      "label_ru": "Условный пустынный суккулент",
+      "hard_gates": [
+        "land_ground",
+        "root_zone_available"
+      ],
+      "curves": {
+        "root_water_relative_FC": {
+          "type": "trapezoid",
+          "points": [
+            0.01,
+            0.12,
+            0.5,
+            0.95
+          ]
+        },
+        "coldest_month_C": {
+          "type": "trapezoid",
+          "points": [
+            -8,
+            2,
+            20,
+            40
+          ]
+        }
+      },
+      "status": "synthetic_provisional_not_all_succulents"
+    },
+    {
+      "template_id": "example_fresh_fish",
+      "group_id": "fish_fresh_predator",
+      "label_ru": "Условная пресноводная хищная рыба",
+      "hard_gates": [
+        "connected_freshwater",
+        "prey_available"
+      ],
+      "curves": {
+        "water_temperature_C": {
+          "type": "trapezoid",
+          "points": [
+            1,
+            12,
+            24,
+            34
+          ]
+        },
+        "salinity_g_kg": {
+          "type": "trapezoid",
+          "points": [
+            0,
+            0,
+            0.5,
+            2
+          ]
+        }
+      },
+      "status": "synthetic_provisional_not_all_fish"
+    },
+    {
+      "template_id": "example_lit_coral",
+      "group_id": "coral_symbiotic",
+      "label_ru": "Условный теплолюбивый симбиотический полип",
+      "hard_gates": [
+        "marine",
+        "lit_hard_bottom"
+      ],
+      "curves": {
+        "water_temperature_C": {
+          "type": "trapezoid",
+          "points": [
+            16,
+            23,
+            29,
+            34
+          ]
+        },
+        "salinity_g_kg": {
+          "type": "trapezoid",
+          "points": [
+            24,
+            32,
+            36,
+            42
+          ]
+        }
+      },
+      "status": "synthetic_provisional_not_all_corals"
+    }
+  ]
+}
