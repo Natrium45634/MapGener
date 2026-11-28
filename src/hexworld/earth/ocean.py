@@ -540,7 +540,14 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
                 np.add.at(down_vol, basin_o, w_down[s] * dt)
                 # freezing and melting
                 deficit = np.maximum(T_FREEZE - t_new, 0.0) * rc  # J/m^2 below freezing
-                grow = deficit / (RHO_ICE * L_F)
+                # the ice-covered part loses heat only through the ice (conduction falls as
+                # 1/(1 + h/H)): without this the restoring exchange cooled the water under
+                # any thickness and the polar pack grew without limit (10-100+ m)
+                through = (1.0 - c) + c / (1.0 + hi / H_ICE_SCALE)
+                kept = deficit * (1.0 - through)  # heat not lost to the air
+                grow = deficit * through / (RHO_ICE * L_F)
+                if year == years - 1:
+                    ledger["surface_j"] += float((kept * area).sum())
                 t_new = np.maximum(t_new, T_FREEZE)
                 excess = np.where(hi > 0, (t_new - T_FREEZE) * rc, 0.0)
                 melt = np.minimum(hi, excess / (RHO_ICE * L_F))
