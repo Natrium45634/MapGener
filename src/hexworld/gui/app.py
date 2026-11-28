@@ -1408,7 +1408,8 @@ class MainWindow(QMainWindow):
             spec = self.current_view()
             mode, _ov = self._view_state.get(spec.id, ("", frozenset()))
             mode_title = next((o.title for o in spec.modes if o.id == mode), mode)
-            out["view"] = f"{spec.title}" + (f" — {mode_title}" if mode_title else "")
+            same = not mode_title or mode_title == spec.title
+            out["view"] = spec.title + ("" if same else f" — {mode_title}")
         return out
 
     def choose_snapshot_dir(self) -> Path | None:
