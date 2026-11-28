@@ -89,10 +89,10 @@ BLOCKED (dependency absent), NOT VERIFIED.
 | B77 | PASS | `test_b77_coupler_rolls_back_every_owner` |
 | B78 | PASS (Linux offscreen) / NOT VERIFIED (Windows) | hex report from stored state, `test_b78…`; no solver on hover |
 | B79 | PASS | `test_b79_region_report_union` |
-| B80 | see performance | `performance_report.md` |
-| B81 | see performance | `performance_report.md` |
+| B80 | PARTIAL | three grids measured (`performance_report.md`), but the generator gives different inputs per grid; no same-input remap test |
+| B81 | PARTIAL | 3 runs per grid with stage times and memory: time targets met (26 s at 500×300, 130 s at 1000×800); added peak ≈2.9 GiB at 1000×800 exceeds the 2 GiB target |
 | B82 | BLOCKED | no MOD17 / GBIF / OBIS / TRY data |
-| B83 | see regression | below |
+| B83 | PASS | full suite 1252 passed, 0 failed (commit 298daf1); after the later fixes the affected suites (5.5, ocean, ice, v5.3) pass again; final full run: see the end |
 | B84 | PASS | `test_b71_b84…` (replay identical, yearly residual < 1e-9) |
 
 ## Numerical references N01–N20
