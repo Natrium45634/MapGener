@@ -186,6 +186,13 @@ class MainWindow(QMainWindow):
         )
         self.snap_btn.clicked.connect(lambda: self.snapshot())
         controls.addWidget(self.snap_btn)
+        self.snap_opts_btn = QPushButton("⚙")
+        self.snap_opts_btn.setFixedWidth(30)
+        self.snap_opts_btn.setToolTip(
+            "Снимок с настройками (Ctrl+F12): разрешение, названия, легенда под картой"
+        )
+        self.snap_opts_btn.clicked.connect(lambda: self.snapshot_with_options())
+        controls.addWidget(self.snap_opts_btn)
         controls.addWidget(self.v2_button)
         controls.addWidget(self.note)
         map_column = QVBoxLayout()
@@ -406,6 +413,8 @@ class MainWindow(QMainWindow):
         view.addSeparator()
         act(view, "📷 Снимок вкладки", lambda: self.snapshot(), "F12",
             "Картинка этой вкладки в папку снимков, одним нажатием")  # fmt: skip
+        act(view, "📷 Снимок с настройками…", lambda: self.snapshot_with_options(), "Ctrl+F12",
+            "Разрешение (высокое, среднее, низкое), названия, легенда под картой")  # fmt: skip
         act(view, "Папка для снимков…", lambda: self.choose_snapshot_dir(), None,
             "Куда сохранять снимки по F12")  # fmt: skip
         view.addSeparator()
@@ -1425,26 +1434,46 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Снимки сохраняются в {folder}")
         return Path(folder)
 
-    def snapshot(self, folder: Path | None = None) -> Path | None:
-        """The current tab as a PNG in the snapshot folder, one click (F12)."""
+    def snapshot(self, folder: Path | None = None, options: dict | None = None) -> Path | None:
+        """The current tab as a PNG in the snapshot folder, one click (F12), with the
+        remembered resolution / names / legend choice (Ctrl+F12 changes it)."""
         from .. import saved_worlds as sw
+        from . import snapshot as snap
 
         if self.project is None:
             return None
         folder = folder or sw.snapshot_dir() or self.choose_snapshot_dir()
         if folder is None:
             return None
+        opt = {**snap.settings(), **(options or {})}
         spec = self.current_view()
         mode, overlays = self._view_state[spec.id]
         month = next((t for t in overlays if t.startswith("month:")), "")
-        name = sw.snapshot_name(self.project.config.seed, spec.id,
-                                mode + (f"_m{int(month[6:]) + 1}" if month else ""))  # fmt: skip
+        tag = mode + (f"_m{int(month[6:]) + 1}" if month else "") + f"_{opt['quality']}"
+        if opt["legend"]:
+            tag += "_legend"
+        name = sw.snapshot_name(self.project.config.seed, spec.id, tag)
         Path(folder).mkdir(parents=True, exist_ok=True)
         path = Path(folder) / name
-        image = views.render_view_image(self.project, spec.id, mode, overlays)
-        render.write_png(path, image)
-        self.statusBar().showMessage(f"📷 Снимок сохранён: {path}")
+        img = snap.compose(self.project, spec.id, mode, overlays, opt["quality"],
+                           bool(opt["names"]), bool(opt["legend"]))  # fmt: skip
+        img.save(str(path), "PNG")
+        self.statusBar().showMessage(f"📷 Снимок сохранён: {path} ({img.width()}×{img.height()})")
         return path
+
+    def snapshot_with_options(self) -> Path | None:
+        from .. import saved_worlds as sw
+        from .snapshot import SnapshotDialog
+
+        if self.project is None:
+            return None
+        start = str(sw.snapshot_dir() or sw.default_snapshot_dir())
+        dlg = SnapshotDialog(start, self)
+        if not dlg.exec():
+            return None
+        folder = Path(dlg.folder.text())
+        sw.set_snapshot_dir(folder)
+        return self.snapshot(folder, dlg.choice())
 
     def export_minerals(self, folder: str | None = None) -> list[str]:
         from ..minerals.export import export_minerals

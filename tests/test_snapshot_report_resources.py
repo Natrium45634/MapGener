@@ -96,3 +96,31 @@ def test_every_commodity_of_the_catalogue_has_a_mode():
 
     elements = {el for m in MODELS.values() for el in m.grades}
     assert elements <= {k for k, *_r in views.COMMODITIES}
+
+
+def test_snapshot_resolution_names_and_legend(qapp, hist_project):
+    from hexworld.gui import snapshot as snap
+
+    lo = snap.compose(hist_project, "biomes", None, None, "low", names=False, legend=False)
+    hi = snap.compose(hist_project, "biomes", None, None, "high", names=False, legend=False)
+    assert max(lo.width(), lo.height()) <= 1200 < max(hi.width(), hi.height())
+    with_leg = snap.compose(hist_project, "biomes", None, None, "low", names=True, legend=True)
+    assert with_leg.width() == lo.width() and with_leg.height() > lo.height()  # strip below
+    # the strip lists the biome colours of the tab
+
+    items = snap.full_legend(hist_project, "biomes", "dominant")
+    present = len(np.unique(hist_project.biomes.layers["dominant_biome"]))
+    assert sum(it.color is not None for it in items) == present  # every biome of the world
+
+
+def test_snapshot_options_are_remembered_and_in_the_file_name(qapp, hist_project, tmp_path):
+    from hexworld.gui import snapshot as snap
+    from hexworld.gui.app import MainWindow
+
+    snap.save_settings({"quality": "low", "names": False, "legend": True})
+    assert snap.settings()["quality"] == "low"
+    w = MainWindow()
+    w._show_project(hist_project, "test")
+    path = w.snapshot(tmp_path / "s")
+    assert path.exists() and "_low_legend_" in path.name and path.suffix == ".png"
+    w.close()
