@@ -27,12 +27,13 @@ from scipy.sparse.csgraph import dijkstra
 INF = math.inf
 #: colonisation rate at zero distance (1/yr) and the time scale of a continent (yr) [К]
 KAPPA0 = 1e-2
-T_CONTINENT_YR = 1.0e6
+T_CONTINENT_YR = 5.0e6
 T_UNKNOWN_YR = 1.0e5
 #: extinction reference area, km², and the minimum area of a source pool [К]
 A_REF_KM2 = 1.0e4
 SOURCE_LAND_KM2 = 2.0e5
 SOURCE_BASIN_KM2 = 4.0e4
+SOURCE_FRAGMENT_KM2 = 2.0e4
 #: long-distance dispersal: share and scale multiplier of the kernel tail [К]
 LDD_SHARE = 1e-3
 LDD_SCALE = 20.0
@@ -224,7 +225,10 @@ def land_pools(inp, frac, landmasses) -> Lineages:
         sel = lm == i
         area = float(sel.sum()) * inp.area_km2
         cont = float(np.mean(f["block_id"][sel] >= 0))
-        if area < SOURCE_LAND_KM2 or cont < 0.5:
+        # a large landmass, or an old continental fragment (its own ancient lineages, the
+        # way a micro-continent keeps them), is a pool; an oceanic island is not
+        if not ((area >= SOURCE_LAND_KM2 and cont >= 0.5)
+                or (area >= SOURCE_FRAGMENT_KM2 and cont >= 0.9)):
             continue
         cx, cy = float(inp.x_km[sel].mean()), float(inp.y_km[sel].mean())
         keys.append(_key("land", cx, cy))

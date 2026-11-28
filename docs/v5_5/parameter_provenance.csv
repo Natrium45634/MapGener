@@ -1,0 +1,28 @@
+parameter,value,unit,source_or_rationale,status
+PAR share of shortwave,0.48,1,McCree (1972) — standard PAR/SW ratio,literature
+LUE (trees / grasses C3 / C4),0.9 / 0.9 / 1.15,gC per MJ APAR,MOD17 epsilon_max range 0.6–1.4 (R09); scaled ×0.82 so that biome medians of a test world fall near MOD17-style ranges (rough plausibility check; not a calibration),provisional
+CUE,0.5,1,mean NPP/GPP of global syntheses (Waring et al. 1998),provisional
+extinction coefficient k,0.5,1,Beer–Lambert canopy (Monsi & Saeki),literature
+water-use efficiency of GPP,3.5,gC/kg H2O,ecosystem WUE 2–4 (eddy-covariance syntheses),provisional
+woody cover cap,0.0014 (P − 100 mm),1,Sankaran et al. 2005 savanna maximum woody cover,literature-adapted
+herb cover cap,P / 250 mm,1,desert cover scales with rain up to ~250 mm,heuristic
+N / P reference supply,0.04 / 0.0015,kgN/m²/yr / kgP/m²,typical fertile 5.2 soils of HexWorld,heuristic
+leaf/wood/root/repro allocation,see traits_v1.json,share,LPJ-style PFT allocation (R01),provisional
+turnover rates,see traits_v1.json,1/yr,LPJ-style turnover (R01),provisional
+assimilation / net production efficiency,see traits_v1.json,1,Madingley cohort definitions (R02),provisional
+P/B ratios,see traits_v1.json,1/yr,allometric P/B ∝ M^-0.25 (Banse & Mosher 1980),provisional
+carbon per wet mass,0.12,kgC/kg,vertebrate tissue,literature
+energy per carbon,42,MJ/kgC,~20 MJ/kg dry × 1/0.47 C,literature
+space cap of land vertebrates,200 M^-0.75,ind/km²,Damuth 1981 (upper envelope),provisional
+colonisation rate kappa0,0.01,1/yr,engineering choice; continents saturate,heuristic
+long-distance share / scale,0.001 / 20 L,1,fat-tailed dispersal kernels (R03),heuristic
+extinction e0,see traits_v1.json,1/yr,heuristic; scaled by (A_ref/A)^0.25 M^0.25 / S,heuristic
+source landmass / basin area,2e5 / 4e4,km²,engineering choice,heuristic
+sea-ice transmission,0.1,1,thin to medium first-year ice,literature-adapted
+export ratio (pe),0.2,1,global mean pe-ratio (Laws et al. 2000),literature
+Martin exponent b,0.858,1,Martin et al. 1987 (VERTEX),literature
+vent subsidy,5e4,gC/yr per MW,explicit assumption (no measured vent productivity in the world),heuristic
+detritus decay at 10 °C / Q10,0.2 / 2,1/yr / 1,soil litter decomposition syntheses,provisional
+fire probability,1 / FRI (×2 in a dry year),1/yr,FRI from the 5.3 biome layer,heuristic
+index bounds,see metrics.INDEX_BOUNDS,raw units,provisional_v1 (not calibrated),provisional
+endemic range,1e5,km²,engineering threshold,heuristic

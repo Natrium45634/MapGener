@@ -26,7 +26,7 @@ def tz(a, b, c, d):
 
 
 # -- producers ------------------------------------------------------------------------------
-def plant(layer, tc, tw, mi, gdd=None, *, lue=1.1, cue=0.5, k=0.5, lai=5.0, sla=20.0,
+def plant(layer, tc, tw, mi, gdd=None, *, lue=0.9, cue=0.5, k=0.5, lai=5.0, sla=20.0,
           alloc=(0.3, 0.35, 0.3, 0.05), turn=(0.5, 0.03, 0.5, 1.0), t_act=(0, 8, 30, 40),
           w_act=(0.05, 0.7, 1.0, 1.01), kn=0.02, kp=0.0006, poll="animal", gates=("land_ground",
           "root_zone"), split=("tw", 3), split2=("mi", 2), mob="seed", L=60.0, e0=2e-5,
@@ -94,7 +94,7 @@ P = {
                       lai=3.0, alloc=HERB, turn=HTURN, poll="wind", t_act=(-1, 5, 25, 35),
                       edible=0.7),
     "grass_c4": plant("ground", (-10, 2, 30, 35), (20, 25, 36, 42), (0.1, 0.25, 3, 6),
-                      lai=3.5, lue=1.4, alloc=HERB, turn=HTURN, poll="wind",
+                      lai=3.5, lue=1.15, alloc=HERB, turn=HTURN, poll="wind",
                       t_act=(8, 18, 36, 44), w_act=(0.03, 0.5, 1.0, 1.01), edible=0.7),
     "forb": plant("ground", (-50, -30, 25, 35), (3, 8, 30, 38), (0.1, 0.25, 9, 10), lai=2.0,
                   alloc=HERB, turn=HTURN, edible=0.6, split=("tw", 4)),
@@ -494,8 +494,18 @@ QUAL_M = {1: [""], 2: ["засухоустойчивый", "влаголюбив
           3: ["засухоустойчивый", "мезофильный", "влаголюбивый"]}  # fmt: skip
 
 
+def _open_wet_end(t: dict) -> None:
+    """A group that tolerates very wet climates (upper mi flank ≥ 6) is not excluded by even
+    wetter ones: waterlogging is a separate gate; the flank is stretched to mi = 100."""
+    mi = t["niche"].get("mi")
+    if mi and mi[3] >= 6.0 and mi[3] < 100.0:
+        mi[3] = 100.0
+
+
 def main() -> None:
     traits = {**P, **A}
+    for t in traits.values():
+        _open_wet_end(t)
     out = {"schema": "hexworld-bio-traits-1", "status": "provisional_engineering_priors",
            "qualifiers_thermal": QUAL_T, "qualifiers_moisture": QUAL_M,
            "units": {"tc,tw": "°C (land: air; water: water temperature)", "mi": "P/PET",
