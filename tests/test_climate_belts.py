@@ -54,7 +54,9 @@ def test_layout_in_the_world_code_and_old_codes_unchanged():
     back, _t = wt.parse_world_code(wt.world_code(belts))
     assert back.climate.latitude_layout == "pole_to_pole" and back == belts
     # a default setting added after the dictionary was frozen costs nothing in the code
-    assert wt._canonical(cfg, "v50") == b'{"d":{"seed":"Belt1"}}'
+    # a default of a new setting costs nothing; the 5.5.1 stage is on for new worlds, so
+    # its switch is the only other change (old codes keep it off and reproduce old worlds)
+    assert wt._canonical(cfg, "v50") == b'{"d":{"minerals":{"enabled":true},"seed":"Belt1"}}'
     d = Config().to_dict()
     d["climate"].pop("latitude_layout")
     assert Config.from_dict(d).climate.latitude_layout == "custom"

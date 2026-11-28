@@ -76,14 +76,17 @@ def test_resources_by_type_tab(hist_project):
     for el in ("coal", "oil", "Au"):
         img = views.render_view_image(hist_project, "resources_by_type", f"com_{el}", None)
         assert img.ndim == 3 and img.shape[2] == 3
-        n = sum(1 for s in cat if s["contained_t"].get(el, 0) > 0)
+        # the tab reads the 5.5.1 plan when the world has one, else the 5.2 catalogue
+        n = len(views._commodity_systems(hist_project, el, False))
+        if hist_project.minerals is None:
+            assert n == sum(1 for s in cat if s["contained_t"].get(el, 0) > 0)
         legend = spec.legend(hist_project, f"com_{el}")
         assert f"месторождений {n}" in legend[0].label
         marks = spec.vectors(hist_project, f"com_{el}", frozenset())
         assert sum(len(v.x) for v in marks) == n
     # the background is a black-and-white relief: grey everywhere without overlays
     img = spec.render(hist_project, "com_diamond", frozenset())
-    no_dia = not any(s["contained_t"].get("diamond", 0) > 0 for s in cat)
+    no_dia = not views._commodity_systems(hist_project, "diamond", False)
     if no_dia:
         assert np.all(img[..., 0] == img[..., 1]) and np.all(img[..., 1] == img[..., 2])
 

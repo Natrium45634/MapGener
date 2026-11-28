@@ -82,7 +82,7 @@ reduced proxy; MISSING = not implemented; BLOCKED = depends on an absent layer.
 | T81 | PASS | catalogues bundled; no network at runtime |
 | T82 | NOT VERIFIED | Windows GUI |
 | T83 | MISSING | statistical calibration (no datasets) |
-| T84 | PARTIAL | full suite run; see the reply for the counts |
+| T84 | PASS | full suite on the 5.5.1 code: 1150 passed, 2 failed — both tests asserted the pre-5.5.1 behaviour (the commodity tab now reads the 5.5.1 plan; the default world code now carries `minerals.enabled`); updated, the 4 affected modules re-run: 49 passed. Golden snapshots unchanged |
 
 ## Scenarios
 
