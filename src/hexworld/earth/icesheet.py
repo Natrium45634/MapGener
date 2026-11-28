@@ -45,6 +45,10 @@ RHO_SEA = 1028.0
 G = 9.81
 SECONDS_YR = 365.25 * 86400.0
 LAPSE = 0.0065
+#: precipitation change per kelvin of surface cooling over the ice (Clausius–Clapeyron) [S]
+PRECIP_CC = 0.07
+#: share of the ice thickness that raises the surface (the bed sinks by rho_i / rho_m) [S]
+SURFACE_RISE_SHARE = 1.0 - 917.0 / 3300.0
 #: Glen A at about -10 degC, Pa^-3 per year (Cuffey & Paterson 2010 order of magnitude).
 GLEN_A_YR = 1.0e-16 * 1.0
 GLEN_N = 3
@@ -66,12 +70,20 @@ class IceSheetResult:
 
 def surface_mass_balance(t_m, p_m, z_surface_offset_m=0.0, k_melt_mm=5.0, sd_c=4.0,
                          sublimation_mm=0.0):  # fmt: skip
-    """Annual SMB, m ice eq./yr; ``t_m, p_m`` (12, n) at the bare surface."""
+    """Annual SMB, m ice eq./yr; ``t_m, p_m`` (12, n) at the bare surface.
+
+    ``z_surface_offset_m`` is the ice thickness above the bed. The surface rises by only
+    ``1 − ρ_ice/ρ_mantle`` of it (the bed sinks under the load, Airy equilibrium), and the
+    snowfall falls with the cooling of the raised surface by ``PRECIP_CC`` per kelvin
+    (Clausius–Clapeyron scaling of the moisture, as in Huybrechts 2002 / PISM). Without
+    these two a thick sheet cools its own surface without limit and keeps the plain's
+    snowfall: the sheet runs away (a 1000×800 planet grew 95 M km², 9 km thick)."""
     from ..biomes.cryosphere import _phase
     from ..stages.environment import MONTH_DAYS, positive_degree_days
 
-    t = np.asarray(t_m, dtype=np.float64) - LAPSE * np.asarray(z_surface_offset_m)
-    p = np.asarray(p_m, dtype=np.float64)
+    rise = np.asarray(z_surface_offset_m, dtype=np.float64) * SURFACE_RISE_SHARE
+    t = np.asarray(t_m, dtype=np.float64) - LAPSE * rise
+    p = np.asarray(p_m, dtype=np.float64) * np.exp(-PRECIP_CC * LAPSE * rise)
     snow = (p * _phase(t)).sum(axis=0)
     days = np.asarray(MONTH_DAYS, dtype=np.float64).reshape(12, *([1] * (t.ndim - 1)))
     pdd = positive_degree_days(t, sd_c, days).sum(axis=0)

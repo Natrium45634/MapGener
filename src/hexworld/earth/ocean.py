@@ -322,6 +322,45 @@ def ice_transport_operator(u, v, ocean, idx, dx, dt):
     return m, nsub
 
 
+#: mean ice thickness (m) above which convergent drift ridges and spreads the ice instead of
+#: piling it (pack ice rarely exceeds ~5 m on average; without this a coast where the drift
+#: converges stacked 20+ m of «sea ice") [S: Thorndike et al. 1975, order of magnitude]
+H_RIDGE = 5.0
+
+
+def ridge_neighbours(ocean, idx):
+    """(n, 4) ocean-cell neighbours on the ocean raster (−1: land or edge)."""
+    n = int(ocean.sum())
+    out = -np.ones((n, 4), dtype=np.int64)
+    rows, cols = np.nonzero(ocean)
+    me = idx[rows, cols]
+    for k, (dr, dc) in enumerate(((0, 1), (0, -1), (1, 0), (-1, 0))):
+        r2, c2 = rows + dr, (cols + dc) % ocean.shape[1]
+        ok = (r2 >= 0) & (r2 < ocean.shape[0])
+        nb = np.full(n, -1, dtype=np.int64)
+        nb[ok] = idx[r2[ok], c2[ok]]
+        out[me, k] = nb
+    return out
+
+
+def ridge(hi, nbrs, cap=H_RIDGE, passes=12):
+    """Spread the ice above ``cap`` to the neighbouring ocean cells below it (volume kept)."""
+    hi = np.asarray(hi, dtype=np.float64).copy()
+    valid = nbrs >= 0
+    for _ in range(passes):
+        excess = np.maximum(hi - cap, 0.0)
+        if not excess.any():
+            break
+        room = np.where(valid, np.maximum(cap - hi[np.maximum(nbrs, 0)], 0.0), 0.0)
+        tot_room = room.sum(axis=1)
+        move = np.minimum(0.5 * excess, tot_room)
+        share = np.where(tot_room[:, None] > 0, room / np.maximum(tot_room[:, None], 1e-30), 0.0)
+        give = move[:, None] * share
+        hi -= move
+        np.add.at(hi, np.maximum(nbrs, 0).ravel(), (give * valid).ravel())
+    return hi
+
+
 def ice_concentration(hi):
     return 1.0 - np.exp(-np.maximum(hi, 0.0) / H_ICE_SCALE)
 
@@ -417,6 +456,7 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
         exch = csc_matrix((g_cell[season_mid[s]] / vol, (diag, diag)), shape=(n, n))
         m = identity(n, format="csc") - dt * (a - restore - exch)
         ops.append((splu(m.tocsc()), a))
+    ridge_nbrs = ridge_neighbours(ocean, idx)
     drift_ops = []
     for s_ in range(4):
         u_w, v_w = winds[s_]
@@ -514,7 +554,7 @@ def run_ocean(planet, lat_raster, sea_raster, winds, cell_km, params, t_air_seas
                 m_op, nsub = drift_ops[s]
                 for _ in range(nsub):
                     hi = m_op @ hi
-                hi = np.maximum(hi, 0.0)
+                hi = ridge(np.maximum(hi, 0.0), ridge_nbrs)
             if not params.sea_ice:
                 hi = np.zeros(n)
             sst[m] = t
