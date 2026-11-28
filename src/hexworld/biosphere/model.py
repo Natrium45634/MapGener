@@ -407,6 +407,7 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
             groups_out[g.id] = {"realm": _home(g), "biomass_kgc": b.astype(np.float32),
                                 "individuals": r.get("individuals", np.zeros(n)).astype(np.float32),
                                 "production_kgc_yr": r.get("production", np.zeros(n)).astype(np.float32),
+                                "intake_kgc_yr": r.get("intake", np.zeros(n)).astype(np.float32),
                                 "limit": r.get("limit", np.zeros(n, np.uint8))}  # fmt: skip
         groups_out[g.id]["weight"] = weights[g.id].astype(np.float32)
     # NPP per group (gC/m² of the hex) for the producers
@@ -426,6 +427,22 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                               & realized_group[g_id][tab.idx])  # fmt: skip
     layers, summary = _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp,
                             npp_land, prod_r, li, seed, age_unknown)  # fmt: skip
+    layers["substrate_age_yr"] = age.astype(np.float32)
+    mig = np.zeros(n, np.int32)
+    for g in reg.groups.values():
+        if g.is_fauna and g.traits.get("migratory"):
+            mig += realized_group[g.id].astype(np.int32)
+    layers["migratory_groups"] = mig
+    lim = np.full(n, 4, dtype=np.uint8)
+    lim[li] = np.argmin(lp["limit"], axis=0).astype(np.uint8)
+    layers["npp_limit"] = lim
+    layers["_npp_limit_names"] = ["свет", "тепло (сезон вегетации)", "вода", "питание почвы",
+                                  "не суша"]  # fmt: skip
+    layers["_env"] = {k: np.asarray(f[k], dtype=np.float32) for k in ("tc", "tw", "mi", "ph")}
+    layers["_env"]["sal"] = np.where(frac["marine_water"] > 0.5, f["sss_psu"],
+                                     f["ec_ds_m"]).astype(np.float32)
+    layers["_env"]["gdd"] = np.asarray(f["gdd5"], dtype=np.float32)
+    layers["_index_version"] = mt.INDEX_VERSION
     T["metrics"] = time.perf_counter() - t
     rep(1.0)
     ledger = {"foodweb": web["ledger"], "npp_total_kgc_yr": float(
@@ -496,9 +513,9 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
             if not pres.any():
                 continue
             idx = tab.idx[pres]
-            if g.is_flora:
+            if realm == "land" and g.is_flora:
                 flora_r[idx] += 1
-            elif g.is_fauna:
+            elif realm == "land" and g.is_fauna:
                 fauna_r[idx] += 1
             groups_present.setdefault(g.id, np.zeros(n, bool))[idx] = True
             exp_r[tab.idx] += (tab.occ[k] / 255.0) * (tab.suit[k] >= int(S_MIN * 255))
@@ -517,9 +534,8 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
             endemic_cnt[idx] += ((rng_area[inv] <= ENDEMIC_RANGE_KM2) & ~touches[inv]).astype(np.int32)
     for _gid, m in groups_present.items():
         func_r += m
-    L["flora_richness"] = flora_r
+    L["flora_richness"] = flora_r  # land realm; fresh and marine life are separate maps
     L["fauna_richness"] = fauna_r
-    L["total_richness"] = flora_r + fauna_r
     L["functional_richness"] = func_r
     L["expected_richness"] = exp_r.astype(np.float32)
     L["weighted_endemism"] = w_end.astype(np.float32)
@@ -552,18 +568,26 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
     fb = np.stack([g["biomass_kgc"] for gid, g in groups_out.items()
                    if "biomass_kgc" in g and reg.groups[gid].is_fauna])  # fmt: skip
     L["fauna_shannon_groups"] = mt.shannon_rows(fb).astype(np.float32)
-    for k in ("flora_richness", "fauna_richness", "total_richness", "npp_gc_m2_yr",
-              "weighted_endemism"):  # fmt: skip
+    for k in ("flora_richness", "fauna_richness", "npp_gc_m2_yr", "weighted_endemism"):
         lo, hi = mt.INDEX_BOUNDS[k if k != "plant_biomass_kgc_m2" else "biomass_kgc_m2"]
         L[f"{k}_index"] = mt.index(L[k], lo, hi).astype(np.float32)
     life = (frac["land_ground"] + frac["inland_water"] + frac["marine_water"]) > 0
-    L["total_richness_percentile"] = mt.percentile_area_weighted(
-        L["total_richness"].astype(float), area, life).astype(np.float32)
     # biogeographic regions: the combination of lineages of the indicator classes
-    sig_cls = ("ground", "seed", "flight", "river", "ocean")
+    # land: lineages of walkers, seeds and fliers x the drainage province (the freshwater
+    # lineage of the hex's basin) — a barrier structure, not the climate of the biomes
+    basin = inp.f["basin_id"]
+    fpool = lineage["river"]["pool"].astype(np.int64)
+    prov = np.full(n, -1, dtype=np.int64)
+    ok = (basin >= 0) & (fpool >= 0)
+    if ok.any():
+        nb_ = int(basin.max()) + 1
+        best = np.full(nb_, -1, dtype=np.int64)
+        best[basin[ok]] = fpool[ok]
+        prov = np.where(basin >= 0, best[np.maximum(basin, 0)], -1)
     sig = np.zeros(n, dtype=np.int64)
-    for c in sig_cls:
+    for c in ("ground", "seed", "flight"):
         sig = sig * 64 + (lineage[c]["pool"].astype(np.int64) + 1)
+    sig = sig * 4096 + (prov + 1)
     land = frac["land_ground"] > 0
     sig = np.where(land, sig, -(lineage["ocean"]["pool"].astype(np.int64) + 2))
     u, inv = np.unique(sig, return_inverse=True)
@@ -584,6 +608,12 @@ def _maps(inp, frac, reg, realms, groups_out, lineage, fam_pools, lp, mp, fp, np
             mr[tab.idx] += cnt
     L["freshwater_richness"] = fr.astype(np.int32)
     L["marine_richness"] = mr.astype(np.int32)
+    L["total_richness"] = (flora_r + fauna_r + fr + mr).astype(np.int32)
+    for k in ("total_richness",):
+        lo, hi = mt.INDEX_BOUNDS[k]
+        L[f"{k}_index"] = mt.index(L[k], lo, hi).astype(np.float32)
+    L["total_richness_percentile"] = mt.percentile_area_weighted(
+        L["total_richness"].astype(float), area, life).astype(np.float32)
     summary = {
         "taxa_world": len(ranges),
         "taxa_endemic": int(sum(1 for a, tch, _t, _k in ranges.values()

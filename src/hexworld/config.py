@@ -536,6 +536,29 @@ class MineralParams:
     technology_profile: str = "none_ground_truth"
 
 
+BIO_MODES = ("POTENTIAL", "REALIZED_BASELINE", "DYNAMIC")
+BIO_DETAILS = ("basic", "standard", "detailed")
+
+
+@dataclass(frozen=True)
+class BiosphereParams:
+    """TZ 5.5 biosphere and biogeography (stage ``v55``): functional analogues, dispersal,
+    shared food, productivity, richness and renewable resources. Every parameter is a
+    provisional prior; the physics of the world is only read."""
+
+    enabled: bool = True
+    #: POTENTIAL (physics only), REALIZED_BASELINE (after dispersal and food) or DYNAMIC
+    mode: str = "REALIZED_BASELINE"
+    #: microsites per hex: basic 1, standard 3, detailed 5 elevation bins
+    detail: str = "standard"
+    #: optional separate biology seed (empty: the world seed); geology never depends on it
+    biology_seed: str = ""
+    #: cost multiplier of a headwater capture between drainages (0 forbids fish crossing)
+    capture_mult: float = 30.0
+    #: years of the P1 dynamics in DYNAMIC mode (0: none)
+    dynamic_years: int = 10
+
+
 @dataclass(frozen=True)
 class ResourceParams:
     """v5.2 soil fertility and geological resources (TZ 5.2). [A] calibration
@@ -635,6 +658,7 @@ class Config:
     atmosphere: AtmosphereParams = field(default_factory=AtmosphereParams)
     resources: ResourceParams = field(default_factory=ResourceParams)
     minerals: MineralParams = field(default_factory=MineralParams)
+    biosphere: BiosphereParams = field(default_factory=BiosphereParams)
 
     def __post_init__(self):
         validate_seed(self.seed)
@@ -713,6 +737,17 @@ class Config:
             raise ConfigError("minerals.max_depth_m must be within [500, 20000] m")
         if mp.technology_profile not in TECHNOLOGY_PROFILES:
             raise ConfigError(f"minerals.technology_profile must be one of {TECHNOLOGY_PROFILES}")
+        bp = self.biosphere
+        if bp.mode not in BIO_MODES:
+            raise ConfigError(f"biosphere.mode must be one of {BIO_MODES}")
+        if bp.detail not in BIO_DETAILS:
+            raise ConfigError(f"biosphere.detail must be one of {BIO_DETAILS}")
+        if not 0.0 <= bp.capture_mult <= 1000.0:
+            raise ConfigError("biosphere.capture_mult must be within [0, 1000]")
+        if not 0 <= int(bp.dynamic_years) <= 200:
+            raise ConfigError("biosphere.dynamic_years must be within [0, 200]")
+        if not all(32 <= ord(ch) < 127 for ch in bp.biology_seed):
+            raise ConfigError("biosphere.biology_seed must be printable ASCII")
         c = self.climate
         if c.profile not in CLIMATE_PROFILES:
             raise ConfigError(f"climate.profile must be one of {CLIMATE_PROFILES}")
@@ -980,6 +1015,7 @@ class Config:
             "atmosphere": AtmosphereParams,
             "resources": ResourceParams,
             "minerals": MineralParams,
+            "biosphere": BiosphereParams,
         }
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
@@ -1012,6 +1048,8 @@ class Config:
             kwargs["resources"] = ResourceParams(enabled=False)
         if "minerals" not in data:  # saved before 5.5.1: the old plan stays as it was
             kwargs["minerals"] = MineralParams(enabled=False)
+        if "biosphere" not in data:  # saved before 5.5: no biosphere until asked (B02)
+            kwargs["biosphere"] = BiosphereParams(enabled=False)
         return cls(**kwargs)
 
     def to_json(self) -> str:

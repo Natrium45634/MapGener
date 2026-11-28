@@ -26,6 +26,8 @@ N_REF_KG_M2_YR = 0.04
 P_REF_KG_M2 = 0.0015
 #: maximum cover of a layer and the shading of the layers below (fractions) [К]
 CMAX = {"canopy": 0.95, "shrub": 0.7, "ground": 0.95, "epiphyte": 0.3}
+#: ecosystem water-use efficiency of GPP, gC per kg of actual ET [S: 2–4 for most biomes]
+WUE_GC_PER_KG = 3.5
 #: share of the hex's coastal ground that is a tidal fringe (mangrove gate) [К]
 TIDAL_FRINGE = 0.08
 #: lake ice is opaque below this monthly air temperature, °C [К]
@@ -171,6 +173,7 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
             elif layer == "ground":
                 avail = np.clip(veg_share * (1.0 - 0.5 * layer_cover.get("canopy", 0.0)
                                              - 0.3 * layer_cover.get("shrub", 0.0)), 0.0, 1.0)
+                avail = avail * np.clip(p_ann / 250.0, 0.05, 1.0)  # sparse cover in deserts
             elif layer == "epiphyte":
                 avail = layer_cover.get("canopy", np.zeros(n))
             s = Smin[sel]  # structure follows the most limiting factor (Liebig)
@@ -240,6 +243,11 @@ def land_production(inp, frac, *, n_fix_supply=None, pollinators=None, iteration
                     ap += a_g
                     g_m += lue * a_g * ft_m * np.nan_to_num(fw_m, nan=0.0) * fn
                     light = light - absorbed  # transmitted to the layer below (B22)
+                # water-use ceiling: GPP of the month <= WUE x actual ET (no carbon without
+                # the water to fix it; desert plants cannot outgrow their rain)
+                tot = g_m.sum(axis=0)
+                cap = WUE_GC_PER_KG * np.nan_to_num(aet[m], nan=0.0)
+                g_m = g_m * np.where(tot > cap, cap / np.maximum(tot, 1e-30), 1.0)
                 gpp += g_m
                 gm[m] = (cue * g_m).sum(axis=0)
             npp = cue * gpp
@@ -288,7 +296,7 @@ def land_pools(prod, groups_ids, pollination=None) -> dict:
     """Split the producer NPP (gC/m² of ground) into the food pools and the inedible litter
     (no carbon counted twice: the pools partition the NPP exactly, B43)."""
     reg = load()
-    n = prod["npp"].shape[1]
+    n = prod["npp_leaf"].shape[1]
     pools = {k: np.zeros(n) for k in ("leaf_woody", "leaf_herb", "fruit_seed", "nectar",
                                       "root_exudate", "litter")}  # fmt: skip
     for gi, gid in enumerate(groups_ids):

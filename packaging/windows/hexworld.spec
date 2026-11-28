@@ -16,7 +16,9 @@ PMGE = [
 
 # TZ 5.5.1 catalogues (commodities, deposit models, reference profile) are required data
 DATAS = [(os.path.join(ROOT, "src", "hexworld", "minerals", "data"),
-          os.path.join("hexworld", "minerals", "data"))]
+          os.path.join("hexworld", "minerals", "data")),
+         (os.path.join(ROOT, "src", "hexworld", "biosphere", "data"),
+          os.path.join("hexworld", "biosphere", "data"))]
 if os.path.isdir(os.path.join(ROOT, "docs", "biomes", "presets")):
     DATAS.append((os.path.join(ROOT, "docs", "biomes", "presets"),
                   os.path.join("docs", "biomes", "presets")))

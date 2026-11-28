@@ -83,6 +83,7 @@ V53_DATA_FILES = ("earth_fields.npz", "earth.json")
 V54_DATA_FILES = ("atmosphere_fields.npz", "atmosphere_grid.npz", "atmosphere.json")
 V52_DATA_FILES = ("resources_fields.npz", "resources_index.npz", "resources.json")
 V551_DATA_FILES = ("minerals.json", "minerals_fields.npz")
+V55_DATA_FILES = ("biosphere.json", "biosphere_fields.npz")
 V47_DATA_FILES = (
     "topoclimate_fields.npz",
     "topoclimate_monthly.npz",
@@ -901,6 +902,24 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
     else:
         for name in V551_DATA_FILES:
             (path / name).unlink(missing_ok=True)
+    v55_manifest = None
+    bio = getattr(project, "biosphere", None)
+    if bio is not None and res is not None:
+        from .biosphere.stage import to_arrays as bio_arrays
+        from .biosphere.stage import to_json as bio_json
+
+        np.savez_compressed(path / "biosphere_fields.npz", **bio_arrays(bio))
+        _write_json(path / "biosphere.json", bio_json(bio))
+        files += list(V55_DATA_FILES)
+        v55_manifest = {
+            "algorithm_version": bio.provenance["algorithm_version"],
+            "files": list(V55_DATA_FILES),
+            "content_hashes": bio.content_hashes(),
+            "stage_keys": bio.stage_keys,
+        }
+    else:
+        for name in V55_DATA_FILES:
+            (path / name).unlink(missing_ok=True)
     v51_manifest = None
     volc = getattr(project, "volcanism", None)
     if volc is not None and project.hydro is not None:
@@ -1098,6 +1117,7 @@ def save_project(project: Project, path: str | Path, overwrite: bool = True) -> 
         "v54": v54_manifest,
         "v52": v52_manifest,
         "v551": v551_manifest,
+        "v55": v55_manifest,
         "file_hashes": {name: _file_hash(path / name) for name in files},
     }
     _write_json(manifest_path, manifest)
@@ -1279,6 +1299,7 @@ def load_project(path: str | Path, verify: bool = True) -> Project:
     _load_biomes(project, path, manifest, config, verify)
     _load_resources(project, path, manifest, config, verify)
     _load_minerals(project, path, manifest, config, verify)
+    _load_biosphere(project, path, manifest, config, verify)
     return project
 
 
@@ -1590,6 +1611,42 @@ def _load_minerals(project: Project, path: Path, manifest: dict, config, verify)
             if actual.get(key) != expected:
                 raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
     project.minerals = m
+
+
+def _load_biosphere(project: Project, path: Path, manifest: dict, config, verify) -> None:
+    """Attach the stored 5.5 biosphere; an old save without it stays «not generated» (B02),
+    and nothing is recomputed on open."""
+    from .biosphere.model import ALGORITHM_VERSION as BIO_VERSION
+    from .biosphere.stage import STAGE, from_saved
+    from .biosphere.stage import stage_keys as bio_keys
+
+    v55 = manifest.get("v55")
+    if not v55 or project.resources is None:
+        return
+    if not all((path / name).exists() for name in V55_DATA_FILES):
+        project.warnings.append("The manifest lists 5.5 biosphere data, but its files are missing.")
+        return
+    doc = json.loads((path / "biosphere.json").read_text(encoding="utf-8"))
+    if doc.get("algorithm_version") != BIO_VERSION:
+        project.warnings.append(
+            f"The stored biosphere was produced by {doc.get('algorithm_version')}, this build "
+            f"uses {BIO_VERSION}: NOT loaded (not generated)."
+        )
+        return
+    if getattr(config, "biosphere", None) is None or not config.biosphere.enabled:
+        return
+    if bio_keys(config, project)[STAGE] != doc["stage_keys"].get(STAGE):
+        project.warnings.append("The stored biosphere belongs to another world state: NOT loaded.")
+        return
+    with np.load(path / "biosphere_fields.npz") as data:
+        arrays = {k: data[k] for k in data.files}
+    b = from_saved(doc, arrays)
+    if verify:
+        actual = b.content_hashes()
+        for key, expected in v55["content_hashes"].items():
+            if actual.get(key) != expected:
+                raise ProjectIntegrityError(f"array {key} does not match the manifest hash")
+    project.biosphere = b
 
 
 def _load_volcanism(project: Project, path: Path, manifest: dict, config, verify) -> None:

@@ -986,6 +986,92 @@ def cmd_resources(args) -> int:
     return 0
 
 
+def _bio_or_fail(project):
+    b = getattr(project, "biosphere", None)
+    if b is None:
+        print("The 5.5 biosphere is not generated for this project (bio-generate makes a copy).")
+    return b
+
+
+def cmd_bio_generate(args) -> int:
+    """Add the 5.5 biosphere to a saved world as a derived copy; the original is untouched."""
+    from dataclasses import replace
+
+    from .biosphere.stage import run_biosphere
+    from .config import BiosphereParams
+
+    if args.out and str(args.out) == str(args.project):
+        print("--out must differ from the source project (the original is never overwritten)")
+        return 2
+    project = load_project(args.project)
+    if project.resources is None:
+        print("The world has no v5.2 soils/resources: the biosphere needs them.")
+        return 1
+    bp = BiosphereParams(mode=args.mode, detail=args.detail, biology_seed=args.bio_seed or "")
+    project.config = replace(project.config, biosphere=bp)
+    project.biosphere = run_biosphere(project.config, project)
+    s = project.biosphere.summary
+    print(f"biosphere {s['algorithm_version']}: {s['taxa_world']} taxa, {s['bioregions']} "
+          f"bioregions, ledger {'ok' if s['ledger_ok'] else 'NOT closed'}")  # fmt: skip
+    if args.out:
+        save_project(project, args.out)
+        print(f"saved the derived copy to {args.out}")
+    return 0
+
+
+def cmd_bio_diagnostics(args) -> int:
+    project = load_project(args.project)
+    b = _bio_or_fail(project)
+    if b is None:
+        return 1
+    s = b.summary
+    print(json.dumps({"summary": s, "quality": b.state.quality, "ledger": b.state.ledger,
+                      "timings": b.timings}, ensure_ascii=False, indent=1, default=str))
+    return 0
+
+
+def cmd_bio_explain(args) -> int:
+    from .biosphere.explain import hex_report, text_ru
+
+    project = load_project(args.project)
+    b = _bio_or_fail(project)
+    if b is None:
+        return 1
+    i = int(args.row) * project.layout.width + int(args.col)
+    rep = hex_report(b.state, i)
+    print(json.dumps(rep, ensure_ascii=False, indent=1, default=str) if args.json else text_ru(rep))
+    return 0
+
+
+def cmd_bio_advance(args) -> int:
+    from .biosphere.dynamics import advance_years
+
+    project = load_project(args.project)
+    b = _bio_or_fail(project)
+    if b is None:
+        return 1
+    yearly = advance_years(b.state, project, years=args.years, seed=b.state.seed)
+    for y in yearly:
+        print(f"year {y['year']}: NPP {y['npp_input_kgc']:.3g} kgC, fires {y['fires']}, "
+              f"drought hexes {y['drought_hexes']}, residual {y['residual']:.1e}")  # fmt: skip
+    return 0
+
+
+def cmd_bio_export(args) -> int:
+    from .biosphere.export import export_biosphere
+
+    project = load_project(args.project)
+    if _bio_or_fail(project) is None:
+        return 1
+    hexes = None
+    if args.hexes:
+        w = project.layout.width
+        hexes = {int(r) * w + int(c) for c, r in (h.split(",") for h in args.hexes)}
+    files = export_biosphere(project, args.out, hexes)
+    print("exported: " + ", ".join(files))
+    return 0
+
+
 def cmd_worlds(args) -> int:
     """List the saved worlds (one folder each) with their codes; save one from a project."""
     from . import saved_worlds as sw
@@ -1361,6 +1447,32 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument("--export", metavar="DIR",
                     help="GeoJSON systems, JSON bodies, CSV totals, NPZ fields")  # fmt: skip
     rs.set_defaults(func=cmd_resources)
+    bg = sub.add_parser("bio-generate", help="TZ 5.5: add the biosphere to a saved world (copy)")
+    bg.add_argument("project")
+    bg.add_argument("--out", help="folder of the derived copy (never the source)")
+    bg.add_argument("--mode", default="REALIZED_BASELINE",
+                    choices=("POTENTIAL", "REALIZED_BASELINE", "DYNAMIC"))  # fmt: skip
+    bg.add_argument("--detail", default="standard", choices=("basic", "standard", "detailed"))
+    bg.add_argument("--bio-seed", default="", help="separate biology seed (ASCII)")
+    bg.set_defaults(func=cmd_bio_generate)
+    bd = sub.add_parser("bio-diagnostics", help="TZ 5.5: summary, ledger and quality (JSON)")
+    bd.add_argument("project")
+    bd.set_defaults(func=cmd_bio_diagnostics)
+    be = sub.add_parser("bio-explain", help="TZ 5.5: what lives in a hex and why")
+    be.add_argument("project")
+    be.add_argument("col", type=int)
+    be.add_argument("row", type=int)
+    be.add_argument("--json", action="store_true")
+    be.set_defaults(func=cmd_bio_explain)
+    ba = sub.add_parser("bio-advance", help="TZ 5.5 P1: advance the actual state N years")
+    ba.add_argument("project")
+    ba.add_argument("--years", type=int, default=10)
+    ba.set_defaults(func=cmd_bio_advance)
+    bx = sub.add_parser("bio-export", help="TZ 5.5: JSON and CSV tables of the biosphere")
+    bx.add_argument("project")
+    bx.add_argument("out")
+    bx.add_argument("--hexes", nargs="*", metavar="COL,ROW", help="region report of these hexes")
+    bx.set_defaults(func=cmd_bio_export)
 
     se = sub.add_parser("section", help="vertical cross-section along a line (v4.6)")
     se.add_argument("project")

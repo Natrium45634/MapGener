@@ -390,6 +390,8 @@ class MainWindow(QMainWindow):
         )
         act(world, "⛏ Экспорт недр 5.5.1 (GeoJSON, CSV)…", self.export_minerals,
             tip="Контуры тел, лоты с единицами и ключами, план и журнал масс")  # fmt: skip
+        act(world, "🌿 Экспорт природы 5.5 (JSON, CSV)…", self.export_biosphere,
+            tip="Сводка, гексы, аналоги и ареалы, возобновляемые ресурсы, выбранный гекс")  # fmt: skip
         act(world, "PNG этой вкладки…", self.export_png)
         act(world, "PNG всех вкладок…", self.export_all_png)
         world.addSeparator()
@@ -1487,6 +1489,24 @@ class MainWindow(QMainWindow):
             return []
         files = export_minerals(self.project, folder)
         self.statusBar().showMessage(f"Недра экспортированы: {len(files)} файла → {folder}")
+        return files
+
+    def export_biosphere(self, folder: str | None = None) -> list[str]:
+        from ..biosphere.export import export_biosphere
+
+        if self.project is None or getattr(self.project, "biosphere", None) is None:
+            msg = "В этом мире нет природы 5.5: включите её в настройках."
+            QMessageBox.information(self, "Экспорт природы", msg)
+            return []
+        folder = folder or QFileDialog.getExistingDirectory(self, "Папка для экспорта природы")
+        if not folder:
+            return []
+        sel = getattr(self.view, "selected_hex", None)
+        hexes = None
+        if sel is not None:
+            hexes = {int(sel[1]) * self.project.layout.width + int(sel[0])}
+        files = export_biosphere(self.project, folder, hexes)
+        self.statusBar().showMessage(f"Природа экспортирована: {len(files)} файла → {folder}")
         return files
 
     def export_all_png(self):

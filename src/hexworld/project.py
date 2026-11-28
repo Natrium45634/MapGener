@@ -625,6 +625,8 @@ class Project:
     resources: ResourceData | None = None
     #: TZ 5.5.1 mineral plan (``hexworld.minerals.stage.MineralData``); ``None`` if absent.
     minerals: object | None = None
+    #: TZ 5.5 biosphere (``hexworld.biosphere.stage.BioData``); ``None`` if absent.
+    biosphere: object | None = None
     #: Stage objects kept for cheap partial regeneration; never saved.
     cache: dict = field(default_factory=dict, repr=False)
 

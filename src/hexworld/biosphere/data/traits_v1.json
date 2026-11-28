@@ -372,7 +372,7 @@
     "fw_detritus": 0.5,
     "m_detritus": 0.5
    },
-   "dormant": false,
+   "dormant": true,
    "e0": 0.0005,
    "gates": [
     "any_water"
@@ -3876,7 +3876,7 @@
    "diet": {
     "root_exudate": 1.0
    },
-   "dormant": false,
+   "dormant": true,
    "e0": 0.0005,
    "gates": [
     "land_ground",
@@ -3941,7 +3941,7 @@
    "diet": {
     "root_exudate": 1.0
    },
-   "dormant": false,
+   "dormant": true,
    "e0": 0.0005,
    "gates": [
     "land_ground",
@@ -5692,7 +5692,7 @@
    "diet": {
     "litter": 1.0
    },
-   "dormant": false,
+   "dormant": true,
    "e0": 0.0005,
    "gates": [
     "land_ground"
@@ -5756,7 +5756,7 @@
    "diet": {
     "litter": 1.0
    },
-   "dormant": false,
+   "dormant": true,
    "e0": 0.0005,
    "gates": [
     "land_ground"

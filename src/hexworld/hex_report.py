@@ -532,6 +532,8 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
         _resources_sections(project, res, col, row, sections)
     if getattr(project, "minerals", None) is not None:
         _minerals_section(project, col, row, sections)
+    if getattr(project, "biosphere", None) is not None:
+        _biosphere_section(project, col, row, sections)
 
     # -- coast and sea floor -------------------------------------------------------------------
     s = Section("sea", "Берег и дно моря")
@@ -795,6 +797,59 @@ def _fmt_mass_t(t: float) -> str:
 _ELEMENT_TITLES = {"diamond": "алмазы", "coal": "уголь", "oil": "нефть", "gas": "газ",
                    "NaCl": "каменная соль", "C_graphite": "графит", "gem": "самоцветы",
                    "REE": "РЗЭ", "Li_mg_per_l": "Li, мг/л"}  # fmt: skip
+
+
+def _biosphere_section(project, col, row, sections) -> None:
+    """TZ 5.5: named analogues, why present or absent, productivity, richness, resources —
+    read from the stored state (no solver on hover)."""
+    from .biosphere.explain import REASON_RU, hex_report
+
+    st = project.biosphere.state
+    i = int(row) * project.layout.width + int(col)
+    rep = hex_report(st, i)
+    s = Section("nature", "Природа (5.5)")
+
+    def names(items, key=None):
+        out = []
+        for x in items:
+            t = x["analogue"]
+            if key == "hex_share" and x.get("hex_share", 0) > 0:
+                t += f" {x['hex_share']:.0%}"
+            out.append(t)
+        return ", ".join(out) or "—"
+
+    s.add("Растения", names(rep["flora"], "hex_share"))
+    s.add("Животные", names(rep["fauna"]))
+    s.add("Богатство", f"флора {rep['flora_richness']}, фауна {rep['fauna_richness']}, "
+          f"пресные воды {rep['freshwater_richness']}, море {rep['marine_richness']} "
+          f"аналогов; групп {rep['functional_richness']}; индекс "
+          f"{rep['total_richness_index']:.0f}/100, перцентиль мира "
+          f"{rep['total_richness_percentile']:.0f}")  # fmt: skip
+    s.add("Продуктивность", f"{rep['npp_gc_m2_yr']:,.0f} гC/м²/год; фитомасса "
+          f"{rep['plant_biomass_kgc_m2']:.1f} кгC/м²; животные "
+          f"{rep['animal_biomass_kgc_km2']:,.0f} кгC/км²")  # fmt: skip
+    if rep.get("npp_limit"):
+        s.add("Ограничитель", rep["npp_limit"])
+    if rep["endemic_taxa"]:
+        s.add("Эндемики", f"{rep['endemic_taxa']} аналогов с ареалом ≤ 100 000 км²")
+    for x in rep["absent_examples"][:4]:
+        why = REASON_RU[x["status"]] + (f" — {x['limiting']}" if x.get("limiting") else "")
+        s.add(f"Нет: {x['analogue']}", why)
+    res = project.biosphere.resources()["layers"]
+    area = st.area_km2
+    parts = []
+    if res["timber_increment_m3_yr"][i] > 0:
+        parts.append(f"древесина {res['timber_increment_m3_yr'][i] / area:,.0f} м³/км²/год "
+                     "(то же, что дрова)")  # fmt: skip
+    if res["game_production_t_wet_yr"][i] > 0:
+        parts.append(f"дичь {res['game_production_t_wet_yr'][i] / area:.2f} т/км²/год")
+    fish = res["fish_fresh_production_t_wet_yr"][i] + res["fish_marine_production_t_wet_yr"][i]
+    if fish > 0:
+        parts.append(f"рыба {fish / area:.2f} т/км²/год")
+    if parts:
+        s.add("Возобновляемые ресурсы", "; ".join(parts) + " (потенциал, не добыча)")
+    s.add("Качество", f"история {rep['quality']}; параметры предварительные; аналоги — не виды")
+    sections.append(s)
 
 
 def _minerals_section(project, col, row, sections) -> None:

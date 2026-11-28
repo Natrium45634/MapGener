@@ -19,9 +19,9 @@ import numpy as np
 INDEX_VERSION = "provisional_v1"
 #: fixed raw bounds of the 0–100 indices (provisional, not calibrated)
 INDEX_BOUNDS = {
-    "flora_richness": (0.0, 80.0),
-    "fauna_richness": (0.0, 140.0),
-    "total_richness": (0.0, 200.0),
+    "flora_richness": (0.0, 50.0),
+    "fauna_richness": (0.0, 90.0),
+    "total_richness": (0.0, 150.0),
     "npp_gc_m2_yr": (0.0, 1500.0),
     "biomass_kgc_m2": (0.0, 25.0),
     "weighted_endemism": (0.0, 2.0),

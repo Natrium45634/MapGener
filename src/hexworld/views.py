@@ -80,7 +80,8 @@ class ViewSpec:
             return False, "Нет проекта"
         if (
             self.stage
-            in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52", "v551")
+            in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52", "v551",
+               "v55")
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -111,6 +112,8 @@ class ViewSpec:
             return False, f"«{self.title}»: плодородие и ресурсы (v5.2) не рассчитаны"
         if self.stage == "v551" and getattr(project, "minerals", None) is None:
             return False, f"«{self.title}»: недра 5.5.1 не рассчитаны (включите в настройках)"
+        if self.stage == "v55" and getattr(project, "biosphere", None) is None:
+            return False, f"«{self.title}»: биосфера 5.5 не рассчитана (включите в настройках)"
         return True, ""
 
     def default_mode(self) -> str:
@@ -5385,3 +5388,4 @@ register_view(
 
 # TZ 5.5.1 views (registered by their module)
 from .minerals import views551 as _views551  # noqa: E402,F401
+from .biosphere import views55 as _views55  # noqa: E402,F401

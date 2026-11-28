@@ -29,6 +29,9 @@ MJ_PER_KGC = 42.0
 CARRION_SHARE = 0.3
 #: upper density by body mass (Damuth-like), individuals/km² = DMAX · M^-0.75 [К]
 DMAX = 200.0
+VERTEBRATE_KG = 0.005
+#: aquatic animals are not capped by a land territory rule
+WATER_REALMS = ("freshwater", "marine", "marine_freshwater", "aquatic")
 
 
 def allocate(available, requests):
@@ -136,7 +139,10 @@ def run_foodweb(pools: dict, weights: dict, home_area_m2: dict, n: int, gates_wa
             m = tr["mass_kg"]
             area_km2 = home_area_m2[g.id] / 1e6
             n_food = biomass / max(m * C_PER_WET, 1e-30)
-            n_space = DMAX * max(m, 1e-9) ** -0.75 * area_km2
+            # space cap (Damuth-like) only for vertebrates; invertebrates, plankton and
+            # microbes are food-limited here
+            n_space = DMAX * max(m, 1e-9) ** -0.75 * area_km2 if m >= VERTEBRATE_KG and g.realm not in WATER_REALMS else \
+                np.full(n, np.inf)  # fmt: skip
             k = np.minimum(n_food, n_space)
             if tr.get("needs_water") and gates_water is not None:
                 k = np.where(gates_water, k, 0.0)  # no drinking water: K_water = 0

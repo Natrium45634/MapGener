@@ -269,7 +269,9 @@ def marine_pools(inp, frac) -> Lineages:
     """Ocean basin × thermal belt of the annual SST: the marine lineage pools."""
     f = inp.f
     ocean = frac["marine_water"] > 0.5
-    sst = np.nanmean(np.where(np.isfinite(f["sst_m"]), f["sst_m"], np.nan), axis=0)
+    with np.errstate(invalid="ignore"):
+        cnt = np.isfinite(f["sst_m"]).sum(axis=0)
+        sst = np.where(cnt > 0, np.nansum(f["sst_m"], axis=0) / np.maximum(cnt, 1), np.nan)
     belt = np.where(sst >= 20, 0, np.where(sst >= 10, 1, 2))
     basin = f["ocean_basin_id"]
     pool = np.full(inp.n, -1, dtype=np.int64)
