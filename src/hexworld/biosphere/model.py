@@ -443,6 +443,11 @@ def solve(inp: BioInputs, frac, mode="REALIZED_BASELINE", seed="", capture_mult=
                                      f["ec_ds_m"]).astype(np.float32)
     layers["_env"]["gdd"] = np.asarray(f["gdd5"], dtype=np.float32)
     layers["_index_version"] = mt.INDEX_VERSION
+    # monthly temperature of the home realm of land / water life, for the seasonal states of
+    # the explanation (float16: display only)
+    t_home = np.where(frac["marine_water"][None, :] > 0.5,
+                      np.where(np.isfinite(f["sst_m"]), f["sst_m"], f["t_air_m"]), f["t_air_m"])
+    layers["t_month"] = t_home.astype(np.float16)
     T["metrics"] = time.perf_counter() - t
     rep(1.0)
     ledger = {"foodweb": web["ledger"], "npp_total_kgc_yr": float(

@@ -820,6 +820,14 @@ def _biosphere_section(project, col, row, sections) -> None:
 
     s.add("Растения", names(rep["flora"], "hex_share"))
     s.add("Животные", names(rep["fauna"]))
+    s.add("Беспозвоночные", names(rep.get("invertebrates", [])))
+    from .biosphere.explain import _months
+
+    seas = [f"{x['analogue']} — активность в мес. {_months(x['season']['active_months'])}, "
+            f"в остальное время {x['season']['otherwise']}" for x in rep["fauna"]
+            if x.get("season")]  # fmt: skip
+    if seas:
+        s.add("Сезоны", "; ".join(seas[:3]))
     s.add("Богатство", f"флора {rep['flora_richness']}, фауна {rep['fauna_richness']}, "
           f"пресные воды {rep['freshwater_richness']}, море {rep['marine_richness']} "
           f"аналогов; групп {rep['functional_richness']}; индекс "

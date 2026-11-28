@@ -299,3 +299,52 @@ def test_potential_vs_realized_modes():
     assert _land_total(pot, "grazer_large", island) > 0
     assert _land_total(real, "grazer_large", island) == 0.0
     assert pot.summary["ledger_ok"] and real.summary["ledger_ok"]
+
+
+def test_b17_mirrored_hemispheres_shift_the_season():
+    land = np.ones((2, 3), bool)
+    north = sy.make(land, hemisphere=1)
+    south = sy.make(land, hemisphere=-1)
+    a = pr.land_production(north, habitat_fractions(north))
+    b = pr.land_production(south, habitat_fractions(south))
+    assert np.nansum(a["npp"]) == pytest.approx(np.nansum(b["npp"]), rel=1e-9)
+    ma, mb = a["npp_month"][:, 0], b["npp_month"][:, 0]
+    assert np.allclose(np.roll(ma, 6), mb, rtol=1e-9, atol=1e-9)
+
+
+def test_b25_layer_covers_within_available_area():
+    land = np.ones((3, 4), bool)
+    inp = sy.make(land)
+    out = pr.land_production(inp, habitat_fractions(inp))
+    reg = load()
+    layer = np.array([reg.groups[g].traits["layer"] for g in out["groups"]])
+    for name in ("canopy", "shrub", "ground"):
+        assert np.all(out["cover"][layer == name].sum(axis=0) <= 1.0 + 1e-9)
+    # epiphytes and climbers overlay the canopy, never more than it
+    can = out["cover"][layer == "canopy"].sum(axis=0)
+    assert np.all(out["cover"][layer == "epiphyte"].max(axis=0) <= can + 1e-9)
+
+
+def test_b32_land_bridge_opens_exchange_synthetic():
+    land, block = _two_landmasses(gap=4, h=10, w=40, block_b=-1)
+    inp = sy.make(land, block=block)
+    st = _solve(inp)
+    isl = np.zeros_like(land)
+    isl[:, 18:] = land[:, 18:]
+    assert _land_total(st, "grazer_large", isl) == 0.0  # separated: no walkers
+    bridged = land.copy()
+    bridged[4:6, 14:18] = True  # the bridge event of this fixture
+    inp2 = sy.make(bridged, block=np.where(bridged, np.where(block >= 0, block, -1), -1))
+    st2 = _solve(inp2)
+    assert np.isfinite(st2.lineage["ground"]["d_km"][isl.ravel()]).all()
+    assert _land_total(st2, "grazer_large", isl) > 0.0  # exchange after the bridge
+
+
+def test_b61_range_touching_the_window_edge_is_unknown():
+    land, block = _two_landmasses()
+    inp = sy.make(land, block=block)
+    st = _solve(inp)
+    rng = st.layers["_ranges"]
+    assert any(t for _a, t, _id, _k in rng.values())  # the fixture touches the edges
+    assert st.summary["taxa_endemic"] == sum(1 for a, t, _i, _k in rng.values()
+                                             if a <= md.ENDEMIC_RANGE_KM2 and not t)

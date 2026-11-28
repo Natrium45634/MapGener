@@ -38,7 +38,17 @@ MODES = (
     ("marine", "Морская жизнь"),
     ("domestication", "Потенциал одомашнивания (дикие предки)"),
     ("limit", "Главный ограничитель продуктивности"),
+    ("season", "Сезон: активных групп животных в выбранный месяц"),
 )  # fmt: skip
+
+
+def _group_modes():
+    reg = load()
+    order = sorted(reg.groups.values(), key=lambda g: (not g.is_flora, g.level, g.name_ru))
+    return tuple((f"g:{g.id}", f"Ареал: {g.name_ru} ({g.analogue_ru})") for g in order)
+
+
+GROUP_MODES = _group_modes()
 SCALE_NOTE = {"index": "индекс 0–100 (фиксированные границы)", "percentile": "перцентиль мира"}
 _LIMIT_RGB = ((240, 220, 90), (120, 160, 230), (220, 140, 60), (150, 90, 170), (60, 60, 60))
 
@@ -47,7 +57,7 @@ def _bio(project):
     return project.biosphere.state
 
 
-def _scalar(project, mode):
+def _scalar(project, mode, overlays=frozenset()):
     st = _bio(project)
     L = st.layers
     area = st.area_km2
@@ -66,6 +76,24 @@ def _scalar(project, mode):
     if mode == "age":
         a = L.get("dyn_stand_age_yr")
         return np.log10(1.0 + (a if a is not None else L["substrate_age_yr"]).astype(float))
+    if mode == "season":
+        from ..views import _month_of
+        from .niche import trapezoid
+
+        m = _month_of(overlays)
+        tm = L.get("t_month")
+        if tm is None:
+            return np.full(st.n, np.nan)
+        reg = load()
+        cnt = np.zeros(st.n)
+        for gid, d in st.groups.items():
+            g = reg.groups[gid]
+            if g.is_fauna and "biomass_kgc" in d:
+                act = trapezoid(np.asarray(tm[m], dtype=np.float64), *g.traits["t_act"]) >= 0.5
+                cnt += (d["biomass_kgc"] > 0) & act
+        return cnt
+    if mode.startswith("g:"):
+        return st.groups[mode[2:]]["weight"].astype(float)
     if mode == "disturbance":
         if "dyn_burned_fraction" in L:
             return L["dyn_burned_fraction"].astype(float)
@@ -99,7 +127,7 @@ _BOUNDS = {"flora_richness": (0, 50), "fauna_richness": (0, 90), "total_richness
            "biomass": (0, 25), "npp": (0, 1500), "endemism": (0, 2), "connectivity": (0, 4),
            "migration": (0, 10), "age": (0, 6), "disturbance": (0, 1), "freshwater": (0, 40),
            "marine": (0, 40), "res_timber": (0, 2000), "res_game": (0, 2), "res_fish": (0, 20),
-           "domestication": (0, 1)}  # fmt: skip
+           "domestication": (0, 1), "season": (0, 50)}  # fmt: skip
 
 
 def _dominant(project, kind):
@@ -124,9 +152,11 @@ def _dominant(project, kind):
 def _render(project, mode, overlays):
     st = _bio(project)
     h, w = st.shape
-    life = (st.frac["land_ground"] + st.frac["inland_water"]) > 0
+    # display: a sea hex with a sliver of shore is drawn as sea (it is still computed)
+    life = (st.frac["land_ground"] + st.frac["inland_water"]) >= 0.3
     land_view = mode not in ("marine", "res_fish", "bioregion", "npp", "total_richness",
-                             "fauna_richness", "flora_richness", "connectivity", "limit")
+                             "fauna_richness", "flora_richness", "connectivity", "limit",
+                             "season") and not mode.startswith("g:")
     rgb = np.empty((st.n, 3))
     if mode in ("flora", "fauna"):
         ids, best, has = _dominant(project, mode)
@@ -139,14 +169,14 @@ def _render(project, mode, overlays):
     elif mode == "limit":
         rgb[:] = np.array(_LIMIT_RGB, dtype=float)[st.layers["npp_limit"].astype(int)]
     else:
-        v = _scalar(project, mode)
+        v = _scalar(project, mode, overlays)
         if "percentile" in overlays:
             valid = np.isfinite(v) & ((st.frac["land_ground"] > 0) if land_view else
                                       np.ones(st.n, bool))  # fmt: skip
             v = mt.percentile_area_weighted(v, st.area_km2, valid)
             lo, hi = 0.0, 100.0
         else:
-            lo, hi = _BOUNDS[mode]
+            lo, hi = _BOUNDS.get(mode, (0.0, 1.0))
         rgb[:] = _ramp_rgb(v, lo, hi, 0.8 if mode in ("npp", "biomass") else 1.0)
         rgb[~np.isfinite(v)] = MISSING_RGB
     if land_view:
@@ -184,8 +214,17 @@ def _legend(project, mode):
     elif mode == "limit":
         for name, c in zip(st.layers.get("_npp_limit_names") or [], _LIMIT_RGB, strict=False):
             items.append(LegendItem(str(name), c))
+    elif mode.startswith("g:"):
+        g = load().groups[mode[2:]]
+        items.append(LegendItem(f"{g.name_ru} — {g.analogue_ru}: доля 0–1 с учётом пригодности "
+                                "и заселённости (светлое — чаще)"))  # fmt: skip
+        items.append(LegendItem(f"роль: {g.trophic_role}; расселение: {g.mobility_mode}; "
+                                f"среда: {g.realm}"))  # fmt: skip
     else:
         lo, hi = _BOUNDS[mode]
+        if mode == "season":
+            items.append(LegendItem("месяц — в селекторе месяцев; группа активна, если её "
+                                    "температурная ниша этого месяца ≥ 0.5"))  # fmt: skip
         units = {"biomass": "кгC/м²", "npp": "гC/м²/год", "res_timber": "м³/км²/год",
                  "res_game": "т/км²/год", "res_fish": "т/км²/год", "connectivity": "lg(1+км)",
                  "age": "lg(лет)"}.get(mode, "")  # fmt: skip
@@ -204,7 +243,8 @@ register_view(
         title="Природа (5.5)",
         stage="v55",
         layers=("npp_gc_m2_yr", "total_richness"),
-        modes=tuple(Option(k, t) for k, t in MODES),
+        modes=tuple(Option(k, t) for k, t in MODES + GROUP_MODES),
+        months=True,
         overlays=(Option("percentile", "Перцентиль мира вместо шкалы"),
                   Option("coast", "Берег", True)),
         note="Растения, животные, биогеография и возобновляемые ресурсы по ТЗ 5.5; аналоги — "

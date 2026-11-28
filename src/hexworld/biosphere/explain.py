@@ -91,6 +91,14 @@ def group_status(state, gid: str, i: int) -> dict:
     out["lineage"] = names[li] if 0 <= li < len(names) else "—"
     out["distance_km"] = float(lin["d_km"][i]) if np.isfinite(lin["d_km"][i]) else None
     if present:
+        tm = state.layers.get("t_month")
+        if g.is_fauna and tm is not None:
+            s_m = trapezoid(np.asarray(tm[:, i], dtype=np.float64), *g.traits["t_act"])
+            act = [m for m in range(12) if s_m[m] >= 0.5]
+            if len(act) < 12:
+                tag = ("откочёвка или отлёт" if g.traits["migratory"] else
+                       "покой (спячка, диапауза)" if g.traits["dormant"] else "снижена")
+                out["season"] = {"active_months": [m + 1 for m in act], "otherwise": tag}
         return out | {"status": "present"}
     if s8 < int(S_MIN * 255):
         env = state.layers.get("_env", {})
@@ -145,12 +153,30 @@ def hex_report(state, i: int, top: int = 6) -> dict:
             absent.append(st)
     flora.sort(key=lambda s: -s.get("hex_share", 0.0))
     fauna.sort(key=lambda s: -s.get("biomass_kgc", 0.0))
+    vert = [s for s in fauna if reg.groups[s["group"]].traits["mass_kg"] >= 0.005]
+    inv = [s for s in fauna if reg.groups[s["group"]].traits["mass_kg"] < 0.005]
     rep["flora"] = flora[:top]
-    rep["fauna"] = fauna[:top]
+    rep["fauna"] = vert[:top]
+    rep["invertebrates"] = inv[:3]
     rep["flora_count"] = len(flora)
     rep["fauna_count"] = len(fauna)
     rep["absent_examples"] = absent[:top]
     return rep
+
+
+def _months(ms) -> str:
+    """Compact month ranges: [4, 5, 6, 9] -> «4–6, 9»."""
+    if not ms:
+        return "—"
+    out, start, prev = [], ms[0], ms[0]
+    for m in ms[1:] + [None]:
+        if m is not None and m == prev + 1:
+            prev = m
+            continue
+        out.append(f"{start}–{prev}" if prev > start else f"{start}")
+        if m is not None:
+            start = prev = m
+    return ", ".join(out)
 
 
 def text_ru(rep: dict) -> str:
@@ -158,9 +184,13 @@ def text_ru(rep: dict) -> str:
         return ", ".join(f"{s['analogue']}" + (f" ({s[key]:.0%})" if key == "hex_share" else "")
                          for s in items) or "—"  # fmt: skip
 
+    seas = [f"{s['analogue']}: активность в мес. {_months(s['season']['active_months'])}, в "
+            f"остальное время {s['season']['otherwise']}" for s in rep["fauna"] if s.get("season")]
     lines = [
         f"Флора (доля гекса): {names(rep['flora'], 'hex_share')}",
         f"Фауна: {names(rep['fauna'], 'biomass')}",
+        f"Беспозвоночные и мелкие: {names(rep.get('invertebrates', []), 'biomass')}",
+        *([f"Сезоны: {'; '.join(seas[:3])}"] if seas else []),
         f"Богатство: флора {rep['flora_richness']}, фауна {rep['fauna_richness']} аналогов "
         f"(групп {rep['functional_richness']}); индекс {rep['total_richness_index']:.0f}/100, "
         f"перцентиль мира {rep['total_richness_percentile']:.0f}",

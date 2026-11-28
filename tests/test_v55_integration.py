@@ -196,3 +196,21 @@ def test_551_t66_biogenic_mass_counted_once(world):
     inv = p.biosphere.resources()
     for k in inv["layers"]:
         assert not any(k.startswith(c + "_") or k == c for c in commodities), k
+
+
+def test_b03_bio_generate_makes_a_copy(world, tmp_path):
+    from hexworld.cli import main
+
+    p, _ = world
+    bio = p.biosphere
+    p.biosphere = None
+    try:
+        save_project(p, tmp_path / "old")
+    finally:
+        p.biosphere = bio
+    before = {f.name: f.read_bytes() for f in (tmp_path / "old").iterdir() if f.is_file()}
+    assert main(["bio-generate", str(tmp_path / "old"), "--out", str(tmp_path / "old")]) == 2
+    assert main(["bio-generate", str(tmp_path / "old"), "--out", str(tmp_path / "new")]) == 0
+    assert {f.name: f.read_bytes() for f in (tmp_path / "old").iterdir() if f.is_file()} == before
+    q = load_project(tmp_path / "new")
+    assert q.biosphere is not None and load_project(tmp_path / "old").biosphere is None
