@@ -214,3 +214,18 @@ def test_b03_bio_generate_makes_a_copy(world, tmp_path):
     assert {f.name: f.read_bytes() for f in (tmp_path / "old").iterdir() if f.is_file()} == before
     q = load_project(tmp_path / "new")
     assert q.biosphere is not None and load_project(tmp_path / "old").biosphere is None
+
+
+def test_world_resources_tab_one_legend(world):
+    from hexworld import views
+
+    p, _ = world
+    v = views.VIEWS["resources_world"]
+    assert v.availability(p)[0]
+    for o in v.modes:
+        rgb = v.render(p, o.id, v.default_overlays())
+        assert rgb.shape == (40, 60, 3)
+        leg = [it.label for it in v.legend(p, o.id)]
+        if o.id == "all":  # natural and mineral resources share one legend
+            assert any(t.startswith("природные") for t in leg)
+            assert any(t.startswith("минеральные") for t in leg)

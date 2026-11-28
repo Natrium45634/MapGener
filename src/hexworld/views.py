@@ -5389,3 +5389,4 @@ register_view(
 # TZ 5.5.1 views (registered by their module)
 from .minerals import views551 as _views551  # noqa: E402,F401
 from .biosphere import views55 as _views55  # noqa: E402,F401
+from .biosphere import views_resources as _views_res  # noqa: E402,F401

@@ -95,6 +95,17 @@ SEA_MODE_TITLES = {
 }
 
 
+def release_reuse_cache(project) -> None:
+    """Drop the intermediate arrays a project keeps only to speed up a regeneration of the
+    same world; the project itself stays complete and displayable."""
+    import gc
+
+    cache = getattr(project, "cache", None)
+    if isinstance(cache, dict):
+        cache.clear()
+    gc.collect()
+
+
 class Worker(QThread):
     progress = Signal(str, float)
     succeeded = Signal(object)
@@ -996,6 +1007,16 @@ class MainWindow(QMainWindow):
         if dlg is not None:
             dlg.finish()
             self._progress_dialog = None
+        # the finished job's closure holds the previous project (the reuse source): drop it
+        # so the old world can be freed now, not at the next generation
+        w = self._worker
+        self._worker = None
+        if w is not None:
+            w._job = None
+            w.deleteLater()
+        import gc
+
+        gc.collect()
         self._set_busy(False)
         self._apply_view()
 
@@ -1168,8 +1189,24 @@ class MainWindow(QMainWindow):
         CompareDialog([here, (e["title"], e.get("summary", {}), _entry_pixmap(self.library, e))],
                       self).exec()  # fmt: skip
 
+    def _reuse_for(self, config: Config):
+        """The previous project as a source of unchanged stages, or ``None`` when the new world
+        is another world (seed, size, hex, mode): then the arrays the previous project keeps only
+        for reuse are released *before* the run, so two large worlds never sit in memory at once
+        (on a 1000×800 world that pushed the second generation into swap: up to an hour)."""
+        prev = self.project
+        if prev is None:
+            return None
+        a, b = prev.config, config
+        same = (a.seed, a.width, a.height, a.hex_spacing_km, a.mode) == \
+            (b.seed, b.width, b.height, b.hex_spacing_km, b.mode)  # fmt: skip
+        if same:
+            return prev
+        release_reuse_cache(prev)
+        return None
+
     def generate_with(self, config: Config, through: str = "v50"):
-        previous = self.project
+        previous = self._reuse_for(config)
 
         def done(project):
             self._show_project(project, "Сгенерировано", sync_form=True)
@@ -1189,7 +1226,7 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Параметры", str(exc))
             return
-        previous = self.project
+        previous = self._reuse_for(config)
         through = self._through()
 
         def done(project):
