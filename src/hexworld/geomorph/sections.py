@@ -113,6 +113,13 @@ def cross_section(
                 rows[-1]["quality"] = "water"
             else:
                 rows[-1].update(query_environment(topo, int(near[k]), float(height[k]), month))
+    minerals = getattr(project, "minerals", None)
+    if minerals is not None:
+        from ..minerals.index import section_ore
+
+        ore = section_ore(minerals, px, py, height)
+        for k, r in enumerate(rows):
+            r["ore"] = ore[k]  # TZ 5.5.1: true intersections of the bodies (z, m)
     return rows
 
 

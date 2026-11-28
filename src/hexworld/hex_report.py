@@ -530,6 +530,8 @@ def hex_report(project: Project, col: int, row: int) -> HexReport:
     res = getattr(project, "resources", None)
     if res is not None:
         _resources_sections(project, res, col, row, sections)
+    if getattr(project, "minerals", None) is not None:
+        _minerals_section(project, col, row, sections)
 
     # -- coast and sea floor -------------------------------------------------------------------
     s = Section("sea", "Берег и дно моря")
@@ -793,6 +795,52 @@ def _fmt_mass_t(t: float) -> str:
 _ELEMENT_TITLES = {"diamond": "алмазы", "coal": "уголь", "oil": "нефть", "gas": "газ",
                    "NaCl": "каменная соль", "C_graphite": "графит", "gem": "самоцветы",
                    "REE": "РЗЭ", "Li_mg_per_l": "Li, мг/л"}  # fmt: skip
+
+
+def _minerals_section(project, col, row, sections) -> None:
+    """TZ 5.5.1: every body that crosses the hex (not only its centre), with typed units."""
+    from .minerals.index import hex_index
+    from .minerals.units import GRADE_UNITS
+
+    m = project.minerals
+    bodies = hex_index(m, project.layout).get((int(col), int(row)), [])
+    s = Section("minerals", "Недра и месторождения (5.5.1)")
+    if not bodies:
+        s.add("Тела под гексом", "нет (в плане 5.5.1)")
+        sections.append(s)
+        return
+    sys_by = {x["system_id"]: x for x in m.plan.systems}
+    lot_by = {x["body_id"]: x for x in m.plan.lots if "body_id" in x}
+    unit_ru = {"percent": "%", "ppm": "ppm", "g_per_t": "г/т", "ct_per_t": "кар/т",
+               "g_per_m3": "г/м³", "fraction": "доля", "kg_per_t": "кг/т"}  # fmt: skip
+    for bid in sorted(bodies)[:12]:
+        b = m.plan.bodies[bid]
+        sy = sys_by.get(b.system_id, {})
+        lot = lot_by.get(bid, {})
+        head = f"{sy.get('title', sy.get('model_id', ''))} — {b.morphology}"
+        parts = [f"кровля {sy.get('depth_top_m', 0):,.0f} м"]
+        if hasattr(b, "t0") and b.morphology != "vein_network":
+            parts.append(f"истинная мощность {b.t0:,.2f} м")
+        if b.morphology not in ("mantle_pipe",):
+            parts.append(f"простирание {sy.get('strike_deg', 0):.0f}°, падение "
+                         f"{sy.get('dip_deg', 0):.0f}°")  # fmt: skip
+        if lot.get("rock_t"):
+            parts.append(f"{lot['rock_t']:,.3g} т горной массы")
+        grades = []
+        for com, tg in list(lot.get("typed_grades", {}).items())[:3]:
+            if tg.get("unit") in GRADE_UNITS:
+                grades.append(f"{com} {tg['value']:.3g} {unit_ru.get(tg['unit'], tg['unit'])}")
+        if grades:
+            parts.append(", ".join(grades))
+        if lot.get("gem"):
+            g = lot["gem"]
+            parts.append(f"{g.get('variety') or g['carrier']}: {g['gem_rough_ct']:,.0f} кар "
+                         "ювелирного сырца")  # fmt: skip
+        parts.append(f"{sy.get('provenance', '')}, {lot.get('calibration_status', 'provisional')}")
+        s.add(head, "; ".join(parts))
+    if len(bodies) > 12:
+        s.add("…", f"ещё {len(bodies) - 12} тел")
+    sections.append(s)
 
 
 def _resources_sections(project, res, col, row, sections) -> None:

@@ -1,0 +1,16 @@
+{
+  "tz": "5.5.1",
+  "date": "2026-11-28",
+  "status": "no dataset used; every distribution provisional",
+  "datasets": [],
+  "sources_listed_not_used": [
+    {"id": "R01", "ref": "Cox & Singer 1986, USGS Bulletin 1693", "use": "descriptive classes informed the hard-gate wording; no numbers fitted"},
+    {"id": "R02", "ref": "USGS Circular 2007-1294 three-part assessment", "use": "method (tracts -> counts -> grade-tonnage) adopted; no counts copied"},
+    {"id": "R04", "ref": "Singer et al. 1993, OFR 93-280", "use": "not downloaded; 5.2 medians reused for 35 templates (provenance: 5.2 priors)"},
+    {"id": "R05", "ref": "USGS placer models", "use": "source-to-sink logic; no parameters fitted"},
+    {"id": "R09", "ref": "USGS petroleum system definition", "use": "source / maturity / trap / seal / timing structure; kinetics are a reduced proxy"},
+    {"id": "R10", "ref": "BOEM marine mineral types", "use": "growth-rate fixture ranges only (N14)"},
+    {"id": "R11", "ref": "USGS specific yield, geothermal volume method", "use": "formulas (Sy <= phi, heat in place)"}
+  ],
+  "licenses": "no third-party data or code bundled; catalogues are the TZ package's own JSON"
+}

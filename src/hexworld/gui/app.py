@@ -381,6 +381,8 @@ class MainWindow(QMainWindow):
             self.export_game,
             tip="Карта высот 16 бит, карты биомов и рек, таблица гексов (Unity, Unreal, Godot)",
         )
+        act(world, "⛏ Экспорт недр 5.5.1 (GeoJSON, CSV)…", self.export_minerals,
+            tip="Контуры тел, лоты с единицами и ключами, план и журнал масс")  # fmt: skip
         act(world, "PNG этой вкладки…", self.export_png)
         act(world, "PNG всех вкладок…", self.export_all_png)
         world.addSeparator()
@@ -1443,6 +1445,20 @@ class MainWindow(QMainWindow):
         render.write_png(path, image)
         self.statusBar().showMessage(f"📷 Снимок сохранён: {path}")
         return path
+
+    def export_minerals(self, folder: str | None = None) -> list[str]:
+        from ..minerals.export import export_minerals
+
+        if self.project is None or getattr(self.project, "minerals", None) is None:
+            msg = "В этом мире нет недр 5.5.1: включите их в настройках."
+            QMessageBox.information(self, "Экспорт недр", msg)
+            return []
+        folder = folder or QFileDialog.getExistingDirectory(self, "Папка для экспорта недр")
+        if not folder:
+            return []
+        files = export_minerals(self.project, folder)
+        self.statusBar().showMessage(f"Недра экспортированы: {len(files)} файла → {folder}")
+        return files
 
     def export_all_png(self):
         if self.project is None:

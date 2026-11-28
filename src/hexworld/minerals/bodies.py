@@ -512,17 +512,23 @@ class VeinNetwork(Body):
         """Volume each vein owns: its own volume less its overlaps with earlier veins (an
         intersection belongs to the earlier vein, one balance owner). Triple overlaps are
         neglected (thin veins) and reported by :meth:`volume` as a pairwise union."""
+        key = (n, self.geometry_revision,
+               tuple((v.geometry_revision, v.origin_m, v.cut_z_m) for v in self.veins))  # fmt: skip
+        cache = self.__dict__.setdefault("_owned_cache", {})
+        if key in cache:
+            return cache[key]
         vols = [float(v.quadrature(n)[1].sum()) for v in self.veins]
         owned = list(vols)
         for j in range(len(self.veins)):
             for i in range(j):
                 owned[j] -= plate_overlap(self.veins[i], self.veins[j])
-        return [max(v, 0.0) for v in owned]
+        cache[key] = [max(v, 0.0) for v in owned]
+        return cache[key]
 
     def quadrature(self, n: int = 12):
         """Points of every vein with weights scaled to the volume the vein owns, so the
         weights add up to the union volume (T22) and the hex split stays exact."""
-        own = self.owned_volumes(max(n, 8))
+        own = self.owned_volumes(16)  # geometry-only: one evaluation per network
         ps, ws = [], []
         for v, o in zip(self.veins, own, strict=True):
             p, w = v.quadrature(n)
@@ -549,7 +555,7 @@ class VeinNetwork(Body):
                       key=lambda t: -t[0])  # fmt: skip
 
 
-def plate_overlap(a: Plate, b: Plate, n_line: int = 48, n_cross: int = 64) -> float:
+def plate_overlap(a: Plate, b: Plate, n_line: int = 24, n_cross: int = 48) -> float:
     """Volume shared by two plates: integrated on a fine grid around the line where their
     planes meet (the only place they can share volume), clipped to both extents."""
     na, nb = a.axes()[2], b.axes()[2]
@@ -619,6 +625,10 @@ def solve_grade_field(
     solved so that the mass-weighted mean equals ``target`` (bisection; monotone in mu).
     Returns mu, the achieved weighted grade and a status (``ok`` / ``capped``)."""
     p, w = body.quadrature(n)
+    if w.size == 0 or float(w.sum()) <= 0.0:
+        # a sliver left by erosion below the quadrature resolution: uniform grade
+        return {"mu": math.log(max(target, 1e-300)), "achieved": target, "status": "uniform",
+                "target": target, "sigma_log": 0.0, "cap": cap, "corr_m": list(corr_m)}  # fmt: skip
     z = CorrelatedField(body.body_id + "/g", corr_m)(body.to_local(p))
     mass = w * rho_kg_m3
 

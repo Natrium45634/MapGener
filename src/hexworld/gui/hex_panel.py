@@ -36,6 +36,7 @@ SECTION_TITLES = {
     "biomes": "Биомы и природный покров",
     "fertility": "Плодородие почвы",
     "resources": "Полезные ископаемые",
+    "minerals": "Недра и месторождения (5.5.1)",
     "sea": "Берег и дно моря",
     "volcanism": "Вулканизм",
     "soils": "Почвы (физика, v4.5)",
@@ -54,6 +55,7 @@ DEFAULT_SHOWN = {
     "biomes",
     "fertility",
     "resources",
+    "minerals",
     "sea",
     "volcanism",
 }

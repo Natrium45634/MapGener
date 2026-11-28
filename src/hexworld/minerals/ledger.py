@@ -10,8 +10,9 @@ replayed operation is ignored (T39). The closure per basis:
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
+
+_KINDS = ("initial", "generated", "imported", "exported", "lost")
 
 
 class LedgerError(ValueError):
@@ -21,19 +22,18 @@ class LedgerError(ValueError):
 @dataclass
 class ResourceLedger:
     tolerance: float = 1e-9  # relative, roundoff only
-    balances: dict = field(default_factory=lambda: defaultdict(float))
+    balances: dict = field(default_factory=dict)  # (owner, basis) -> amount
     ops: dict = field(default_factory=dict)  # op_id -> record
-    totals: dict = field(
-        default_factory=lambda: defaultdict(
-            lambda: {
-                "initial": 0.0,
-                "generated": 0.0,
-                "imported": 0.0,
-                "exported": 0.0,
-                "lost": 0.0,
-            }  # fmt: skip
-        )
-    )
+    totals: dict = field(default_factory=dict)  # basis -> {kind: amount}
+
+    def _tot(self, basis: str) -> dict:
+        t = self.totals.get(basis)
+        if t is None:
+            t = self.totals[basis] = dict.fromkeys(_KINDS, 0.0)
+        return t
+
+    def _add(self, key, amount: float) -> None:
+        self.balances[key] = self.balances.get(key, 0.0) + amount
 
     # -- operations ----------------------------------------------------------------------------
     def _new(self, op_id: str, record: dict) -> bool:
@@ -59,8 +59,8 @@ class ResourceLedger:
         if kind not in ("initial", "generated", "imported"):
             raise LedgerError(f"unknown opening kind {kind!r}")
         if self._new(op_id, {"op": "open", "owner": owner, "basis": basis, "a": a, "k": kind}):
-            self.balances[(owner, basis)] += a
-            self.totals[basis][kind] += a
+            self._add((owner, basis), a)
+            self._tot(basis)[kind] += a
 
     def transfer(self, op_id: str, src: str, dst: str, basis: str, amount: float):
         """Move mass between two accounts; never more than the source holds (T38)."""
@@ -74,7 +74,7 @@ class ResourceLedger:
             raise LedgerError(f"{src}/{basis}: transfer {a} exceeds the balance {have}")
         self._new(op_id, rec)
         self.balances[(src, basis)] = max(have - a, 0.0)
-        self.balances[(dst, basis)] += a
+        self._add((dst, basis), a)
 
     def remove(self, op_id: str, owner: str, basis: str, amount: float, kind: str = "lost"):
         """Mass leaving the accounted domain: ``exported`` (across the boundary) or ``lost``
@@ -91,7 +91,7 @@ class ResourceLedger:
             raise LedgerError(f"{owner}/{basis}: removal {a} exceeds the balance {have}")
         self._new(op_id, rec)
         self.balances[(owner, basis)] = max(have - a, 0.0)
-        self.totals[basis][kind] += a
+        self._tot(basis)[kind] += a
 
     # -- reading -------------------------------------------------------------------------------
     def balance(self, owner: str, basis: str) -> float:

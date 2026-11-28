@@ -17,6 +17,17 @@ from PySide6.QtWidgets import (
 
 from ..geomorph.sections import write_csv
 
+_ORE = {
+    "vein": QColor(220, 40, 40), "vein_network": QColor(220, 40, 40),
+    "tabular": QColor(60, 60, 60), "seam": QColor(20, 20, 20), "stratabound": QColor(140, 70, 30),
+    "lens": QColor(230, 120, 30), "pod": QColor(230, 120, 30), "stockwork": QColor(200, 150, 40),
+    "disseminated": QColor(200, 150, 40), "breccia": QColor(170, 90, 160),
+    "replacement": QColor(170, 90, 160), "mantle_pipe": QColor(40, 150, 200),
+    "placer": QColor(240, 200, 40), "paleoplacer": QColor(200, 170, 30),
+    "laterite": QColor(190, 80, 50), "reservoir": QColor(120, 40, 160),
+    "quarry_unit": QColor(160, 160, 160), "nodules": QColor(30, 30, 90),
+    "crust": QColor(30, 30, 90), "cavity_fill": QColor(120, 200, 120),
+}  # fmt: skip
 _MATERIAL = {
     "ocean": QColor(60, 110, 190),
     "lake": QColor(96, 176, 214),
@@ -46,6 +57,9 @@ class ProfileWidget(QWidget):
             np.nanmax(np.concatenate([h, w[np.isfinite(w)] if np.isfinite(w).any() else h]))
         )
         bottom = float(np.nanmin(b))
+        ore_z = [iv["z_bottom_m"] for r in rows for iv in r.get("ore", [])]
+        if ore_z:  # the section reaches down to the deepest crossed body
+            bottom = min(bottom, float(min(ore_z)))
         pad = 0.08 * max(top - bottom, 100.0)
         top += pad
         bottom -= pad
@@ -118,6 +132,15 @@ class ProfileWidget(QWidget):
                     xk = X(d[k] + f * (d[k + 1] - d[k]))
                     zk = h[k] + f * (h[k + 1] - h[k])
                     p.drawLine(QPointF(xk - 9, Y(zk)), QPointF(xk + 9, Y(zk)))
+        # TZ 5.5.1: ore bodies cut by the section (real intervals, colour by morphology)
+        for k in range(len(rows) - 1):
+            for iv in rows[k].get("ore", []):
+                c = _ORE.get(iv["morphology"], QColor(200, 40, 40))
+                p.setPen(QPen(c.darker(130), 1.0))
+                p.setBrush(QBrush(c))
+                y0, y1 = Y(iv["z_top_m"]), Y(iv["z_bottom_m"])
+                p.drawRect(QRectF(X(d[k]), y0, max(X(d[k + 1]) - X(d[k]), 1.0),
+                                  max(y1 - y0, 1.5)))  # fmt: skip
         path = QPainterPath(QPointF(X(d[0]), Y(h[0])))
         for k in range(1, len(rows)):
             path.lineTo(QPointF(X(d[k]), Y(h[k])))
@@ -141,10 +164,13 @@ class ProfileWidget(QWidget):
                 QRectF(X(v) - 40, b_px + 6, 80, 16), Qt.AlignmentFlag.AlignCenter, f"{v:,.0f}"
             )
             v += step
+        vx = (d[-1] - d[0]) * 1000.0 / max(right - left, 1.0)  # m per pixel along
+        vz = (top - bottom) / max(b_px - t_px, 1.0)  # m per pixel down
         p.drawText(
             QRectF(left, self.height() - 16, right - left, 16),
             Qt.AlignmentFlag.AlignCenter,
-            "расстояние, км; высота, м (одна шкала для суши и дна)",
+            f"расстояние, км; высота, м (одна шкала для суши и дна); "
+            f"вертикальное преувеличение ×{vx / max(vz, 1e-9):,.0f}",
         )
 
 

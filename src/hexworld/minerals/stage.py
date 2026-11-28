@@ -192,7 +192,7 @@ def from_json(doc: dict, layers: dict) -> MineralData:
     for o, b, v in doc["ledger"]["balances"]:
         led.balances[(o, b)] = float(v)
     for b, t in doc["ledger"]["totals"].items():
-        led.totals[b].update({k: float(v) for k, v in t.items()})
+        led._tot(b).update({k: float(v) for k, v in t.items()})
     for op in doc["ledger"]["ops"]:
         led.ops[op] = {"restored": True}
     plan = MineralPlan(seed=doc["seed"], algorithm_version=doc["algorithm_version"],

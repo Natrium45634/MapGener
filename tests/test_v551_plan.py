@@ -292,3 +292,13 @@ def test_plan_on_features_with_missing_inputs_is_unresolved_not_invented(hist_pr
     plan = build_plan(PlanContext(ctx, F, hist_project.layout, 30.0), models=["PORPHYRY"])
     assert not [s for s in plan.systems if s["model_id"] == "PORPHYRY"]
     assert plan.unresolved.get("PORPHYRY", 0) > 0
+
+
+def test_t10_byproducts_only_with_their_host(mplan):
+    from hexworld.minerals.plan import BYPRODUCTS
+
+    for lot in mplan.plan.lots:
+        c = lot.get("contained", {})
+        for byp, (host, ratio) in BYPRODUCTS.items():
+            if byp in c and lot.get("typed_grades", {}).get(byp, {}).get("primary_host"):
+                assert host in c and c[byp] == pytest.approx(c[host] * ratio)

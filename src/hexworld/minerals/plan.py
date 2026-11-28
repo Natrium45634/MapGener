@@ -211,11 +211,18 @@ def _plan_model(plan, pc, cat, mid, lambda_scale):
         ranked = sorted(range(1, k + 1), key=lambda p: -sums[p])[:12]
     else:
         ranked = range(1, k + 1)
+    used: set = set()
     for p in ranked:
         if sums[p] <= 0:
             continue
         pcx, pcy = cx[p] / ws[p], cy[p] / ws[p]
-        pid = stable_id("P", ctx.seed, mid, round(pcx / 100.0), round(pcy / 100.0))
+        key = (round(pcx / 100.0), round(pcy / 100.0))
+        pid = stable_id("P", ctx.seed, mid, *key)
+        k_dup = 2
+        while pid in used:  # two provinces of one type in one 100 km cell: -2, -3 ...
+            pid = stable_id("P", ctx.seed, mid, *key, k_dup)
+            k_dup += 1
+        used.add(pid)
         lam = rule.lam_ref * lambda_scale * sums[p]
         count = 1 if regional else poisson(lam, stable_u(ctx.seed, mid, pid, "count"))
         idx = order[starts[p] : starts[p + 1]]
@@ -442,6 +449,9 @@ def _make_lots(plan, pc, cat, mid, pid, sid, body, rock_t_sampled, pr, eroded_m3
             grades[byp] = contained[byp] / rock_t
             typed[byp] = {"value": grades[byp] / 1e-6, "unit": "ppm", "primary_host": host,
                           "trace_ratio": ratio, "recovery": "not modelled"}  # fmt: skip
+    if any(not math.isfinite(v) for v in contained.values()) or not math.isfinite(rock_t):
+        plan.rejected.append({"system_id": sid, "reason": "non-finite geometry or grade"})
+        return []
     if not contained and mid not in ("KIMBERLITE",):
         plan.rejected.append({"system_id": sid, "reason": "no component"})
         return []

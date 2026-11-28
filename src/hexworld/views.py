@@ -79,7 +79,8 @@ class ViewSpec:
         if project is None:
             return False, "Нет проекта"
         if (
-            self.stage in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52")
+            self.stage
+            in ("v2", "v3", "v46", "v4", "v45", "v47", "v51", "v50", "v53", "v54", "v52", "v551")
             and project.geo is None
         ):
             return False, f"«{self.title}» ещё не сгенерированы для этого проекта"
@@ -108,6 +109,8 @@ class ViewSpec:
             return False, f"«{self.title}»: вулканизм (v5.1) не рассчитан"
         if self.stage == "v52" and getattr(project, "resources", None) is None:
             return False, f"«{self.title}»: плодородие и ресурсы (v5.2) не рассчитаны"
+        if self.stage == "v551" and getattr(project, "minerals", None) is None:
+            return False, f"«{self.title}»: недра 5.5.1 не рассчитаны (включите в настройках)"
         return True, ""
 
     def default_mode(self) -> str:
@@ -5145,7 +5148,32 @@ def _relief_gray(project: Project) -> np.ndarray:
     return np.repeat(g[..., None], 3, axis=2).astype(np.uint8)
 
 
+#: «Ресурсы по видам» commodities -> the 5.5.1 catalogue ids they stand for
+_ALIASES_551 = {"coal": ("peat", "lignite", "bituminous_coal", "anthracite"),
+                "gas": ("natural_gas",), "NaCl": ("salt",), "K": ("potash", "K_brine"),
+                "C_graphite": ("graphite",), "Li": ("Li", "Li_brine"),
+                "gem": ("__gem__",)}  # fmt: skip
+
+
 def _commodity_systems(project: Project, el: str, surface_only: bool) -> list[dict]:
+    m = getattr(project, "minerals", None)
+    if m is not None:  # the 5.5.1 plan, when present, is the source of the tab
+        keys = _ALIASES_551.get(el, (el,))
+        mass: dict = {}
+        for lot in m.plan.lots:
+            if keys == ("__gem__",):
+                v = (lot.get("gem") or {}).get("categories", {}).get("gem", 0.0) / 1000.0
+            else:
+                v = sum(float(lot.get("contained", {}).get(k, 0.0)) for k in keys)
+            if v > 0:
+                mass[lot["system_id"]] = mass.get(lot["system_id"], 0.0) + v
+        res = []
+        for s in m.plan.systems:
+            v = mass.get(s["system_id"])
+            if v and (s.get("surface_occurrence") or not surface_only):
+                res.append({**s, "contained_t": {el: v}, "x_km": s["x_m"] / 1000.0,
+                            "y_km": s["y_m"] / 1000.0})  # fmt: skip
+        return res
     out = []
     for s in project.resources.catalog["systems"]:
         m = float(s["contained_t"].get(el, 0.0))
@@ -5353,3 +5381,7 @@ register_view(
         vectors=_vectors_res52,
     )
 )
+
+
+# TZ 5.5.1 views (registered by their module)
+from .minerals import views551 as _views551  # noqa: E402,F401

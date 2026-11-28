@@ -100,7 +100,7 @@ def petroleum_systems(plan, pc, lambda_scale: float = 1.0) -> list:
         idx = np.nonzero(lab == p)[0]
         area_km2 = idx.size * pc.area_km2
         cx, cy = float(ctx.x_km[idx].mean()), float(ctx.y_km[idx].mean())
-        pid = stable_id("P", ctx.seed, "PETROLEUM", round(cx / 100), round(cy / 100))
+        pid = stable_id("P", ctx.seed, "PETROLEUM", round(cx / 100), round(cy / 100), p)
         burial = float(np.median(ctx.basin_fill_m[idx]))
         src_frac = np.nanmean(np.nan_to_num(F["reduced_facies"][idx]))
         toc = 0.02 + 0.03 * stable_u(ctx.seed, pid, "toc")  # mass fraction [К]
@@ -212,6 +212,19 @@ def aquifer_units(plan, pc, recharge_mm: np.ndarray | None) -> list:
     return out
 
 
+def _system(plan, ctx, sid, model_id, title, i, principal, depth_m, host):
+    plan.systems.append({"system_id": sid, "province_id": sid, "model_id": model_id,
+                         "title": title, "event_id": sid, "age_ma": None,
+                         "provenance": "inferred", "formation_depth_m": depth_m,
+                         "depth_top_m": depth_m, "exposed": depth_m <= 0, "hex": int(i),
+                         "x_m": float(ctx.x_km[i] * 1000), "y_m": float(ctx.y_km[i] * 1000),
+                         "morphology": "reservoir", "strike_deg": 0.0, "dip_deg": 0.0,
+                         "strike_source": "n/a", "host": host, "principal": principal,
+                         "body_ids": [], "volume_m3": None, "rock_t": 0.0,
+                         "calibration_status": "provisional", "discovery_state": "undiscovered",
+                         "surface_occurrence": depth_m <= 0})  # fmt: skip
+
+
 def brines(plan, pc) -> list:
     ctx, F = pc.ctx, pc.F
     elig, _u, S = evaluate(RULES["BRINE"], F)
@@ -233,6 +246,8 @@ def brines(plan, pc) -> list:
         contained = {k if k != "Mg_brine" else "Mg_brine": v for k, v in contained.items()}
         for com, m in contained.items():
             plan.ledger.open(f"brine/{sid}/{com}", f"{sid}-L0", com, m, "initial")
+        _system(plan, ctx, sid, "BRINE", "рассол (бессточный бассейн)", i, ["Li_brine"], 0.0,
+                "closed basin sediments")  # fmt: skip
         lot = {"lot_id": f"{sid}-L0", "system_id": sid, "model_id": "BRINE",
                "brine_volume_m3": vol, "concentration_mg_L": conc, "contained": contained,
                "unit_basis": "dissolved", "note": "dissolved stock; not added to solid salt",
@@ -257,6 +272,8 @@ def geothermal(plan, pc) -> list:
         t_res = 150.0 + 150.0 * stable_u(ctx.seed, sid, "T")
         q = heat_in_place_j(vol, 0.1, 2650.0, 850.0, 1000.0, 4180.0, t_res - SURFACE_T_C)
         flow_w = 0.15 * (vol ** (2.0 / 3.0)) * 50.0  # heat recharge, W [К]
+        _system(plan, ctx, sid, "GEOTHERMAL", "геотермальная система", int(i),
+                ["geothermal_heat"], 1000.0, "volcanic heat source")  # fmt: skip
         lot = {"lot_id": f"{sid}-L0", "system_id": sid, "model_id": "GEOTHERMAL",
                "reservoir_volume_m3": vol, "temperature_c": t_res,
                "heat_in_place_J": q, "recharge_W": flow_w, "unit_basis": "heat",
@@ -281,6 +298,8 @@ def hydrates(plan, pc) -> list:
         area = 1e9
         gas_t = area * hsz * 0.4 * 0.03 * 0.9 * 0.16  # phi, saturation, CH4 density [К]
         plan.ledger.open(f"hyd/{sid}", f"{sid}-L0", "gas_hydrate", gas_t, "initial")
+        _system(plan, ctx, sid, "HYDRATE", "газовые гидраты", i, ["gas_hydrate"], 50.0,
+                "sea-floor sediment")  # fmt: skip
         lot = {"lot_id": f"{sid}-L0", "system_id": sid, "model_id": "HYDRATE",
                "stability_zone_m": hsz, "water_depth_m": depth, "contained": {"gas_hydrate": gas_t},
                "unit_basis": "fluid_phase_mass", "calibration_status": "provisional"}  # fmt: skip
