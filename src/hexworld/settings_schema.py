@@ -68,6 +68,14 @@ def _p(path, label, group, kind, lo=0.0, hi=1.0, rand=None, dec=2, choices=(), a
     return Param(path, label, group, kind, lo, hi, rand, dec, choices, auto, log, unit, help, tech)
 
 
+#: climate.latitude_layout values and their titles (the settings dialog and the main window)
+LATITUDE_LAYOUT_TITLES = (
+    ("custom", "участок планеты (по широте центра)"),
+    ("pole_to_pole", "от полюса до полюса: все пояса"),
+    ("north_hemisphere", "северное полушарие: полюс — экватор"),
+    ("south_hemisphere", "южное полушарие: экватор — полюс"),
+)
+
 ON = True
 PARAMS: tuple[Param, ...] = (
     # -- world and size ---------------------------------------------------------------------------
@@ -154,6 +162,17 @@ PARAMS: tuple[Param, ...] = (
         1,
         unit="°",
         help="Где на планете лежит карта: 0 — экватор, 60 — субполярные широты.",
+    ),
+    _p(
+        "climate.latitude_layout",
+        "Климатические пояса",
+        "world",
+        "choice",
+        choices=LATITUDE_LAYOUT_TITLES,
+        help="«Участок планеты» — карта лежит вокруг широты центра (как раньше). «От "
+        "полюса до полюса» — сверху северный полюс, снизу южный: полярные шапки, умеренные "
+        "пояса, тропики и экватор посередине. Полушарие — от полюса до экватора. В "
+        "режимах поясов широта центра и масштаб широты не используются.",
     ),
     _p(
         "climate.km_per_degree",

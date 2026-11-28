@@ -34,6 +34,7 @@ MOUNTAIN_STYLES = (
 ROUTING_MODES = ("stochastic", "steepest")
 EDGE_OUTLET_MODES = ("world", "all")
 CLIMATE_PROFILES = ("earthlike", "dry", "wet")
+LATITUDE_LAYOUTS = ("custom", "pole_to_pole", "north_hemisphere", "south_hemisphere")
 MODES = ("regional", "world")
 
 
@@ -210,6 +211,12 @@ class ClimateParams:
     #: km per degree of latitude; 0 = real scale (111.2), compressed if the area would
     #: otherwise cross a pole. North is map up (-y).
     km_per_degree: float = 0.0
+    #: How the climate belts lie on the map: "custom" - a part of the planet around
+    #: ``latitude_center_deg`` (the scale above); "pole_to_pole" - the map spans the planet
+    #: from the north pole (top) to the south pole (bottom): polar caps, temperate belts,
+    #: tropics; "north_hemisphere" / "south_hemisphere" - from a pole to the equator.
+    #: Any value but "custom" ignores the centre and the scale.
+    latitude_layout: str = "custom"
     temperature_offset_c: float = 0.0
     lapse_rate_c_per_km: float = 6.5
     wind_strength: float = 1.0
@@ -684,6 +691,8 @@ class Config:
             raise ConfigError("climate.latitude_center_deg must be within [-80, 80]")
         if c.km_per_degree < 0:
             raise ConfigError("climate.km_per_degree must not be negative (0 = automatic)")
+        if c.latitude_layout not in LATITUDE_LAYOUTS:
+            raise ConfigError(f"climate.latitude_layout must be one of {LATITUDE_LAYOUTS}")
         if not 3.0 <= c.lapse_rate_c_per_km <= 10.0:
             raise ConfigError("climate.lapse_rate_c_per_km must be within [3, 10]")
         if not -15.0 <= c.temperature_offset_c <= 15.0:

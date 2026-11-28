@@ -33,8 +33,10 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -58,6 +60,7 @@ from ..config import (
 from ..io import load_project, save_project
 from ..pipeline import GenerationCancelled, generate
 from ..project import Project
+from ..settings_schema import LATITUDE_LAYOUT_TITLES
 from ..version import GENERATOR_VERSION, PRODUCT_VERSION
 from .hex_panel import HexInfoPanel
 from .map_view import MapView
@@ -274,9 +277,18 @@ class MainWindow(QMainWindow):
         scroll.setFixedWidth(420)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+        # the left tool panel hides with one click on the strip next to it (or Ctrl+\)
+        self.side_panel = scroll
+        self.side_toggle = QToolButton()
+        self.side_toggle.setAutoRaise(True)
+        self.side_toggle.setFixedWidth(18)
+        self.side_toggle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.side_toggle.clicked.connect(lambda: self.set_side_panel_visible(None))
+
         central = QWidget()
         row = QHBoxLayout(central)
         row.addWidget(scroll)
+        row.addWidget(self.side_toggle)
         row.addLayout(map_column, 1)
         self.setCentralWidget(central)
 
@@ -305,6 +317,10 @@ class MainWindow(QMainWindow):
         self._build_menu()
         self._set_busy(False)
         self._refresh_view_controls()
+        from .. import saved_worlds as sw
+
+        self.set_side_panel_visible(not sw.load_prefs().get("side_panel_hidden", False),
+                                    remember=False)  # fmt: skip
 
     # -- menu --------------------------------------------------------------
     def _build_menu(self):
@@ -365,6 +381,15 @@ class MainWindow(QMainWindow):
         act(view, "Вся карта", self.view.fit, "Home")
         act(view, "☑ Вкладки карты…", self.choose_views, tip="Какие вкладки показывать")
         act(view, "🌐 Глобус…", self.open_globe, "Ctrl+G", "Мир на вращающемся шаре")
+        self.side_action = act(
+            view,
+            "Панель инструментов слева",
+            lambda: self.set_side_panel_visible(self.side_action.isChecked()),
+            "Ctrl+\\",
+            "Скрыть или вернуть левую панель (или щёлкните по полоске ◀ / ▶ у её края)",
+        )
+        self.side_action.setCheckable(True)
+        self.side_action.setChecked(True)
         act(view, "Информация о гексе (панель справа)", self._toggle_hex_panel, "Ctrl+I")
         self.names_action = act(view, "Названия на карте", self._toggle_names, "Ctrl+T")
         self.names_action.setCheckable(True)
@@ -376,6 +401,26 @@ class MainWindow(QMainWindow):
         help_ = bar.addMenu("&Справка")
         act(help_, "Как пользоваться", self.show_help, "F1")
         act(help_, "О программе", self.show_about)
+
+    def set_side_panel_visible(self, visible: bool | None = None, remember: bool = True):
+        """Show / hide the left tool panel (``None`` toggles); the choice is remembered."""
+        if visible is None:
+            visible = self.side_panel.isHidden()
+        self.side_panel.setVisible(bool(visible))
+        self.side_toggle.setText("◀" if visible else "▶")
+        self.side_toggle.setToolTip(
+            "Скрыть панель инструментов (Ctrl+\\)"
+            if visible
+            else "Показать панель инструментов (Ctrl+\\)"
+        )
+        if hasattr(self, "side_action"):
+            self.side_action.setChecked(bool(visible))
+        if remember:
+            from .. import saved_worlds as sw
+
+            prefs = sw.load_prefs()
+            prefs["side_panel_hidden"] = not visible
+            sw.save_prefs(prefs)
 
     def _toggle_hex_panel(self):
         if self.hex_dock.isVisible():
@@ -407,6 +452,10 @@ class MainWindow(QMainWindow):
             "вставьте его в поле сида в «Новом мире» или «Мир → Открыть мир по коду».<br><br>"
             "<b>Вкладки карты</b>: «Вид → Вкладки карты» или вкладка «☑ Вкладки карты» в "
             "настройках мира — показывать только нужные.<br><br>"
+            "<b>Левая панель</b>: щелчок по полоске ◀ у её края (или Ctrl+\\) прячет её, "
+            "чтобы смотреть мир на весь экран; ▶ — вернуть.<br><br>"
+            "<b>Климатические пояса</b>: в настройках мира («Мир») — «от полюса до полюса» даёт "
+            "полярные шапки сверху и снизу, тропики посередине.<br><br>"
             "<b>Мои миры</b> (Ctrl+L): история всех созданных миров, избранное, сравнение.<br><br>"
             "<b>Пакет миров</b> (Ctrl+B): много эскизов за минуту — выберите лучший.<br><br>"
             "<b>Глобус</b> (Ctrl+G) и <b>экспорт для игр</b> — в меню «Вид» и «Мир».",
@@ -559,6 +608,14 @@ class MainWindow(QMainWindow):
             "Условная широта центра области симуляции (север - вверх карты). "
             "Экватор и полюса могут лежать вне карты."
         )
+        self.latitude_layout = QComboBox()
+        for key, title in LATITUDE_LAYOUT_TITLES:
+            self.latitude_layout.addItem(title, key)
+        self.latitude_layout.setToolTip(
+            "Как лежат климатические пояса. «От полюса до полюса»: сверху северный полюс, "
+            "снизу южный — полярные шапки, умеренные пояса, тропики. В режимах поясов широта "
+            "центра и масштаб широты не используются."
+        )
         self.km_per_degree = self._double(0.0, 2000.0, 0.0, 1, " км/°", 10.0)
         self.km_per_degree.setToolTip(
             "Масштаб широты. 0 - реальный (111,2 км/°); если область тогда перешла бы "
@@ -585,6 +642,7 @@ class MainWindow(QMainWindow):
         self.v4_btn.clicked.connect(self.apply_v4)
         form.addRow(self.v4_on)
         form.addRow("Профиль климата", self.climate_profile)
+        form.addRow("Климатические пояса", self.latitude_layout)
         form.addRow("Широта центра", self.latitude)
         form.addRow("Масштаб широты", self.km_per_degree)
         form.addRow("Сдвиг температуры", self.temperature_offset)
@@ -829,6 +887,7 @@ class MainWindow(QMainWindow):
                 profile=self.climate_profile.currentText(),
                 latitude_center_deg=self.latitude.value(),
                 km_per_degree=self.km_per_degree.value(),
+                latitude_layout=self.latitude_layout.currentData() or "custom",
                 temperature_offset_c=self.temperature_offset.value(),
                 precipitation_scale=self.precipitation_scale.value(),
                 wind_strength=self.wind_strength.value(),
@@ -1405,6 +1464,8 @@ class MainWindow(QMainWindow):
         self.climate_profile.setCurrentText(c.climate.profile)
         self.latitude.setValue(c.climate.latitude_center_deg)
         self.km_per_degree.setValue(c.climate.km_per_degree)
+        i = self.latitude_layout.findData(c.climate.latitude_layout)
+        self.latitude_layout.setCurrentIndex(max(i, 0))
         self.temperature_offset.setValue(c.climate.temperature_offset_c)
         self.precipitation_scale.setValue(c.climate.precipitation_scale)
         self.wind_strength.setValue(c.climate.wind_strength)

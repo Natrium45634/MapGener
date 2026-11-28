@@ -185,10 +185,13 @@ def run_resources(config, project, report=lambda f: None) -> dict:
     # -- 5.2.B soil inputs ---------------------------------------------------------------------
     t1 = time.perf_counter()
     present = flat(env["soil_present"], bool)
+    bio = project.biomes.layers if project.biomes is not None else {}
+    if "glacier_fraction" in bio:
+        # under a glacier (more than half the hex) there is no soil: NoData, not a «poor soil»
+        present = present & ~(np.nan_to_num(flat(bio["glacier_fraction"])) > 0.5)
     depth = np.nan_to_num(flat(env["soil_depth_m"]))
     erosion_m_yr = np.maximum(np.nan_to_num(flat(H["erosion_rate_m_ma"])), 0.0) * 1e-6
     age = _soil_age(project, env, flat, depth, erosion_m_yr)
-    bio = project.biomes.layers if project.biomes is not None else {}
     veg = (
         np.nan_to_num(flat(bio["vegetation_fraction"]))
         if "vegetation_fraction" in bio

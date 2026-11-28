@@ -620,10 +620,7 @@ def compute_fertility_static(inp: FertilityInputs, prm: SoilChemParams | None = 
     )
     # water supply: storage capacity and how full the store is over the year
     water = np.sqrt(np.clip(awc / 150.0, 0.0, 1.0)) * np.sqrt(aet_ratio)
-    soil_t = t12.mean(axis=0)
-    rooting = (
-        np.clip(depth / 1.0, 0.0, 1.0) * (1.0 - coarse) * np.clip((soil_t + 5.0) / 10.0, 0.0, 1.0)
-    )
+    rooting = rooting_index(depth, coarse, t12)
     slope_free = 1.0  # the slope enters through the erosion risk, not the fertility
     erod_k = 0.0293 * (0.65 - 2.0 * np.clip(clay, 0, 0.5)) + 0.04 * sand * (1.0 - sand)
     erod_k = np.clip(erod_k * (1.0 - np.clip(oc_top_frac * 10.0, 0.0, 0.5)), 0.005, 0.07)
@@ -702,6 +699,20 @@ def compute_fertility_static(inp: FertilityInputs, prm: SoilChemParams | None = 
     out["budget"] = budget
     out["soil_present"] = present
     return out
+
+
+def rooting_index(depth, coarse, t12):
+    """Rooting index 0..1: soil depth (to 1 m), fine earth and thawed soil.
+
+    Roots work in the thawed soil of the warm season: a soil frozen all year (polar desert)
+    gives nothing, a permafrost soil with a warm summer its active layer (tundra, northern
+    taiga). The annual temperature halves it at most.
+    """
+    t12 = np.asarray(t12, dtype=np.float64)
+    soil_t = t12.mean(axis=0)
+    t_warm = np.sort(t12, axis=0)[-3:].mean(axis=0)
+    thaw = np.clip(t_warm / 10.0, 0.0, 1.0) * (0.5 + 0.5 * np.clip((soil_t + 5.0) / 10.0, 0.0, 1.0))
+    return np.clip(np.asarray(depth) / 1.0, 0.0, 1.0) * (1.0 - np.asarray(coarse)) * thaw
 
 
 # -- suitability -----------------------------------------------------------------------------------

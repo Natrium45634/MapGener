@@ -5,4 +5,4 @@ Units follow TZ 5.2 sec. 2: soil stocks kg/m2 of horizontal area, fluxes kg/(m2 
 geological masses t, grades mass fraction 0..1, depths m against the physical datum.
 """
 
-ALGORITHM_VERSION = "hexworld-resources-5.2.0"
+ALGORITHM_VERSION = "hexworld-resources-5.2.1"

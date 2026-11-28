@@ -253,3 +253,10 @@ def test_views_have_no_shadowed_module_names(hist_project):
     if spec is not None and any(m.id == "regime" for m in spec.modes):
         labels = [x.label for x in spec.legend(hist_project, "regime")]
         assert any("декабрь" in t for t in labels)
+
+
+def test_no_soil_under_a_glacier(hist_project):
+    """A hex more than half under ice has no soil (NoData), not a «poor soil»."""
+    fert = hist_project.resources.layers["soil_fertility_potential"].astype(float)
+    glacier = np.nan_to_num(hist_project.biomes.layers["glacier_fraction"].astype(float)) > 0.5
+    assert not np.isfinite(fert[glacier]).any()

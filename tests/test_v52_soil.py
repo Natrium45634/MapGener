@@ -524,3 +524,23 @@ def test_scene_patterns(scenes):
     assert st["soc_kg_m2"][ix["sand_desert"]] < 1.0
     # closed basin: saline; the floodplain is not
     assert st["salt_kg_m2"][ix["closed_basin"]] > 10 * max(st["salt_kg_m2"][ix["floodplain"]], 1e-3)
+
+
+def test_rooting_follows_the_thawed_warm_season():
+    """Polar desert frozen all year: no rooting; tundra with a warm summer: an active layer;
+    temperate: full (only depth and stones limit it)."""
+    from hexworld.resources.soil import rooting_index
+
+    months = np.arange(12)
+    season = -np.cos(2 * np.pi * (months - 0.5) / 12.0)  # -1 in January, +1 in July
+
+    def t12(mean, amp):
+        return (mean + amp * season)[:, None]
+
+    polar = rooting_index(np.array([1.0]), np.array([0.0]), t12(-25.0, 10.0))
+    tundra = rooting_index(np.array([1.0]), np.array([0.0]), t12(-10.0, 16.0))
+    temperate = rooting_index(np.array([1.0]), np.array([0.0]), t12(10.0, 10.0))
+    assert polar[0] == 0.0
+    assert 0.15 < tundra[0] < 0.6
+    assert temperate[0] == 1.0
+    assert rooting_index(np.array([0.5]), np.array([0.2]), t12(10.0, 10.0))[0] == 0.4

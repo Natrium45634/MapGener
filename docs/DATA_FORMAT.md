@@ -513,7 +513,7 @@ swe_max_mm,gsl_days,gst_c,thermal_margin,belt,quality` (`quality`:
 ## Данные v5.2 (плодородие почв и полезные ископаемые)
 
 Файлы `resources_fields.npz`, `resources_index.npz`, `resources.json`; раздел манифеста
-`v52` (версия алгоритма `hexworld-resources-5.2.0`, хэши массивов, `stage_keys`). Данные
+`v52` (версия алгоритма `hexworld-resources-5.2.1`, хэши массивов, `stage_keys`). Данные
 привязаны к ключу стадии: другая геология, климат или настройки → данные не загружаются
 («не сгенерировано», никогда «нет ресурсов»).
 

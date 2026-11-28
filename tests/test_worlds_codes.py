@@ -214,3 +214,23 @@ def test_cli_worlds(worlds, hist_project, tmp_path, capsys):
     assert main(["worlds"]) == 0
     out = capsys.readouterr().out
     assert "CLI мир" in out and "HW2-" in out and "[code]" in out
+
+
+def test_left_panel_hides_and_returns_in_one_click(worlds, qapp):
+    import os
+
+    from hexworld.gui.app import MainWindow
+
+    os.environ["HEXWORLD_NO_START_DIALOG"] = "1"
+    w = MainWindow()
+    assert not w.side_panel.isHidden() and w.side_toggle.text() == "◀"
+    w.side_toggle.click()
+    assert w.side_panel.isHidden() and w.side_toggle.text() == "▶"
+    assert not w.side_action.isChecked()
+    assert sw.load_prefs()["side_panel_hidden"] is True
+    again = MainWindow()  # remembered
+    assert again.side_panel.isHidden()
+    again.side_toggle.click()
+    assert not again.side_panel.isHidden() and again.side_action.isChecked()
+    w.close()
+    again.close()

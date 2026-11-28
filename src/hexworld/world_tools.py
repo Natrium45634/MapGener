@@ -63,6 +63,13 @@ def _frozen_defaults(dict_id: int) -> dict:
     return json.loads(_dictionary(dict_id).decode("utf-8"))["c"]
 
 
+def _decoded_defaults(dict_id: int) -> dict:
+    """What decoding builds from the frozen text with no changes: settings added after the
+    dictionary was frozen get the value ``Config.from_dict`` gives a missing field, so a
+    default of a new setting costs nothing in the code."""
+    return Config.from_dict(_frozen_defaults(dict_id)).to_dict()
+
+
 def _merge(base: dict, diff: dict) -> dict:
     for k, v in diff.items():
         if isinstance(v, dict) and isinstance(base.get(k), dict):
@@ -76,7 +83,7 @@ def _canonical(config: Config, through: str) -> bytes:
     """Changes of the full settings against the *frozen* defaults of dictionary 1 (not the
     defaults of this build): decoding merges them back into the same frozen text, so every
     build gets the identical full configuration."""
-    payload = {"d": _diff(config.to_dict(), _frozen_defaults(1))}
+    payload = {"d": _diff(config.to_dict(), _decoded_defaults(1))}
     if through != "v50":
         payload["t"] = through
     return json.dumps(payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode(

@@ -127,10 +127,23 @@ class Latitude:
         }
 
 
+#: latitude of the map edge in the belt layouts (1 degree off the pole)
+POLE_EDGE_DEG = 89.0
+
+
 def resolve_latitude(params, sim_bounds) -> Latitude:
     """Real scale (111.2 km per degree) unless the area would cross a pole."""
     height = sim_bounds.height
     yc = 0.5 * (sim_bounds.ymin + sim_bounds.ymax)
+    layout = getattr(params, "latitude_layout", "custom")
+    if layout != "custom":
+        # climate belts: the area spans whole latitude belts, its edges 1 degree off the poles
+        # (pole to pole) or off the pole and on the equator (a hemisphere)
+        if layout == "pole_to_pole":
+            return Latitude(0.0, yc, height / (2.0 * POLE_EDGE_DEG), False)
+        half = 0.5 * POLE_EDGE_DEG
+        center = half if layout == "north_hemisphere" else -half
+        return Latitude(center, yc, height / POLE_EDGE_DEG, False)
     center = float(params.latitude_center_deg)
     if params.km_per_degree and params.km_per_degree > 0:
         return Latitude(center, yc, float(params.km_per_degree), False)
