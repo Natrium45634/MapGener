@@ -362,15 +362,25 @@ class HexInfoPanel(QWidget):
         self.copy_btn = QPushButton("📋 Копировать")
         self.copy_btn.setToolTip("Скопировать всю информацию о гексе как текст")
         self.copy_btn.clicked.connect(self.copy_text)
+        self.report_btn = QPushButton("📍 Для отчёта")
+        self.report_btn.setToolTip(
+            "Скопировать коротко: код мира, координаты гекса, вкладку и главное о нём — "
+            "чтобы указать на место на карте (Ctrl+Shift+R)"
+        )
+        self.report_btn.clicked.connect(self.copy_report)
         self.sections_btn = QPushButton("☑ Разделы…")
         self.sections_btn.setToolTip("Какие разделы показывать в панели")
         self.sections_btn.clicked.connect(self.choose_sections)
         self.all_btn = QPushButton("📄 Все данные…")
         self.all_btn.setToolTip("Вся информация о гексе, включая техническую")
         self.all_btn.clicked.connect(self.show_all)
-        for b in (self.zoom_btn, self.copy_btn, self.sections_btn, self.all_btn):
+        for b in (self.zoom_btn, self.copy_btn, self.report_btn):
             buttons.addWidget(b)
         lay.addLayout(buttons)
+        buttons2 = QHBoxLayout()
+        for b in (self.sections_btn, self.all_btn):
+            buttons2.addWidget(b)
+        lay.addLayout(buttons2)
         self.chart = ClimateChart()
         self.chart.setToolTip("Климатограмма: столбики — осадки по месяцам, линия — температура")
         self.chart.setVisible(False)
@@ -384,8 +394,12 @@ class HexInfoPanel(QWidget):
         self.tree.itemExpanded.connect(lambda it: self._remember(it, True))
         self.tree.itemCollapsed.connect(lambda it: self._remember(it, False))
         lay.addWidget(self.tree, 1)
+        #: who asks: ``context() -> dict`` (world code, view title) - set by the main window
+        self.context = None
+        self.project = None
         self.zoom_btn.setEnabled(False)
         self.copy_btn.setEnabled(False)
+        self.report_btn.setEnabled(False)
         self.all_btn.setEnabled(False)
         self._apply_font()
 
@@ -409,6 +423,7 @@ class HexInfoPanel(QWidget):
 
     # -- content ---------------------------------------------------------------------------
     def show_hex(self, project, col: int, row: int, raw: bool = True):
+        self.project = project
         rep = hex_report(project, col, row)
         if raw:
             rep.sections.append(_raw_section(project, col, row))
@@ -438,7 +453,7 @@ class HexInfoPanel(QWidget):
         self.tree.verticalScrollBar().setValue(scroll)
         hidden = len(rep.sections) - len(keep)
         self.all_btn.setText(f"📄 Все данные… (+{hidden})" if hidden else "📄 Все данные…")
-        for b in (self.zoom_btn, self.copy_btn, self.all_btn):
+        for b in (self.zoom_btn, self.copy_btn, self.report_btn, self.all_btn):
             b.setEnabled(True)
         self._filter(self.search.text())
 
@@ -460,7 +475,7 @@ class HexInfoPanel(QWidget):
         self.subtitle.setText("")
         self.card.setVisible(False)
         self.chart.set_data(None)
-        for b in (self.zoom_btn, self.copy_btn, self.all_btn):
+        for b in (self.zoom_btn, self.copy_btn, self.report_btn, self.all_btn):
             b.setEnabled(False)
 
     def text(self) -> str:
@@ -468,6 +483,39 @@ class HexInfoPanel(QWidget):
 
     def copy_text(self):
         QApplication.clipboard().setText(self.text())
+
+    def report_text(self) -> str:
+        """A few lines that point at this hex: world code, place, view, the key facts."""
+        rep = self.full_report
+        if rep is None:
+            return ""
+        ctx = self.context() if callable(self.context) else {}
+        from ..version import PRODUCT_VERSION
+
+        lines = [f"HexWorld {PRODUCT_VERSION}" + (f" · {ctx['code']}" if ctx.get("code") else "")]
+        place = {k: v for s in rep.sections if s.key == "place" for k, v in s.rows}
+        where = [f"гекс ({rep.col}, {rep.row})"]
+        for key in ("Координаты", "Широта", "Тип поверхности"):
+            if place.get(key):
+                where.append(place[key])
+        lines.append(" · ".join(where))
+        if ctx.get("view"):
+            lines.append(f"Вкладка: {ctx['view']}")
+        d = rep.description or {}
+        facts = [f"{lab.lower()} {val}" for lab, val in d.get("facts", [])]
+        if facts:
+            lines.append("; ".join(facts))
+        relief = {k: v for s in rep.sections if s.key == "relief" for k, v in s.rows}
+        extra = [f"{k.lower()} {relief[k]}" for k in list(relief)[:4]]
+        if extra:
+            lines.append("Рельеф: " + "; ".join(extra))
+        lines.append("Замечание: ")
+        return "\n".join(lines)
+
+    def copy_report(self):
+        text = self.report_text()
+        if text:
+            QApplication.clipboard().setText(text)
 
     def _zoom(self):
         if self.report is not None:

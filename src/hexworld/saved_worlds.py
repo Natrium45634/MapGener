@@ -79,6 +79,33 @@ def worlds_root() -> Path:
     return Path(p) if p else default_worlds_root()
 
 
+def snapshot_dir() -> Path | None:
+    """The folder of one-click layer snapshots (None until the user has chosen one)."""
+    env = os.environ.get("HEXWORLD_SNAPSHOT_DIR")
+    if env:
+        return Path(env)
+    p = load_prefs().get("snapshot_dir")
+    return Path(p) if p else None
+
+
+def default_snapshot_dir() -> Path:
+    return default_worlds_root().parent / "Снимки"
+
+
+def set_snapshot_dir(path: str | Path) -> None:
+    prefs = load_prefs()
+    prefs["snapshot_dir"] = str(path)
+    save_prefs(prefs)
+
+
+def snapshot_name(seed: str, view_id: str, mode: str, when=None) -> str:
+    """``<seed>_<view>_<mode>_<YYYYMMDD-HHMMSS>.png`` (safe on every system)."""
+    import datetime as _dt
+
+    stamp = (when or _dt.datetime.now()).strftime("%Y%m%d-%H%M%S")
+    return safe_name(f"{seed}_{view_id}_{mode}_{stamp}") + ".png"
+
+
 def set_worlds_root(path: str | Path) -> None:
     prefs = load_prefs()
     prefs["worlds_root"] = str(path)

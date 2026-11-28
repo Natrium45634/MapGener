@@ -97,8 +97,10 @@ TRACT_LAMBDA = {
     "R16": 8e-7,
     "R22": 1.2e-6,
     "R23": 2e-6,
-    "R24": 6e-6,
-    "R25": 2e-6,
+    # coal and petroleum: most sedimentary basins with burial hold them (Earth: hundreds of
+    # coal basins, ~1000 giant oil and gas fields in ~15 million km2 of productive basins)
+    "R24": 1.2e-5,
+    "R25": 1.5e-5,
     "R26": 1.5e-6,
     "R28": 2e-6,
     "R30": 2e-7,
@@ -401,20 +403,25 @@ def tract_suitability(ctx: GeoContext) -> dict:
     put("R23", schist & ctx.orogen, 0.35, "metamorphosed carbonaceous sediments")
     put(
         "R24",
-        (L == LITH["coal_measures"]) & (fill > 800.0),
-        _sig((fill - 1500.0) / 700.0),
+        (L == LITH["coal_measures"]) & (fill > 600.0),
+        _sig((fill - 1200.0) / 600.0),
         "peat-forming basin + burial (inherited paleo-swamp)",
     )
     put(
         "R25",
         (ctx.basin_type > 0)
-        & (fill > 2500.0)
+        & (fill > 1500.0)
         & (
             (L == LITH["black_shale"])
             | (L == LITH["coal_measures"])
             | (L == LITH["red_beds_evaporitic"])
+            # carbonate and clastic platform sequences: reservoirs over a buried source
+            # (the Persian Gulf, the West Siberian basin)
+            | (L == LITH["carbonate_platform"])
+            | (L == LITH["platform_siliciclastic"])
         ),
-        _sig((fill - 3500.0) / 800.0),
+        # the oil window: a source rock buried 2-4 km generates
+        _sig((fill - 2200.0) / 600.0),
         "P1: source, burial, reservoir, seal assumed",
     )
     put(

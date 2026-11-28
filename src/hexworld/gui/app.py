@@ -179,6 +179,13 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.month_box)
         controls.addLayout(self.overlay_row)
         controls.addStretch(1)
+        self.snap_btn = QPushButton("📷 Снимок")
+        self.snap_btn.setToolTip(
+            "Сохранить эту вкладку картинкой в папку снимков одним щелчком (F12). "
+            "Папка выбирается при первом снимке; сменить — «Вид → Папка для снимков…»"
+        )
+        self.snap_btn.clicked.connect(lambda: self.snapshot())
+        controls.addWidget(self.snap_btn)
         controls.addWidget(self.v2_button)
         controls.addWidget(self.note)
         map_column = QVBoxLayout()
@@ -296,6 +303,7 @@ class MainWindow(QMainWindow):
         self.hex_panel = HexInfoPanel()
         self.hex_panel.zoom_requested.connect(lambda c, r: self.view.zoom_to_hex(c, r))
         self.hex_panel.close_requested.connect(self._close_hex_panel)
+        self.hex_panel.context = self._report_context
         self.hex_dock = QDockWidget("Информация о гексе", self)
         self.hex_dock.setObjectName("hex_info_dock")
         self.hex_dock.setWidget(self.hex_panel)
@@ -391,6 +399,14 @@ class MainWindow(QMainWindow):
         self.side_action.setCheckable(True)
         self.side_action.setChecked(True)
         act(view, "Информация о гексе (панель справа)", self._toggle_hex_panel, "Ctrl+I")
+        act(view, "📍 Скопировать гекс для отчёта", self.hex_panel.copy_report, "Ctrl+Shift+R",
+            "Код мира, координаты выбранного гекса, вкладка и главное о нём")  # fmt: skip
+        view.addSeparator()
+        act(view, "📷 Снимок вкладки", lambda: self.snapshot(), "F12",
+            "Картинка этой вкладки в папку снимков, одним нажатием")  # fmt: skip
+        act(view, "Папка для снимков…", lambda: self.choose_snapshot_dir(), None,
+            "Куда сохранять снимки по F12")  # fmt: skip
+        view.addSeparator()
         self.names_action = act(view, "Названия на карте", self._toggle_names, "Ctrl+T")
         self.names_action.setCheckable(True)
         self.names_action.setChecked(True)
@@ -456,6 +472,11 @@ class MainWindow(QMainWindow):
             "чтобы смотреть мир на весь экран; ▶ — вернуть.<br><br>"
             "<b>Климатические пояса</b>: в настройках мира («Мир») — «от полюса до полюса» даёт "
             "полярные шапки сверху и снизу, тропики посередине.<br><br>"
+            "<b>📷 Снимок</b> (F12): эта вкладка картинкой в папку снимков. <b>📍 Для "
+            "отчёта</b> (Ctrl+Shift+R): код мира, координаты и главное о выбранном гексе — "
+            "в буфер, чтобы указать на место на карте.<br><br>"
+            "<b>Ресурсы по видам</b>: выберите сырьё в «Режиме» — его месторождения видны "
+            "цветом на чёрно-белой карте высот.<br><br>"
             "<b>Мои миры</b> (Ctrl+L): история всех созданных миров, избранное, сравнение.<br><br>"
             "<b>Пакет миров</b> (Ctrl+B): много эскизов за минуту — выберите лучший.<br><br>"
             "<b>Глобус</b> (Ctrl+G) и <b>экспорт для игр</b> — в меню «Вид» и «Мир».",
@@ -1374,6 +1395,53 @@ class MainWindow(QMainWindow):
             image = views.render_view_image(self.project, spec.id, mode, overlays)
             render.write_png(Path(path), image)
             self.statusBar().showMessage(f"Изображение сохранено: {path}")
+
+    def _report_context(self) -> dict:
+        from ..world_tools import world_code
+
+        out = {}
+        if self.project is not None:
+            try:
+                out["code"] = world_code(self.project.config, self._project_through(self.project))
+            except Exception:  # noqa: BLE001
+                pass
+            spec = self.current_view()
+            mode, _ov = self._view_state.get(spec.id, ("", frozenset()))
+            mode_title = next((o.title for o in spec.modes if o.id == mode), mode)
+            out["view"] = f"{spec.title}" + (f" — {mode_title}" if mode_title else "")
+        return out
+
+    def choose_snapshot_dir(self) -> Path | None:
+        from .. import saved_worlds as sw
+
+        start = sw.snapshot_dir() or sw.default_snapshot_dir()
+        folder = QFileDialog.getExistingDirectory(self, "Папка для снимков", str(start))
+        if not folder:
+            return None
+        sw.set_snapshot_dir(folder)
+        self.statusBar().showMessage(f"Снимки сохраняются в {folder}")
+        return Path(folder)
+
+    def snapshot(self, folder: Path | None = None) -> Path | None:
+        """The current tab as a PNG in the snapshot folder, one click (F12)."""
+        from .. import saved_worlds as sw
+
+        if self.project is None:
+            return None
+        folder = folder or sw.snapshot_dir() or self.choose_snapshot_dir()
+        if folder is None:
+            return None
+        spec = self.current_view()
+        mode, overlays = self._view_state[spec.id]
+        month = next((t for t in overlays if t.startswith("month:")), "")
+        name = sw.snapshot_name(self.project.config.seed, spec.id,
+                                mode + (f"_m{int(month[6:]) + 1}" if month else ""))  # fmt: skip
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        path = Path(folder) / name
+        image = views.render_view_image(self.project, spec.id, mode, overlays)
+        render.write_png(path, image)
+        self.statusBar().showMessage(f"📷 Снимок сохранён: {path}")
+        return path
 
     def export_all_png(self):
         if self.project is None:

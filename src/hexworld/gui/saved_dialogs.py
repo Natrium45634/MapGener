@@ -325,7 +325,7 @@ class ViewsChooser(QWidget):
         for title, ids in (("Все", None), ("Только высоты и биомы", ("heights", "biomes")),
                            ("Основные", ("heights", "temperature", "precipitation",
                                          "hydrology", "biomes", "soil_fertility",
-                                         "mineral_resources"))):  # fmt: skip
+                                         "resources_by_type", "mineral_resources"))):  # fmt: skip
             b = QPushButton(title)
             b.clicked.connect(lambda _c=False, s=ids: self.set_shown(s))
             quick.addWidget(b)

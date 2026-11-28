@@ -5095,6 +5095,155 @@ def _vectors_res52(project: Project, mode: str, overlays: frozenset) -> list[Vec
     return out
 
 
+#: «Ресурсы по видам»: commodity -> (title, colour, family of the favourable areas)
+COMMODITIES = (
+    ("coal", "Уголь", (20, 20, 20), "energy"),
+    ("oil", "Нефть", (150, 40, 160), "energy"),
+    ("gas", "Природный газ", (40, 150, 230), "energy"),
+    ("Fe", "Железо", (190, 60, 30), "ferrous_alloy"),
+    ("Mn", "Марганец", (120, 70, 140), "ferrous_alloy"),
+    ("Cr", "Хром", (40, 140, 110), "ferrous_alloy"),
+    ("Cu", "Медь", (225, 120, 40), "base_metals"),
+    ("Zn", "Цинк", (110, 130, 170), "base_metals"),
+    ("Pb", "Свинец", (90, 95, 120), "base_metals"),
+    ("Ni", "Никель", (90, 160, 90), "base_metals"),
+    ("Co", "Кобальт", (40, 70, 200), "base_metals"),
+    ("Mo", "Молибден", (120, 120, 60), "base_metals"),
+    ("W", "Вольфрам", (150, 110, 60), "base_metals"),
+    ("Au", "Золото", (235, 185, 20), "precious_metals"),
+    ("Ag", "Серебро", (150, 160, 175), "precious_metals"),
+    ("Pt", "Платина", (110, 170, 180), "precious_metals"),
+    ("Pd", "Палладий", (160, 140, 190), "precious_metals"),
+    ("Al", "Алюминий (бокситы)", (200, 100, 80), "light_battery"),
+    ("Ti", "Титан", (90, 110, 130), "light_battery"),
+    ("Li", "Литий", (220, 80, 150), "light_battery"),
+    ("Zr", "Цирконий", (170, 130, 90), "light_battery"),
+    ("Sn", "Олово", (130, 150, 150), "critical_rare"),
+    ("Ta", "Тантал", (80, 100, 150), "critical_rare"),
+    ("Nb", "Ниобий", (100, 140, 200), "critical_rare"),
+    ("REE", "Редкоземельные (РЗЭ)", (200, 60, 120), "critical_rare"),
+    ("U", "Уран", (120, 200, 40), "critical_rare"),
+    ("P", "Фосфаты", (200, 160, 60), "industrial"),
+    ("K", "Калийные соли", (210, 90, 110), "industrial"),
+    ("NaCl", "Каменная соль", (120, 180, 200), "industrial"),
+    ("S", "Сера", (220, 210, 40), "industrial"),
+    ("C_graphite", "Графит", (70, 70, 80), "industrial"),
+    ("diamond", "Алмазы", (60, 200, 220), "gems"),
+    ("gem", "Самоцветы", (200, 50, 70), "gems"),
+)
+_COMMODITY = {k: (t, c, f) for k, t, c, f in COMMODITIES}
+
+
+def _relief_gray(project: Project) -> np.ndarray:
+    """Black-and-white relief: land from grey (lowlands) to white (high mountains), the sea
+    dark, deeper darker."""
+    z = project.hydro.layers["elevation_m"].astype(np.float64) - project.current_sea_level_m
+    land = project.hydro.layers["land_mask"].astype(bool)
+    g_land = 120.0 + 130.0 * np.sqrt(np.clip(z / 5000.0, 0.0, 1.0))
+    g_sea = 70.0 - 40.0 * np.clip(-z / 6000.0, 0.0, 1.0)
+    g = np.where(land, g_land, g_sea)
+    return np.repeat(g[..., None], 3, axis=2).astype(np.uint8)
+
+
+def _commodity_systems(project: Project, el: str, surface_only: bool) -> list[dict]:
+    out = []
+    for s in project.resources.catalog["systems"]:
+        m = float(s["contained_t"].get(el, 0.0))
+        if m > 0 and (s["surface_occurrence"] or not surface_only):
+            out.append(s)
+    return out
+
+
+def _render_commodity(project: Project, mode: str, overlays: frozenset) -> np.ndarray:
+    from .resources.models import FAMILIES
+
+    rgb = _relief_gray(project)
+    el = mode[4:] if mode.startswith("com_") else "coal"
+    title, color, family = _COMMODITY.get(el, ("", (200, 0, 0), "energy"))
+    col = np.array(color, dtype=np.float64)
+    land = project.hydro.layers["land_mask"].astype(bool)
+    if "areas" in overlays:
+        prosp = np.nan_to_num(
+            project.resources.layers["prospectivity_by_family"][FAMILIES.index(family)].astype(
+                float
+            )
+        )
+        a = (0.55 * np.clip(prosp, 0.0, 1.0))[..., None]
+        rgb = (rgb * (1.0 - a) + col * a).astype(np.uint8)
+    # the hexes of the deposits themselves, solid
+    width = project.layout.width
+    for s in _commodity_systems(project, el, "surface_only" in overlays):
+        h = int(s["hex"])
+        rgb[h // width, h % width] = color
+    if "coast" in overlays:
+        _shade(rgb, mask_rim(land, project.layout), 0.55)
+    return rgb
+
+
+def _vectors_commodity(project: Project, mode: str, overlays: frozenset) -> list[VectorLayer]:
+    """Deposits of the chosen commodity as marks sized by the contained mass (visible at any
+    zoom); the hexes themselves are painted by the render."""
+    el = mode[4:] if mode.startswith("com_") else "coal"
+    _t, color, _f = _COMMODITY.get(el, ("", (200, 0, 0), "energy"))
+    pts = _commodity_systems(project, el, "surface_only" in overlays)
+    if not pts:
+        return []
+    m = np.array([float(s["contained_t"][el]) for s in pts])
+    x = np.array([s["x_km"] for s in pts])
+    y = np.array([s["y_km"] for s in pts])
+    lm = np.log10(np.maximum(m, 1e-9))
+    lo, hi = float(lm.min()), float(lm.max())
+    rank = (lm - lo) / (hi - lo) if hi > lo else np.full(lm.size, 0.5)
+    out = []
+    for k, (a, b) in enumerate(((0.0, 0.34), (0.34, 0.67), (0.67, 1.01))):
+        sel = (rank >= a) & (rank < b)
+        if sel.any():
+            out.append(VectorLayer("points", x[sel], y[sel], color, 3.0 + 2.5 * k, True,
+                                   ("малые", "средние", "крупные")[k]))  # fmt: skip
+    return out
+
+
+def _fmt_t(t: float) -> str:
+    for div, unit in ((1e9, "млрд т"), (1e6, "млн т"), (1e3, "тыс. т")):
+        if t >= div:
+            return f"{t / div:,.1f} {unit}".replace(",", " ")
+    return f"{t:,.1f} т".replace(",", " ")
+
+
+def _legend_commodity(project: Project, mode: str) -> list[LegendItem]:
+    from .resources.models import FAMILY_TITLES
+
+    el = mode[4:] if mode.startswith("com_") else "coal"
+    title, color, family = _COMMODITY.get(el, ("", (200, 0, 0), "energy"))
+    every = _commodity_systems(project, el, False)
+    seen = [s for s in every if s["surface_occurrence"]]
+    total = sum(float(s["contained_t"][el]) for s in every)
+    items = [
+        LegendItem(
+            f"{title}: месторождений {len(every)}, из них с выходом на поверхность "
+            f"{len(seen)}; всего {_fmt_t(total)} (в недрах)",
+            color,
+        ),  # fmt: skip
+        LegendItem("метка: малые / средние / крупные по запасу (точка на гексе залежи)"),
+        LegendItem(f"светлый тон — благоприятные районы: {FAMILY_TITLES[family]}"),
+        LegendItem("фон: высоты, чёрно-белая карта (светлее — выше, море тёмное)"),
+    ]
+    if not every:
+        items.insert(1, LegendItem("в этом мире такого сырья не образовалось"))
+    if every:
+        big = max(every, key=lambda s: float(s["contained_t"][el]))
+        w = project.layout.width
+        mass = _fmt_t(float(big["contained_t"][el]))
+        items.append(
+            LegendItem(
+                f"крупнейшее: {big['title']}, {mass}, гекс ({int(big['hex']) % w}, "
+                f"{int(big['hex']) // w})"
+            )  # fmt: skip
+        )
+    items.append(LegendItem("synthetic_not_calibrated: запасы условные, не прогноз"))
+    return items
+
+
 register_view(
     ViewSpec(
         id="soil_fertility",
@@ -5128,6 +5277,26 @@ register_view(
         "урожайность; вкладка «Почвы» v4.5 не изменена",
         render=_render_soil52,
         legend=_legend_soil52,
+    )
+)
+
+register_view(
+    ViewSpec(
+        id="resources_by_type",
+        title="Ресурсы по видам",
+        stage="v52",
+        layers=("prospectivity_by_family", "deposit_count"),
+        modes=tuple(Option(f"com_{k}", t) for k, t, _c, _f in COMMODITIES),
+        overlays=(
+            Option("areas", "Благоприятные районы", True),
+            Option("surface_only", "Только с выходом на поверхность"),
+            Option("coast", "Берег", True),
+        ),
+        note="Выберите сырьё: его месторождения показаны своим цветом на чёрно-белой карте "
+        "высот; размер метки — запас. Показаны все залежи, и скрытые в недрах",
+        render=_render_commodity,
+        legend=_legend_commodity,
+        vectors=_vectors_commodity,
     )
 )
 
